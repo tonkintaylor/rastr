@@ -20,6 +20,7 @@ license-files = [ "LICENSE" ]
 authors = [
   { name = "Tonkin & Taylor Limited", email = "Sub-DisciplineData+AnalyticsStaff@tonkintaylor.co.nz" },
   { name = "Nathan McDougall", email = "nmcdougall@tonkintaylor.co.nz" },
+  { name = "Ben Karl", email = "bkarl@tonkintaylor.co.nz" },
 ]
 requires-python = ">=3.10"
 classifiers = [

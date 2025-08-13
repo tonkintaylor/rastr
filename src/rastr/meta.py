@@ -1,9 +1,8 @@
-from typing import Self
-
 import numpy as np
 from affine import Affine
 from pydantic import BaseModel, InstanceOf
 from pyproj import CRS
+from typing_extensions import Self
 
 
 class RasterMeta(BaseModel, extra="forbid"):

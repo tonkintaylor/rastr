@@ -2533,6 +2533,7 @@ dependencies = [
     { name = "scipy", version = "1.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "shapely" },
     { name = "tqdm" },
+    { name = "typing-extensions" },
     { name = "xyzservices" },
 ]
 
@@ -2582,6 +2583,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "shapely", specifier = ">=2.1.1" },
     { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "typing-extensions", specifier = ">=4.14.1" },
     { name = "xyzservices", specifier = ">=2025.4.0" },
 ]
 

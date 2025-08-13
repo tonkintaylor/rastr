@@ -3,7 +3,7 @@
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Self
+from typing import TYPE_CHECKING, Literal
 
 import geopandas as gpd
 import matplotlib as mpl
@@ -24,6 +24,7 @@ from rasterio.enums import Resampling
 from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter, MemoryFile
 from scipy.ndimage import gaussian_filter
 from shapely.geometry import LineString, Polygon
+from typing_extensions import Self
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet

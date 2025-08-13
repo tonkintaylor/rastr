@@ -1,0 +1,125 @@
+name: CI
+permissions:
+  contents: read
+  pull-requests: write
+on:
+  workflow_dispatch:
+  push:
+    branches: ['master', 'develop']
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'mkdocs.yml'
+  pull_request:
+    branches: ['master', 'develop']
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'mkdocs.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup git user config
+        run: |
+          git config --global user.name placeholder
+          git config --global user.email placeholder@example.com
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.3.1
+        with:
+          version: "0.8.3" # Sync with pyproject.toml
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+        
+      - name: Setup dependencies
+        run: |
+          uv python pin ${{ matrix.python-version }}
+          uv export --no-managed-python --no-group doc --resolution ${{ matrix.resolution }} > ci-requirements.txt 
+          uv pip install --system -r ci-requirements.txt
+
+      - name: Run pre-commit
+        if: matrix.pre-commit
+        run: |
+          uv run --frozen pre-commit run --all-files
+
+      - name: Run pytest
+        uses: pavelzw/pytest-action@510c5e90c360a185039bea56ce8b3e7e51a16507 # v2.2.0
+        if: matrix.pytest
+        with:
+          custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
+
+      - name: Create test reports directory
+        if: matrix.pytest && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: mkdir -p ./test-reports
+
+      - name: Upload coverage reports
+        if: matrix.pytest && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: coverage-reports
+          path: test-reports/coverage.xml
+
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        resolution: ["highest"]
+        pre-commit: [true]
+        pytest: [true]
+        include:
+          - os: "ubuntu-latest"
+            python-version: "3.10"
+            resolution: "lowest-direct"
+            pre-commit: false
+            pytest: true
+
+  code-analysis:
+    name: Analyse Code Quality
+    runs-on: ubuntu-latest
+    needs: tests
+    if: always() && needs.tests.result == 'success'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better relevancy of analysis
+      
+      - name: Download coverage reports
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: coverage-reports
+          path: test-reports/
+        continue-on-error: true
+      
+      - name: Create SonarQube properties
+        run: |
+          cat > sonar-project.properties << EOF
+          sonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+          sonar.language=py
+          sonar.python.version=3.13
+          sonar.sources=./src
+          sonar.tests=./tests
+          sonar.python.coverage.reportPaths=./test-reports/coverage.xml
+          sonar.exclusions=**/Dockerfile,**/notebooks/**,**/scripts/**
+          sonar.verbose=false
+          EOF
+      
+      - name: Run SonarQube analysis
+        uses: SonarSource/sonarqube-scan-action@884b79409bbd464b2a59edc326a4b77dc56b2195 # v3.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}

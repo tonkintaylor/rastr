@@ -1,0 +1,2 @@
+#!/bin/bash
+source ./tasks/scripts/activate_venv.sh

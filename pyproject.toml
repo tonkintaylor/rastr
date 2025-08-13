@@ -1,0 +1,230 @@
+# PEP 621 compliant file for project metadata
+# See here for more information:
+# https://packaging.python.org/en/latest/specifications/declaring-project-metadata/#declaring-project-metadata
+# https://www.python.org/dev/peps/pep-0621/
+
+[build-system]
+build-backend = "hatchling.build"
+
+requires = [
+  "hatch-vcs>=0.5.0,<0.6.0",
+  "hatchling>=1.27.0,<1.28.0",
+]
+
+[project]
+name = "rastr"
+description = "Geospatial Raster datatype library for Python."
+readme = "README.md"
+license = "MIT"
+license-files = [ "LICENSE" ]
+authors = [
+  { name = "Tonkin & Taylor Limited", email = "Sub-DisciplineData+AnalyticsStaff@tonkintaylor.co.nz" },
+  { name = "Nathan McDougall", email = "nmcdougall@tonkintaylor.co.nz" },
+]
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dynamic = [ "urls", "version" ]
+dependencies = [  ]
+
+[dependency-groups]
+dev = [
+  "build>=1.2.2.post1",
+  "deptry>=0.23.0",
+  "ipykernel>=6.30.0",
+  "ipython>=8.37.0",
+  "ipywidgets>=8.1.7",
+  "matplotlib>=3.10.3",
+  "nbstripout>=0.8.1",
+  "perfplot>=0.10.2",
+  "pip>=25.1.1",
+  "pre-commit>=4.2.0",
+  "pre-commit-update>=0.8.0",
+  "pyright[nodejs]>=1.1.403",
+  "ruff>=0.12.5",
+  "tqdm>=4.67.1",
+  "usethis>=0.15.2",
+]
+test = [
+  "coverage[toml]>=7.10.1",
+  "pytest>=8.4.1",
+  "pytest-cov>=6.2.1",
+  "pytest-emoji>=0.2.0",
+  "pytest-md>=0.2.0",
+]
+doc = [
+  "mkdocs>=1.6.1",
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.metadata.hooks.vcs.urls]
+"Source Code" = "https://github.com/tonkintaylor/rastr"
+"Bug Tracker" = "https://github.com/tonkintaylor/rastr/issues"
+"Releases" = "https://github.com/tonkintaylor/rastr/releases"
+"Source Archive" = "https://github.com/tonkintaylor/rastr/archive/{commit_hash}.zip"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/rastr/_version.py"
+
+[tool.ruff]
+line-length = 88
+src = [ "src" ]
+include = [ "**/pyproject.toml", "*.ipynb", "*.py", "*.pyi" ]
+extend-exclude = [ "src/**/_version.py", "src/archive/**" ]
+
+lint.select = [ "ALL" ]
+lint.ignore = [
+  # ##############################
+  # The following rules are disabled for general reasons.
+  # ##############################
+  "ANN401", # This is too strict for dunder methods.
+  "B023",   # Prevents using df.loc[lambda _: ...]; too many false positives.
+  "B024",   # This is controversial, ABC's don't always need methods.
+  "C408",   # This is controversial, calls to `dict` can be more idiomatic than {}.
+  "COM812", # Incompatible with the ruff formatter.
+  "D100",   # Too excessive for our purposes (Docstring in public module).
+  "D105",   # This is controversial, we don't always need docstrings for magic methods.
+  "D107",   # This is controversial, we don't always need docstrings for magic methods.
+  "D202",   # This is controversial, it is useful to have a blank line after a docstring.
+  "D203",   # This is controversial, no need to have a blank line before a docstring.
+  "D213",   # This conflicts with D212 and violates PEP 257.
+  "D406",   # This rule is for non-Google style docstrings.
+  "D407",   # This rule is for non-Google style docstrings.
+  "D408",   # This rule is for non-Google style docstrings.
+  "D409",   # This rule is for non-Google style docstrings.
+  "D415",   # Too excessive for our purposes (Docstring ending in punctuation).
+  "G004",   # This is controversial, f-strings are too convenient to avoid.
+  "ISC001", # Incompatible with the ruff formatter.
+  # ##############################
+  # The following rules trade-off code quality for performance.
+  # In some cases where your code is poorly-performing you might want to enable them again.
+  # ##############################
+  "PD101",   # Harms readability for a performance optimization.
+  "PD901",   # We often call variables "df" in functions dealing with pandas DataFrames.
+  "PERF203", # Too many false positives.
+  "PERF401", # This can hurt readability; the performance is not always worth it.
+  "PIE804",  # This is controversial, some pandas APIs work better with dict approach.
+  "PLR2004", # Too strict for exploratory work
+  "PLW2901", # Too many false positives.
+  "PT003",   # Explicit is better than implicit
+  "PTH201",  # This is controversial, when dealing with relative paths "." is clearer.
+  "RET504",  # This is controversial, named returns are often clearer.
+  "RET505",  # This is controversial, returns within ``else`` are often clearer.
+  "RET506",  # This is controversial, explicit branch structure is often clearer.
+  "S105",    # Too many false positives.
+  "S311",    # Too many false positives in a data science context.
+  "S324",    # Too many false positives.
+  "S603",    # Too many false positives.
+  "SIM105",  # This harms refactorability, is slower, and increases learning curve.
+  "SIM108",  # This is controversial, the ternary operator is not always clearer.
+  "SIM118",  # This is controversial, sometimes .keys() explicitly is clearer.
+  "TC001",   # Too many false positives.
+  "TC002",   # Too many false positives.
+  "TC003",   # Too many false positives.
+  "TD",      # These rules don't align well with the way we use TODOs.
+  "TD003",   # Too excessive for our purposes (TODO Links).
+  "UP015",   # This is controversial, explicit is better than implicit.
+  "UP040",   # This doesn't integrate well with pydantic.
+]
+lint.per-file-ignores."!tests/**/*py" = [
+  "PT015", # This is pytest specific and not applicable outside of the tests directory
+  "T201",  # Print statements forbidden in tests but not elsewhere
+]
+lint.per-file-ignores."**/__init__.py" = [
+  "D104", # Don't need a docstring in (usually empty) __init__.py files
+  "F403", # We often use * imports in __init__.py files
+  "F405", # We often use * imports in __init__.py files
+]
+lint.per-file-ignores."doc/source/conf.py" = [
+  "BLE001", # We want to catch all errors blindly in Sphinx builds
+  "INP001", # Not actually a namespace package, a special Sphinx file
+]
+# We aren't as strict about code quality in notebooks and scripts
+lint.per-file-ignores."src/{scripts,notebooks}/**" = [
+  "ANN",     # Annotations
+  "ARG001",  # Unused function arguments
+  "B018",    # "Useless" expressions are used for displaying cell outputs
+  "BLE001",  # OK to catch blind exceptions
+  "D",       # Documentation
+  "E501",    # Line length
+  "FBT",     # Defensive programming techniques for function definitions are overkill
+  "INP001",  # __init__.py not applicable for standalone scripts anyway
+  "PLR0913", # OK to have functions with many arguments in scripts and notebooks
+  "S101",    # Asserts fine in scripts and notebooks
+  "T201",    # Prints fine in scripts and notebooks
+]
+lint.per-file-ignores."tests/**/*.py" = [
+  "ANN",     # We don't need annotations in tests
+  "D",       # We don't need docstrings in tests
+  "FBT001",  # Fine for fixtures
+  "INP",     # Tests don't need __init__.py files
+  "PLR0913", # When we use fixtures, our test functions can have many arguments
+  "S101",    # Using assert is fine in tests
+]
+lint.allowed-confusables = [ "ℹ", "–", "σ" ]
+lint.flake8-tidy-imports.banned-api."pytz".msg = "'zoneinfo' should be preferred to 'pytz' when using Python 3.9 and later, see https://tonkintaylor-sonarqube.azurewebsites.net/coding_rules?open=python%3AS6890&rule_key=python%3AS6890"
+lint.pydocstyle.convention = "google"
+
+[tool.codespell]
+ignore-regex = [ "[A-Za-z0-9+/]{100,}" ]
+ignore-words-list = [ "..." ]
+
+[tool.deptry]
+extend_exclude = [ "src/notebooks", "src/scripts", "src/archive" ]
+experimental_namespace_package = true
+
+[tool.pyproject-fmt]
+keep_full_version = true
+
+[tool.pytest.ini_options]
+testpaths = [ "tests" ]
+norecursedirs = [ "tests/assets", "src/notebooks", "src/scripts", "src/archive" ]
+addopts = [
+  "--import-mode=importlib",
+  "-ra",
+  "--strict-config",
+  "--strict-markers",
+]
+console_output_style = "progress"
+filterwarnings = [ "error" ]
+xfail_strict = true
+log_cli_level = "INFO"
+
+[tool.coverage.run]
+source = [ "src" ]
+omit = [ "*/pytest-of-*/*", "*/_version.py", "src/archive/*" ]
+relative_files = true
+
+[tool.coverage.report]
+ignore_errors = true
+show_missing = true
+exclude_lines = [
+  # Don't complain if tests don't hit defensive assertion code:
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "AbstractMethodError",
+  # Don't complain if non-runnable code isn't run:
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "if 0:",
+  # Don't complain about missing debug-only code:
+  "def __repr__",
+  "if self\\.debug",
+  # Don't complain about abstract methods, they aren't run:
+  "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.xml]
+output = "test-reports/coverage.xml"
+
+[tool.uv]
+default-groups = [ "dev", "test", "doc" ]
+required-version = "==0.8.3"              # sync with .pre-commit-config.yaml and release.yml
+link-mode = "symlink"

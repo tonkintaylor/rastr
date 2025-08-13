@@ -1,0 +1,17 @@
+# Changes here will be overwritten by Copier
+_commit: v0.5.6
+_src_path: git+https://bitbucket.org/tonkintaylor/python-template
+is_advanced: true
+is_confluence_used: false
+is_doc_used: false
+is_jira_used: false
+is_projectwide_config_used: false
+is_rstyle_config_used: false
+is_sonarqube_used: false
+is_ttpy_namespace: false
+max_line_length: '88'
+name_slug: rastr
+project_name: rastr
+project_short_description: Geospatial Raster datatype library for Python.
+py_version: 3.12.11
+tt_job_num: YYYTTNZ.0700

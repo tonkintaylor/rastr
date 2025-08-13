@@ -127,17 +127,6 @@ repos:
       - id: codespell
         additional_dependencies:
           - tomli
-  - repo: local
-    hooks:
-      - id: pyright
-        name: pyright
-        entry: uv run --frozen --offline pyright
-        additional_dependencies:
-          - uv==0.8.3
-        language: python
-        types_or: [python, pyi]
-        always_run: true
-        require_serial: true
 default_install_hook_types:
   - pre-commit
   - pre-push

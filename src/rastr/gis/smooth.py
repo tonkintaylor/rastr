@@ -5,10 +5,11 @@ Fork + Port of <https://github.com/philipschall/shapelysmooth> (Public domain)
 
 from __future__ import annotations
 
-from typing import TypeAlias, assert_never
+from typing import TypeAlias
 
 import numpy as np
 from shapely.geometry import LineString, Polygon
+from typing_extensions import assert_never
 
 T: TypeAlias = LineString | Polygon
 

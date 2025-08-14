@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://raw.githubusercontent.com/tonkintaylor/rastr/refs/heads/main/docs/logo.svg"><br>
+  <img src="https://raw.githubusercontent.com/tonkintaylor/rastr/refs/heads/develop/docs/logo.svg"><br>
 </h1>
 
 # rastr

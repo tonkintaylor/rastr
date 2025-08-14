@@ -11,16 +11,20 @@ A lightweight geospatial raster datatype library for Python focused on simplicit
 `rastr` provides an intuitive interface for creating, reading, manipulating, and exporting geospatial raster data in Python.
 
 ### Features
-- **Complete raster arithmetic**: Full support for mathematical operations (+, -, *, /) between rasters and scalars.
-- **Flexible visualization**: Built-in plotting with matplotlib and interactive mapping with folium.
-- **Geospatial analysis tools**: Contour generation, Gaussian blurring, and spatial sampling.
-- **Data manipulation**: Fill NaN values, extrapolate missing data, and resample to different resolutions.
-- **Seamless integration**: Works with GeoPandas, rasterio, and the broader Python geospatial ecosystem.
-- **Vector-to-raster workflows**: Convert GeoDataFrame polygons, points, and lines to raster format.
+- 🧮 **Complete raster arithmetic**: Full support for mathematical operations (`+`, `-`, `*`, `/`) between rasters and scalars.
+- 📊 **Flexible visualization**: Built-in plotting with matplotlib and interactive mapping with folium.
+- 🗺️ **Geospatial analysis tools**: Contour generation, Gaussian blurring, and spatial sampling.
+- 🛠️ **Data manipulation**: Fill NaN values, extrapolate missing data, and resample to different resolutions.
+- 🔗 **Seamless integration**: Works with GeoPandas, rasterio, and the broader Python geospatial ecosystem.
+- ↔️ **Vector-to-raster workflows**: Convert GeoDataFrame polygons, points, and lines to raster format.
 
 ## Installation
 
 ```bash
+# With uv
+uv add rastr
+
+# With pip
 pip install rastr
 ```
 
@@ -68,7 +72,7 @@ contours = raster.contour(levels=[0.1, 0.5, 0.9], smoothing=True)
 
 # Apply spatial operations
 blurred = raster.blur(sigma=2.0)  # Gaussian blur
-filled = raster.extrapolate(method="nearest")  # Fill NaN values
+filled = raster.extrapolate(method="nearest")  # Fill NaN values via nearest-neighbours
 resampled = raster.resample(new_cell_size=0.5)  # Change resolution
 
 # Export to file
@@ -80,6 +84,6 @@ gdf = raster.as_geodataframe(name="elevation")
 
 ## Limitations
 Current version limitations:
-- Single-band rasters only.
+- Only Single-band rasters are supported..
 - In-memory processing only (streaming support planned).
 - Square cells only (rectangular cell support planned).

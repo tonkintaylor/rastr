@@ -7,4 +7,4 @@
 
 Geospatial Raster datatype library for Python.
 
-Currently, only single-banded rasters with square cells are supported.
+Currently, only single-banded, in-memory rasters with square cells are supported.

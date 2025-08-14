@@ -320,8 +320,15 @@ class RasterModel(BaseModel):
         arr = np.array(self.arr)
 
         # Normalize the data to the range [0, 1] as this is the cmap range
-        min_val = np.nanmin(arr)
-        max_val = np.nanmax(arr)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="All-NaN slice encountered",
+                category=RuntimeWarning,
+            )
+            min_val = np.nanmin(arr)
+            max_val = np.nanmax(arr)
+
         if max_val > min_val:  # Prevent division by zero
             arr = (arr - min_val) / (max_val - min_val)
         else:

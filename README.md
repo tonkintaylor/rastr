@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/tonkintaylor/rastr/refs/heads/main/docs/logo.svg"><br>
 </h1>
 
-# Rastr
+# rastr
 
 [![PyPI Version](https://img.shields.io/pypi/v/rastr.svg)](<https://pypi.python.org/pypi/rastr>)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
@@ -88,6 +88,6 @@ gdf = raster.as_geodataframe(name="elevation")
 
 ## Limitations
 Current version limitations:
-- Only Single-band rasters are supported..
+- Only Single-band rasters are supported.
 - In-memory processing only (streaming support planned).
 - Square cells only (rectangular cell support planned).

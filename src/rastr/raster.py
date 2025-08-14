@@ -1,5 +1,6 @@
 """Raster data structure."""
 
+import warnings
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path

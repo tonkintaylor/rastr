@@ -11,6 +11,8 @@ class RasterMeta(BaseModel, extra="forbid"):
     Attributes:
         cell_size: Cell size in meters.
         crs: Coordinate reference system.
+        transform: The affine transformation associated with the raster. This is based
+                   on the CRS, the cell size, as well as the offset/origin.
     """
 
     cell_size: float

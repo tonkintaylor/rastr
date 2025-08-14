@@ -121,6 +121,15 @@ repos:
         language: python
         always_run: true
         pass_filenames: false
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: import-linter
+        always_run: true
+        entry: uv run --frozen --offline lint-imports
+        language: system
+        pass_filenames: false
+        require_serial: true
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:

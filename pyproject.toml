@@ -20,6 +20,7 @@ license-files = [ "LICENSE" ]
 authors = [
   { name = "Tonkin & Taylor Limited", email = "Sub-DisciplineData+AnalyticsStaff@tonkintaylor.co.nz" },
   { name = "Nathan McDougall", email = "nmcdougall@tonkintaylor.co.nz" },
+  { name = "Ben Karl", email = "bkarl@tonkintaylor.co.nz" },
 ]
 requires-python = ">=3.10"
 classifiers = [
@@ -53,6 +54,7 @@ dev = [
   "build>=1.2.2.post1",
   "deptry>=0.23.0",
   "folium>=0.20.0",
+  "import-linter>=2.3",
   "ipykernel>=6.30.0",
   "ipython>=8.37.0",
   "ipywidgets>=8.1.7",
@@ -177,6 +179,7 @@ lint.per-file-ignores."src/{scripts,notebooks}/**" = [
   "S101",    # Asserts fine in scripts and notebooks
   "T201",    # Prints fine in scripts and notebooks
 ]
+lint.per-file-ignores."tests/**" = [ "INP" ]
 lint.per-file-ignores."tests/**/*.py" = [
   "ANN",     # We don't need annotations in tests
   "D",       # We don't need docstrings in tests
@@ -245,3 +248,19 @@ output = "test-reports/coverage.xml"
 default-groups = [ "dev", "test", "doc" ]
 required-version = "==0.8.3"              # sync with .pre-commit-config.yaml and release.yml
 link-mode = "symlink"
+
+[tool.importlinter]
+root_packages = [ "rastr" ]
+
+[[tool.importlinter.contracts]]
+name = "rastr"
+type = "layers"
+layers = [
+  "create | io",
+  "raster",
+  "meta",
+  "arr | gis",
+  "_version",
+]
+containers = [ "rastr" ]
+exhaustive = true

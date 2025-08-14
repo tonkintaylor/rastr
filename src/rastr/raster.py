@@ -74,9 +74,10 @@ class RasterModel(BaseModel):
     __hash__ = BaseModel.__hash__
 
     def __add__(self, other: float | Self) -> Self:
+        cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr + other
-            return RasterModel(arr=new_arr, raster_meta=self.raster_meta)
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
         elif isinstance(other, RasterModel):
             if self.raster_meta != other.raster_meta:
                 msg = (
@@ -91,7 +92,7 @@ class RasterModel(BaseModel):
                 )
                 raise ValueError(msg)
             new_arr = self.arr + other.arr
-            return RasterModel(arr=new_arr, raster_meta=self.raster_meta)
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
         else:
             return NotImplemented
 
@@ -99,9 +100,10 @@ class RasterModel(BaseModel):
         return self + other
 
     def __mul__(self, other: float | Self) -> Self:
+        cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr * other
-            return RasterModel(arr=new_arr, raster_meta=self.raster_meta)
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
         elif isinstance(other, RasterModel):
             if self.raster_meta != other.raster_meta:
                 msg = (
@@ -113,7 +115,7 @@ class RasterModel(BaseModel):
                 msg = "Rasters must have the same shape to be multiplied"
                 raise ValueError(msg)
             new_arr = self.arr * other.arr
-            return RasterModel(arr=new_arr, raster_meta=self.raster_meta)
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
         else:
             return NotImplemented
 
@@ -121,9 +123,10 @@ class RasterModel(BaseModel):
         return self * other
 
     def __truediv__(self, other: float | Self) -> Self:
+        cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr / other
-            return RasterModel(arr=new_arr, raster_meta=self.raster_meta)
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
         elif isinstance(other, RasterModel):
             if self.raster_meta != other.raster_meta:
                 msg = (
@@ -135,7 +138,7 @@ class RasterModel(BaseModel):
                 msg = "Rasters must have the same shape to be divided"
                 raise ValueError(msg)
             new_arr = self.arr / other.arr
-            return RasterModel(arr=new_arr, raster_meta=self.raster_meta)
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
         else:
             return NotImplemented
 
@@ -149,7 +152,8 @@ class RasterModel(BaseModel):
         return -self + other
 
     def __neg__(self) -> Self:
-        return RasterModel(arr=-self.arr, raster_meta=self.raster_meta)
+        cls = self.__class__
+        return cls(arr=-self.arr, raster_meta=self.raster_meta)
 
     @property
     def cell_centre_coords(self) -> NDArray[np.float64]:
@@ -422,8 +426,10 @@ class RasterModel(BaseModel):
 
         return raster_gdf
 
-    def to_file(self, path: Path) -> None:
+    def to_file(self, path: Path | str) -> None:
         """Write the raster to a GeoTIFF file."""
+
+        path = Path(path)
 
         suffix = path.suffix.lower()
         if suffix in (".tif", ".tiff"):
@@ -455,8 +461,9 @@ class RasterModel(BaseModel):
                 raise OSError(msg) from err
 
     def __str__(self) -> str:
+        cls = self.__class__
         mean = np.nanmean(self.arr)
-        return f"RasterModel(shape={self.arr.shape}, {mean=})"
+        return f"{cls.__name__}(shape={self.arr.shape}, {mean=})"
 
     def __repr__(self) -> str:
         return str(self)
@@ -619,6 +626,7 @@ class RasterModel(BaseModel):
 
         factor = self.raster_meta.cell_size / new_cell_size
 
+        cls = self.__class__
         # Use the rasterio dataset with proper context management
         with self.to_rasterio_dataset() as dataset:
             # N.B. the new height and width may increase slightly.
@@ -642,7 +650,7 @@ class RasterModel(BaseModel):
                 cell_size=new_cell_size,
             )
 
-            return RasterModel(arr=new_arr, raster_meta=new_raster_meta)
+            return cls(arr=new_arr, raster_meta=new_raster_meta)
 
     @field_validator("arr")
     @classmethod

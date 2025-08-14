@@ -84,6 +84,6 @@ gdf = raster.as_geodataframe(name="elevation")
 
 ## Limitations
 Current version limitations:
-- Only Single-band rasters are supported..
+- Only Single-band rasters are supported.
 - In-memory processing only (streaming support planned).
 - Square cells only (rectangular cell support planned).

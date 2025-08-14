@@ -1,3 +1,3 @@
-# Rastr
+# rastr
 
-Welcome to the documentation for Rastr.
+Welcome to the documentation for rastr.

@@ -455,8 +455,9 @@ class RasterModel(BaseModel):
                 raise OSError(msg) from err
 
     def __str__(self) -> str:
+        cls = self.__class__
         mean = np.nanmean(self.arr)
-        return f"RasterModel(shape={self.arr.shape}, {mean=})"
+        return f"{cls.__name__}(shape={self.arr.shape}, {mean=})"
 
     def __repr__(self) -> str:
         return str(self)

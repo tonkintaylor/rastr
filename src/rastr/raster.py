@@ -74,7 +74,7 @@ class RasterModel(BaseModel):
     __hash__ = BaseModel.__hash__
 
     def __add__(self, other: float | Self) -> Self:
-        cls = type(self)
+        cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr + other
             return cls(arr=new_arr, raster_meta=self.raster_meta)
@@ -100,7 +100,7 @@ class RasterModel(BaseModel):
         return self + other
 
     def __mul__(self, other: float | Self) -> Self:
-        cls = type(self)
+        cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr * other
             return cls(arr=new_arr, raster_meta=self.raster_meta)
@@ -123,7 +123,7 @@ class RasterModel(BaseModel):
         return self * other
 
     def __truediv__(self, other: float | Self) -> Self:
-        cls = type(self)
+        cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr / other
             return cls(arr=new_arr, raster_meta=self.raster_meta)
@@ -152,7 +152,7 @@ class RasterModel(BaseModel):
         return -self + other
 
     def __neg__(self) -> Self:
-        cls = type(self)
+        cls = self.__class__
         return cls(arr=-self.arr, raster_meta=self.raster_meta)
 
     @property
@@ -623,7 +623,7 @@ class RasterModel(BaseModel):
 
         factor = self.raster_meta.cell_size / new_cell_size
 
-        cls = type(self)
+        cls = self.__class__
         # Use the rasterio dataset with proper context management
         with self.to_rasterio_dataset() as dataset:
             # N.B. the new height and width may increase slightly.

@@ -155,6 +155,31 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[6, 8], [10, 12]]))
 
+        def test_add_subclass_return_type(self):
+            # Arrange
+            class MyRaster(RasterModel):
+                pass
+
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster1 = MyRaster(
+                arr=np.array([[1, 2], [3, 4]]),
+                raster_meta=raster_meta,
+            )
+            raster2 = MyRaster(
+                arr=np.array([[5, 6], [7, 8]]),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster1 + raster2
+
+            # Assert
+            assert isinstance(result, MyRaster)
+
         def test_crs_mismatch(self):
             # Arrange
             raster_meta1 = RasterMeta(

@@ -511,6 +511,16 @@ class TestRasterModel:
             # Assert
             assert filename.exists()
 
+        def test_string_as_path(self, tmp_path: Path, example_raster: RasterModel):
+            # Arrange
+            filename = tmp_path / "test_raster.tif"
+
+            # Act
+            example_raster.to_file(filename.as_posix())
+
+            # Assert
+            assert filename.exists()
+
     class TestPlot:
         def test_cell_array_unchanged(self, example_raster_with_zeros: RasterModel):
             # Arrange

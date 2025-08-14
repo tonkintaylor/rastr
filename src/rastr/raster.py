@@ -422,8 +422,10 @@ class RasterModel(BaseModel):
 
         return raster_gdf
 
-    def to_file(self, path: Path) -> None:
+    def to_file(self, path: Path | str) -> None:
         """Write the raster to a GeoTIFF file."""
+
+        path = Path(path)
 
         suffix = path.suffix.lower()
         if suffix in (".tif", ".tiff"):

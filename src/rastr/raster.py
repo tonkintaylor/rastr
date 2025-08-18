@@ -322,6 +322,7 @@ class RasterModel(BaseModel):
             colormap
         ]
 
+        # Cast to GDF to facilitate converting bounds to WGS84
         wgs84_crs = CRS.from_epsg(4326)
         gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
             wgs84_crs
@@ -364,7 +365,7 @@ class RasterModel(BaseModel):
 
         img.add_to(m)
 
-        # Add a colorbar legend similar to geopandas.explore
+        # Add a colorbar legend
         if BrancaLinearColormap is not None:
             # Determine legend data range in original units
             vmin = float(min_val) if np.isfinite(min_val) else 0.0
@@ -372,12 +373,8 @@ class RasterModel(BaseModel):
             if vmax <= vmin:
                 vmax = vmin + 1.0
 
-            # Build colormap colors from the same matplotlib colormap
-            cmap = mpl.colormaps[colormap]
-
-            # Use many samples for a smooth legend gradient
-            sample_points = np.linspace(0, 1, 256)
-            colors = [to_hex(cmap(x)) for x in sample_points]
+            sample_points = np.linspace(0, 1, rbga_map.N)
+            colors = [to_hex(rbga_map(x)) for x in sample_points]
             legend = BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
             if cbar_label:
                 legend.caption = cbar_label

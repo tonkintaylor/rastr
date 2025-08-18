@@ -751,7 +751,7 @@ class TestCrop:
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
 
-    def test_border_cells_cropped(self, base_raster: RasterModel):
+    def test_underflow_crops_border_cells(self, base_raster: RasterModel):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -769,6 +769,18 @@ class TestCrop:
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
+
+    def test_overflow_doesnt_crop(self, base_raster: RasterModel):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        shift = base_raster.raster_meta.cell_size / 10  # Some cells overlap bounds
+        bounds = (minx + shift, miny + shift, maxx - shift, maxy - shift)
+
+        # Act
+        cropped = base_raster.crop(bounds, strategy="overflow")
+
+        # Assert
+        assert cropped == base_raster  # Border cells are not clipped, despite overlap
 
     @pytest.mark.parametrize(
         "bounds",

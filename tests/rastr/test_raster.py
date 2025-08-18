@@ -673,28 +673,130 @@ class TestRasterModel:
                 )
 
 
+@pytest.fixture
+def base_raster():
+    meta = RasterMeta(
+        cell_size=10.0,  # 10-meter cells
+        crs=CRS.from_epsg(2193),
+        transform=Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0),  # Standard NZTM-like
+    )
+    # Create a 4x4 raster with values 1-16
+    arr = np.arange(1, 17, dtype=float).reshape(4, 4)
+    return RasterModel(arr=arr, raster_meta=meta)
+
+
+@pytest.fixture
+def small_raster():
+    meta = RasterMeta(
+        cell_size=5.0,
+        crs=CRS.from_epsg(2193),
+        transform=Affine(5.0, 0.0, 0.0, 0.0, -5.0, 10.0),
+    )
+    arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+    return RasterModel(arr=arr, raster_meta=meta)
+
+
+class TestCrop:
+    def test_fully_within_bbox_base(self, base_raster: RasterModel):
+        # Arrange
+        bounds = base_raster.bounds
+
+        # Act
+        cropped = base_raster.crop(bounds)
+
+        # Assert
+        assert cropped == base_raster
+
+    def test_fully_within_bbox_small(self, small_raster: RasterModel):
+        # Arrange
+        bounds = small_raster.bounds
+
+        # Act
+        cropped = small_raster.crop(bounds)
+
+        # Assert
+        assert cropped == small_raster
+
+    def test_crop_y_only(self, base_raster: RasterModel):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        bounds = (minx, miny + cell_size, maxx, maxy - cell_size)
+        expected_transform = Affine(20.0, 0.0, 0.0, 0.0, -5.0, 100.0 - cell_size)
+
+        # Act
+        cropped = base_raster.crop(bounds)
+
+        # Assert
+        assert cropped.arr.shape == (4, 2)
+        assert cropped.bounds == bounds
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
+        assert cropped.raster_meta.crs == base_raster.raster_meta.crs
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_crop_x_only(self, base_raster: RasterModel):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        bounds = (minx + cell_size, miny, maxx - cell_size, maxy)
+        expected_transform = Affine(5.0, 0.0, minx + cell_size, 0.0, -20.0, 100.0)
+
+        # Act
+        cropped = base_raster.crop(bounds)
+
+        # Assert
+        assert cropped.arr.shape == (2, 4)
+        assert cropped.bounds == bounds
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
+        assert cropped.raster_meta.crs == base_raster.raster_meta.crs
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_border_cells_cropped(self, base_raster: RasterModel):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        shift = base_raster.raster_meta.cell_size / 10  # Some cells overlap bounds
+        bounds = (minx + shift, miny + shift, maxx - shift, maxy - shift)
+        expected_transform = Affine(
+            10.0, 0.0, minx + cell_size, 0.0, -10.0, 100.0 - cell_size
+        )  # Cells overlapping bounds are clipped
+
+        # Act
+        cropped = base_raster.crop(bounds)
+
+        # Assert
+        assert cropped.arr.shape == (2, 2)
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
+        assert cropped.raster_meta.crs == base_raster.raster_meta.crs
+        assert cropped.raster_meta.transform == expected_transform
+
+    @pytest.mark.parametrize(
+        "bounds",
+        [(1000, 1000, 2000, 2000), (0.0, 60.0, 0.0, 100.0)],
+        ids=["out_of_bounds", "fully_clipped_x"],
+    )
+    def test_no_contained_data_raises(
+        self, base_raster: RasterModel, bounds: tuple[float, float, float, float]
+    ):
+        # Arrange, Act & Assert
+        with pytest.raises(
+            ValueError,
+            match="Cropped array is empty; no cells within the specified bounds.",
+        ):
+            base_raster.crop(bounds)
+
+    def test_unsupported_crop_strategy(self, base_raster: RasterModel):
+        # Arrange
+        bounds = base_raster.bounds
+
+        # Act & Assert
+        with pytest.raises(
+            NotImplementedError, match="Unsupported cropping strategy: invalid_strategy"
+        ):
+            base_raster.crop(bounds, strategy="invalid_strategy")
+
+
 class TestResample:
-    @pytest.fixture
-    def base_raster(self):
-        meta = RasterMeta(
-            cell_size=10.0,  # 10-meter cells
-            crs=CRS.from_epsg(2193),
-            transform=Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0),  # Standard NZTM-like
-        )
-        # Create a 4x4 raster with values 1-16
-        arr = np.arange(1, 17, dtype=float).reshape(4, 4)
-        return RasterModel(arr=arr, raster_meta=meta)
-
-    @pytest.fixture
-    def small_raster(self):
-        meta = RasterMeta(
-            cell_size=5.0,
-            crs=CRS.from_epsg(2193),
-            transform=Affine(5.0, 0.0, 0.0, 0.0, -5.0, 10.0),
-        )
-        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
-        return RasterModel(arr=arr, raster_meta=meta)
-
     def test_upsampling_doubles_resolution(self, base_raster):
         # Arrange
         new_cell_size = 5.0  # Half the original size (10.0)

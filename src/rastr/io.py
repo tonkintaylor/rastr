@@ -1,12 +1,18 @@
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
 import rasterio
-from numpy.typing import NDArray
 from pyproj.crs import CRS
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from numpy.typing import NDArray
 
 
 def read_raster_inmem(raster_path: Path | str, crs: CRS | None = None) -> RasterModel:

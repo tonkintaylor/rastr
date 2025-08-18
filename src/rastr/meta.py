@@ -1,8 +1,15 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 from affine import Affine
-from pydantic import BaseModel, InstanceOf
+from pydantic import BaseModel
 from pyproj import CRS
-from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from pydantic import InstanceOf
+    from typing_extensions import Self
 
 
 class RasterMeta(BaseModel, extra="forbid"):

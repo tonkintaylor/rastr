@@ -949,3 +949,20 @@ class TestExplore:
         # vmin/vmax should reflect original data range (not normalized)
         assert pytest.approx(legend.vmin) == expected_min
         assert pytest.approx(legend.vmax) == expected_max
+
+    def test_explore_without_folium_raises(self, monkeypatch):
+        # Arrange a minimal raster
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Simulate Folium not installed
+        monkeypatch.setattr("rastr.raster.FOLIUM_INSTALLED", False, raising=False)
+
+        # Act / Assert
+        with pytest.raises(ImportError, match="folium.*required"):
+            raster.explore()

@@ -318,7 +318,7 @@ class RasterModel(BaseModel):
         if m is None:
             m = folium.Map()
 
-        rbga_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
+        rgba_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
             colormap
         ]
 
@@ -359,7 +359,7 @@ class RasterModel(BaseModel):
             image=arr,
             bounds=[[ymin, xmin], [ymax, xmax]],
             opacity=opacity,
-            colormap=rbga_map,
+            colormap=rgba_map,
             mercator_project=True,
         )
 
@@ -373,8 +373,8 @@ class RasterModel(BaseModel):
             if vmax <= vmin:
                 vmax = vmin + 1.0
 
-            sample_points = np.linspace(0, 1, rbga_map.N)
-            colors = [to_hex(rbga_map(x)) for x in sample_points]
+            sample_points = np.linspace(0, 1, rgba_map.N)
+            colors = [to_hex(rgba_map(x)) for x in sample_points]
             legend = BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
             if cbar_label:
                 legend.caption = cbar_label

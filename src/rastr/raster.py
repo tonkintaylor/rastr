@@ -616,6 +616,7 @@ class RasterModel(BaseModel):
 
     def crop(
         self,
+        *,
         bounds: tuple[float, float, float, float],
         strategy: Literal["underflow"] = "underflow",
     ) -> Self:

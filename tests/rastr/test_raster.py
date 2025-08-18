@@ -1,9 +1,11 @@
 from pathlib import Path
 
+import folium
 import geopandas as gpd
 import numpy as np
 import pytest
 from affine import Affine
+from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 from shapely.geometry import Polygon
@@ -906,3 +908,44 @@ class TestResample:
         # Assert
         assert resampled.raster_meta.cell_size == new_cell_size
         assert isinstance(resampled, RasterModel)
+
+
+class TestExplore:
+    @pytest.fixture
+    def explore_map(self):
+        # Hard-coded test data and simple raster with known min/max
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+        return raster.explore(cbar_label="My Legend")
+
+    def test_overlay(self, explore_map):
+        m = explore_map
+        # Assert: an ImageOverlay is present
+        has_image_overlay = any(
+            isinstance(child, folium.raster_layers.ImageOverlay)
+            for child in m._children.values()
+        )
+        assert has_image_overlay, "Expected an ImageOverlay to be added to the map"
+
+    def test_cbar(self, explore_map):
+        m = explore_map
+        expected_min = 1.0
+        expected_max = 4.0
+        # Assert: a LinearColormap legend is present with expected properties
+        legends = [
+            child for child in m._children.values() if isinstance(child, LinearColormap)
+        ]
+        assert len(legends) >= 1, "Expected a LinearColormap legend to be added"
+        legend = legends[-1]
+
+        # Caption is set from cbar_label
+        assert getattr(legend, "caption", None) == "My Legend"
+
+        # vmin/vmax should reflect original data range (not normalized)
+        assert pytest.approx(legend.vmin) == expected_min
+        assert pytest.approx(legend.vmax) == expected_max

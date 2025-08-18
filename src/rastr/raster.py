@@ -667,7 +667,6 @@ class RasterModel(BaseModel):
         # Recalculate the transform for the cropped raster
         x_coords = x_coords[x_idx]
         y_coords = y_coords[y_idx]
-
         transform = rasterio.transform.from_bounds(
             west=x_coords.min() - half_cell_size,
             south=y_coords.min() - half_cell_size,

@@ -17,6 +17,7 @@ import skimage.measure
 import xyzservices.providers as xyz
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.colors import to_hex
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from numpy.typing import NDArray
 from pydantic import BaseModel, InstanceOf, field_validator
@@ -48,6 +49,14 @@ try:
     from rasterio._err import CPLE_BaseError
 except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
+
+# Optional branca (folium dependency) for colorbar legends
+try:
+    from branca.colormap import (
+        LinearColormap as BrancaLinearColormap,  # type: ignore[import-not-found]
+    )
+except ImportError:  # pragma: no cover - optional dependency
+    BrancaLinearColormap = None  # type: ignore[assignment]
 
 
 CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
@@ -299,6 +308,7 @@ class RasterModel(BaseModel):
         m: Map | None = None,
         opacity: float = 1.0,
         colormap: str = "viridis",
+        cbar_label: str | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
         if not FOLIUM_INSTALLED:
@@ -340,9 +350,9 @@ class RasterModel(BaseModel):
         flip_x = self.raster_meta.transform.a < 0
         flip_y = self.raster_meta.transform.e > 0
         if flip_x:
-            arr = np.flip(self.arr, axis=1)
+            arr = np.flip(arr, axis=1)
         if flip_y:
-            arr = np.flip(self.arr, axis=0)
+            arr = np.flip(arr, axis=0)
 
         img = folium.raster_layers.ImageOverlay(
             image=arr,
@@ -353,6 +363,25 @@ class RasterModel(BaseModel):
         )
 
         img.add_to(m)
+
+        # Add a colorbar legend similar to geopandas.explore
+        if BrancaLinearColormap is not None:
+            # Determine legend data range in original units
+            vmin = float(min_val) if np.isfinite(min_val) else 0.0
+            vmax = float(max_val) if np.isfinite(max_val) else 1.0
+            if vmax <= vmin:
+                vmax = vmin + 1.0
+
+            # Build colormap colors from the same matplotlib colormap
+            cmap = mpl.colormaps[colormap]
+
+            # Use many samples for a smooth legend gradient
+            sample_points = np.linspace(0, 1, 256)
+            colors = [to_hex(cmap(x)) for x in sample_points]
+            legend = BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+            if cbar_label:
+                legend.caption = cbar_label
+            legend.add_to(m)
 
         m.fit_bounds([[ymin, xmin], [ymax, xmax]])
 

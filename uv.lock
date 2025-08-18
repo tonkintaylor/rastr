@@ -2534,6 +2534,7 @@ name = "rastr"
 source = { editable = "." }
 dependencies = [
     { name = "affine" },
+    { name = "branca" },
     { name = "folium" },
     { name = "geopandas" },
     { name = "matplotlib" },
@@ -2587,6 +2588,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "affine", specifier = ">=2.4.0" },
+    { name = "branca", specifier = ">=0.8.1" },
     { name = "folium", specifier = ">=0.20.0" },
     { name = "geopandas", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.5" },

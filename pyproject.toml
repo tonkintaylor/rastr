@@ -6,10 +6,7 @@
 [build-system]
 build-backend = "hatchling.build"
 
-requires = [
-  "hatch-vcs>=0.5.0,<0.6.0",
-  "hatchling>=1.27.0,<1.28.0",
-]
+requires = [ "hatch-vcs>=0.5.0,<0.6.0", "hatchling>=1.27.0,<1.28.0" ]
 
 [project]
 name = "rastr"
@@ -33,6 +30,7 @@ classifiers = [
 dynamic = [ "urls", "version" ]
 dependencies = [
   "affine>=2.4.0",
+  "branca>=0.8.1",
   "folium>=0.20.0",
   "geopandas>=1.1.1",
   "matplotlib>=3.10.5",
@@ -76,9 +74,7 @@ test = [
   "pytest-emoji>=0.2.0",
   "pytest-md>=0.2.0",
 ]
-doc = [
-  "mkdocs>=1.6.1",
-]
+doc = [ "mkdocs>=1.6.1" ]
 
 [tool.hatch.version]
 source = "vcs"
@@ -255,12 +251,6 @@ root_packages = [ "rastr" ]
 [[tool.importlinter.contracts]]
 name = "rastr"
 type = "layers"
-layers = [
-  "create | io",
-  "raster",
-  "meta",
-  "arr | gis",
-  "_version",
-]
+layers = [ "create | io", "raster", "meta", "arr | gis", "_version" ]
 containers = [ "rastr" ]
 exhaustive = true

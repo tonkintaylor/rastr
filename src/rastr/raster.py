@@ -616,8 +616,8 @@ class RasterModel(BaseModel):
 
     def crop(
         self,
-        *,
         bounds: tuple[float, float, float, float],
+        *,
         strategy: Literal["underflow"] = "underflow",
     ) -> Self:
         """Crop the raster to the specified bounds.
@@ -678,13 +678,11 @@ class RasterModel(BaseModel):
         )
 
         # Update the raster
-        new_raster = self.model_copy()
-        new_raster.arr = cropped_arr
-        new_raster.raster_meta = RasterMeta(
+        cls = self.__class__
+        new_meta = RasterMeta(
             cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
         )
-
-        return new_raster
+        return cls(arr=cropped_arr, raster_meta=new_meta)
 
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"

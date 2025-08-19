@@ -603,6 +603,25 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(example_raster_with_zeros.arr, original_array)
 
+        def test_plot_without_matplotlib_raises(self, monkeypatch: pytest.MonkeyPatch):
+            # Arrange a minimal raster
+            arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+            )
+            raster = RasterModel(arr=arr, raster_meta=meta)
+
+            # Simulate matplotlib not installed
+            monkeypatch.setattr(
+                "rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False
+            )
+
+            # Act / Assert
+            with pytest.raises(ImportError, match="matplotlib.*required"):
+                raster.plot()
+
     class TestExample:
         def test_example(self):
             # Act
@@ -680,7 +699,7 @@ class TestRasterModel:
 
             def test_fillna(self, example_raster: RasterModel):
                 # Arrange
-                raster_with_nas = example_raster.model_copy()
+                raster_with_nas = example_raster.model_copy(deep=True)
                 raster_with_nas.arr[0, 0] = np.nan
 
                 # Act
@@ -1111,6 +1130,23 @@ class TestExplore:
 
         # Act / Assert
         with pytest.raises(ImportError, match="folium.*required"):
+            raster.explore()
+
+    def test_explore_without_matplotlib_raises(self, monkeypatch: pytest.MonkeyPatch):
+        # Arrange a minimal raster
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Simulate matplotlib not installed
+        monkeypatch.setattr("rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False)
+
+        # Act / Assert
+        with pytest.raises(ImportError, match="matplotlib.*required"):
             raster.explore()
 
     def test_homogenous_raster(self):

@@ -15,7 +15,9 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def read_raster_inmem(raster_path: Path | str, crs: CRS | None = None) -> RasterModel:
+def read_raster_inmem(
+    raster_path: Path | str, *, crs: CRS | None = None
+) -> RasterModel:
     """Read raster data from a file and return an in-memory Raster object."""
     with rasterio.open(raster_path, mode="r") as dst:
         # Read the entire array

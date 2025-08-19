@@ -32,7 +32,8 @@ def create_point_grid(
     x_coords = np.arange(xmin + cell_size / 2, xmax + cell_size / 2, cell_size)
     y_coords = np.arange(ymax - cell_size / 2, ymin - cell_size / 2, -cell_size)
 
-    return np.meshgrid(x_coords, y_coords)
+    x_points, y_points = np.meshgrid(x_coords, y_coords)  # type: ignore[reportAssignmentType]
+    return x_points, y_points
 
 
 def get_point_grid_shape(

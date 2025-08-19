@@ -637,9 +637,9 @@ class RasterModel(BaseModel):
             bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.
             strategy:   The cropping strategy to use. 'underflow' will crop the raster
                         to be fully within the bounds, ignoring any cells that are
-                        partially outside the bounds. 'overflow' will crop the raster
-                        to include all cells that intersect the bounds, even if they are
-                        partially outside the bounds.
+                        partially outside the bounds. 'overflow' will instead include
+                        cells that intersect the bounds, ensuring the bounds area
+                        remains covered with cells.
 
         Returns:
             A new RasterModel instance cropped to the specified bounds.

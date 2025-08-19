@@ -73,6 +73,39 @@ class RasterModel(BaseModel):
     arr: InstanceOf[np.ndarray]
     raster_meta: RasterMeta
 
+    @property
+    def meta(self) -> RasterMeta:
+        """Alias for raster_meta."""
+        return self.raster_meta
+
+    @meta.setter
+    def meta(self, value: RasterMeta) -> None:
+        self.raster_meta = value
+
+    def __init__(
+        self,
+        *,
+        arr: ArrayLike,
+        meta: RasterMeta | None = None,
+        raster_meta: RasterMeta | None = None,
+    ) -> None:
+        arr = np.asarray(arr)
+
+        # Set the meta
+        if meta is not None and raster_meta is not None:
+            msg = "Specify either 'meta' or 'raster_meta', not both: they are aliases."
+            raise ValueError(msg)
+        elif meta is not None and raster_meta is None:
+            raster_meta = meta
+        elif meta is None and raster_meta is not None:
+            pass
+        else:
+            # Don't need to mention `'meta'` to simplify the messaging.
+            msg = "The attribute 'raster_meta' is required."
+            raise ValueError(msg)
+
+        super().__init__(arr=arr, raster_meta=raster_meta)
+
     def __eq__(self, other: object) -> bool:
         """Check equality of two RasterModel objects."""
         if not isinstance(other, RasterModel):

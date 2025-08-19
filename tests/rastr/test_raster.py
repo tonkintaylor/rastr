@@ -149,6 +149,33 @@ class TestAsGeoDataFrame:
 
 
 class TestRasterModel:
+    class TestMetaAlias:
+        def test_meta_getter_returns_raster_meta(self, example_raster: RasterModel):
+            # Act
+            meta_via_alias = example_raster.meta
+            meta_direct = example_raster.raster_meta
+
+            # Assert
+            assert meta_via_alias is meta_direct
+            assert meta_via_alias == meta_direct
+
+        def test_meta_setter_updates_raster_meta(self, example_raster: RasterModel):
+            # Arrange
+            new_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
+            )
+            original_meta = example_raster.raster_meta
+
+            # Act
+            example_raster.meta = new_meta
+
+            # Assert
+            assert example_raster.raster_meta is new_meta
+            assert example_raster.meta is new_meta
+            assert example_raster.raster_meta != original_meta
+
     class TestAdd:
         def test_basic(self):
             # Arrange

@@ -1,22 +1,28 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import warnings
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
 import rasterio.features
+import rasterio.transform
 from affine import Affine
+from scipy.interpolate import LinearNDInterpolator
+from scipy.spatial import ConvexHull, QhullError
 from shapely.geometry import Point
 from tqdm.notebook import tqdm
+from typing_extensions import assert_never
 
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
+from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
 
 if TYPE_CHECKING:
     import geopandas as gpd
+    from numpy.typing import NDArray
     from shapely.geometry import Polygon
-
-    from rastr.meta import RasterMeta
+    from shapely.geometry.base import BaseGeometry
 
 
 class MissingColumnsError(ValueError):
@@ -192,6 +198,240 @@ def rasterize_gdf(
         rasters.append(raster)
 
     return rasters
+
+
+def rasterize_z_gdf(
+    gdf: gpd.GeoDataFrame,
+    *,
+    raster_meta: RasterMeta,
+    agg: Literal["mean", "min", "max"] = "mean",
+) -> RasterModel:
+    """Rasterize interpolated Z-values from geometries in a GeoDataFrame.
+
+    Handles overlapping geometries by aggregating values using a specified method.
+    All geometries must be 3D (have Z coordinates) for interpolation to work.
+
+    The Z-value for each cell is interpolated at the cell center.
+
+    Args:
+        gdf: GeoDataFrame containing 3D geometries with Z coordinates.
+        raster_meta: Raster metadata (giving cell size, etc.)
+        agg: Aggregation function to use for overlapping values ("mean", "min", "max").
+
+    Returns:
+        A raster of interpolated Z values.
+
+    Raises:
+        ValueError: If any geometries are not 3D.
+    """
+    gdf = gdf.copy()
+
+    # Handle empty GeoDataFrame early
+    if len(gdf) == 0:
+        # Return a minimal raster with NaN values
+        # Use a default 1x1 cell array since there's no geometry to determine bounds
+        arr = np.full((1, 1), np.nan, dtype=np.float32)
+        return RasterModel(arr=arr, raster_meta=raster_meta)
+
+    _validate_geometries_are_3d(gdf)
+
+    # Use the provided raster metadata instead of creating new bounds
+    # This ensures the raster respects the requested grid alignment
+    cell_size = raster_meta.cell_size
+    transform = raster_meta.transform
+
+    # Determine the bounds that would encompass the geometry while respecting the grid
+    gdf_bounds = gdf.total_bounds
+    minx_geom, miny_geom, maxx_geom, maxy_geom = gdf_bounds
+
+    # Use geometry bounds directly without extra buffering
+    geom_bounds = (minx_geom, miny_geom, maxx_geom, maxy_geom)
+
+    # Calculate the grid shape needed to cover the geometry bounds
+    shape = get_point_grid_shape(bounds=geom_bounds, cell_size=cell_size)
+    height, width = shape
+
+    # Create a new transform that aligns with the provided grid but covers the geometry
+    # Start from the top-left corner that would align with the provided grid
+    grid_origin_x = transform.c  # x-offset from original transform
+    grid_origin_y = transform.f  # y-offset from original transform
+
+    # Find the top-left corner of our raster that aligns with the original grid
+    # and covers the geometry bounds
+    cols_to_start = int((geom_bounds[0] - grid_origin_x) / cell_size)
+    rows_to_start = int((grid_origin_y - geom_bounds[3]) / cell_size)
+
+    # Calculate the actual bounds of our aligned raster
+    actual_minx = grid_origin_x + cols_to_start * cell_size
+    actual_maxy = grid_origin_y - rows_to_start * cell_size
+
+    # Create the aligned transform
+    aligned_transform = Affine.translation(actual_minx, actual_maxy) * Affine.scale(
+        cell_size, -cell_size
+    )
+
+    # Update the raster metadata to use the aligned transform
+    aligned_raster_meta = RasterMeta(
+        cell_size=cell_size, crs=raster_meta.crs, transform=aligned_transform
+    )
+
+    # Generate grid coordinates for interpolation
+    rows, cols = np.indices(shape)
+    xs, ys = rasterio.transform.xy(aligned_transform, rows, cols, offset="center")
+    x_coords = np.array(xs).ravel()
+    y_coords = np.array(ys).ravel()
+
+    # Create 2D accumulation arrays
+    z_stack = []
+    for geom in gdf.geometry:
+        z_vals = _interpolate_z_in_geometry(geom, x_coords, y_coords)
+        z_stack.append(z_vals)
+
+    if not z_stack:
+        z_raster = np.full((height, width), np.nan, dtype=np.float32)
+        return RasterModel(arr=z_raster, raster_meta=aligned_raster_meta)
+
+    z_stack = np.array(z_stack)  # Shape: (N, height * width)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning, message="All-NaN slice encountered"
+        )
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning, message="Mean of empty slice"
+        )
+
+        if agg == "mean":
+            z_agg = np.nanmean(z_stack, axis=0)
+        elif agg == "min":
+            z_agg = np.nanmin(z_stack, axis=0)
+        elif agg == "max":
+            z_agg = np.nanmax(z_stack, axis=0)
+        else:
+            assert_never(agg)
+
+    z_raster = np.asarray(z_agg).reshape((height, width)).astype(np.float32)
+
+    return RasterModel(arr=z_raster, raster_meta=aligned_raster_meta)
+
+
+def _validate_geometries_are_3d(gdf: gpd.GeoDataFrame) -> None:
+    """Validate that all geometries have 3D coordinates (Z values).
+
+    Args:
+        gdf: The GeoDataFrame to check for 3D geometries.
+
+    Raises:
+        ValueError: If any geometries are not 3D.
+    """
+    for idx, geom in enumerate(gdf.geometry):
+        if geom is None or geom.is_empty:
+            continue
+
+        # Check if geometry has Z coordinates
+        if not geom.has_z:
+            msg = (
+                f"Geometry at index {idx} is not 3D. All geometries must have "
+                "Z coordinates for interpolation to work."
+            )
+            raise ValueError(msg)
+
+
+def _interpolate_z_in_geometry(
+    geometry: BaseGeometry, x: NDArray, y: NDArray
+) -> NDArray[np.float64]:
+    """Vectorized interpolation of Z values in a geometry at multiple (x, y) points.
+
+    Parameters:
+        geometry: Shapely geometry with Z coordinates (Polygon, LineString, etc.).
+        x: Array of X coordinates, shape (N,).
+        y: Array of Y coordinates, shape (N,).
+
+    Returns:
+        Array of interpolated Z values (NaN if outside convex hull or no boundary).
+    """
+    if x.shape != y.shape:
+        msg = "x and y must have the same shape"
+        raise ValueError(msg)
+
+    # Extract coordinates from geometry
+    coords = _extract_coords_from_geometry(geometry)
+    if coords is None:
+        return np.full_like(x, np.nan, dtype=np.float64)
+
+    # Validate geometry for interpolation
+    if not _is_valid_for_interpolation(geometry, coords):
+        return np.full_like(x, np.nan, dtype=np.float64)
+
+    xy_boundary = coords[:, :2]
+    z_boundary = coords[:, 2]
+
+    # Check for degenerate cases before attempting interpolation
+    if not _can_interpolate_points(xy_boundary):
+        return np.full_like(x, np.nan, dtype=np.float64)
+
+    return _perform_interpolation(xy_boundary, z_boundary, x, y)
+
+
+def _extract_coords_from_geometry(geometry: BaseGeometry) -> np.ndarray | None:
+    """Extract coordinates from a geometry object."""
+    if hasattr(geometry, "exterior"):
+        # Polygon - use exterior ring
+        return np.array(geometry.exterior.coords)
+    elif hasattr(geometry, "coords"):
+        # LineString or Point
+        return np.array(geometry.coords)
+    else:
+        # For other geometry types, try to get coords from the boundary
+        try:
+            return np.array(geometry.boundary.coords)
+        except (AttributeError, NotImplementedError):
+            return None
+
+
+def _is_valid_for_interpolation(geometry: BaseGeometry, coords: np.ndarray) -> bool:
+    """Check if geometry is valid for interpolation."""
+    # Need at least 3 points for interpolation (except for Point geometries)
+    if len(coords) < 3 and geometry.geom_type != "Point":
+        return False
+
+    # For Point geometries, we can't interpolate
+    return geometry.geom_type != "Point"
+
+
+def _can_interpolate_points(xy_boundary: NDArray) -> bool:
+    """Check if points can be used for interpolation."""
+    # If all points are coplanar in XY space, interpolation will fail
+    if len(np.unique(xy_boundary, axis=0)) < 3:
+        return False
+
+    # Check if points are collinear or nearly collinear
+    # Calculate the area of the convex hull - if it's too small,
+    # points are nearly collinear
+    try:
+        hull = ConvexHull(xy_boundary)
+    except (QhullError, ValueError):
+        # If ConvexHull fails, the points are likely degenerate
+        return False
+    else:
+        return hull.volume >= 1e-10  # Very small area indicates collinear points
+
+
+def _perform_interpolation(
+    xy_boundary: NDArray,
+    z_boundary: NDArray,
+    x: NDArray,
+    y: NDArray,
+) -> NDArray:
+    """Perform the actual interpolation."""
+    try:
+        interpolator = LinearNDInterpolator(xy_boundary, z_boundary, fill_value=np.nan)
+        xy_query = np.column_stack((x, y))  # Shape: (N, 2)
+        z_vals = interpolator(xy_query)
+        return z_vals.astype(np.float64)
+    except (QhullError, ValueError):
+        # If interpolation fails for any reason, return NaN
+        return np.full_like(x, np.nan, dtype=np.float64)
 
 
 def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> None:

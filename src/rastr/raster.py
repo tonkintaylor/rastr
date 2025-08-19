@@ -164,6 +164,16 @@ class RasterModel(BaseModel):
         """Get the coordinates of the cell centres in the raster."""
         return self.raster_meta.get_cell_centre_coords(self.arr.shape)
 
+    @property
+    def cell_x_coords(self) -> NDArray[np.float64]:
+        """Get the x coordinates of the cell centres in the raster."""
+        return self.raster_meta.get_cell_x_coords(self.arr.shape[0])
+
+    @property
+    def cell_y_coords(self) -> NDArray[np.float64]:
+        """Get the y coordinates of the cell centres in the raster."""
+        return self.raster_meta.get_cell_y_coords(self.arr.shape[1])
+
     @contextmanager
     def to_rasterio_dataset(
         self,
@@ -615,6 +625,75 @@ class RasterModel(BaseModel):
         raster.arr = fillna_nearest_neighbours(arr=self.arr)
 
         return raster
+
+    def crop(
+        self,
+        bounds: tuple[float, float, float, float],
+        *,
+        strategy: Literal["underflow"] = "underflow",
+    ) -> Self:
+        """Crop the raster to the specified bounds.
+
+        Args:
+            bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.
+            strategy:   The cropping strategy to use. 'underflow' will crop the raster
+                        to be fully within the bounds, ignoring any cells that are
+                        partially outside the bounds.
+
+        Returns:
+            A new RasterModel instance cropped to the specified bounds.
+        """
+
+        minx, miny, maxx, maxy = bounds
+        arr = self.arr
+
+        # Get the half cell size for cropping
+        cell_size = self.raster_meta.cell_size
+        half_cell_size = cell_size / 2
+
+        # Get the cell centre coordinates as 1D arrays
+        x_coords = self.cell_x_coords
+        y_coords = self.cell_y_coords
+
+        # Get the indices to crop the array
+        if strategy == "underflow":
+            x_idx = (x_coords >= minx + half_cell_size) & (
+                x_coords <= maxx - half_cell_size
+            )
+            y_idx = (y_coords >= miny + half_cell_size) & (
+                y_coords <= maxy - half_cell_size
+            )
+
+        else:
+            msg = f"Unsupported cropping strategy: {strategy}"
+            raise NotImplementedError(msg)
+
+        # Crop the array
+        cropped_arr = arr[np.ix_(x_idx, y_idx)]
+
+        # Check the shape of the cropped array
+        if cropped_arr.size == 0:
+            msg = "Cropped array is empty; no cells within the specified bounds."
+            raise ValueError(msg)
+
+        # Recalculate the transform for the cropped raster
+        x_coords = x_coords[x_idx]
+        y_coords = y_coords[y_idx]
+        transform = rasterio.transform.from_bounds(
+            west=x_coords.min() - half_cell_size,
+            south=y_coords.min() - half_cell_size,
+            east=x_coords.max() + half_cell_size,
+            north=y_coords.max() + half_cell_size,
+            width=cropped_arr.shape[1],
+            height=cropped_arr.shape[0],
+        )
+
+        # Update the raster
+        cls = self.__class__
+        new_meta = RasterMeta(
+            cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
+        )
+        return cls(arr=cropped_arr, raster_meta=new_meta)
 
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"

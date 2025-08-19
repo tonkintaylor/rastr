@@ -16,9 +16,11 @@ if TYPE_CHECKING:
 
 
 def read_raster_inmem(
-    raster_path: Path | str, *, crs: CRS | None = None
+    raster_path: Path | str, *, crs: CRS | str | None = None
 ) -> RasterModel:
     """Read raster data from a file and return an in-memory Raster object."""
+    crs = CRS.from_user_input(crs) if crs is not None else None
+
     with rasterio.open(raster_path, mode="r") as dst:
         # Read the entire array
         arr: NDArray[np.float64] = dst.read()

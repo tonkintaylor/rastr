@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from geopandas.array import GeometryArray
 
 
-def _normalize_polygon(polygon):
+def _normalize_polygon(polygon: Polygon) -> Polygon:
     """Normalize a polygon's coordinates by sorting them."""
     coords = sorted(
         polygon.exterior.coords[:-1]

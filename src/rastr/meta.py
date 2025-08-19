@@ -4,11 +4,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from affine import Affine
-from pydantic import BaseModel
+from pydantic import BaseModel, InstanceOf
 from pyproj import CRS
 
 if TYPE_CHECKING:
-    from pydantic import InstanceOf
     from typing_extensions import Self
 
 

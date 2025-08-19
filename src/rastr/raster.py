@@ -18,7 +18,7 @@ import skimage.measure
 import xyzservices.providers as xyz
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
@@ -36,7 +36,6 @@ if TYPE_CHECKING:
     from folium import Map
     from matplotlib.axes import Axes
     from numpy.typing import NDArray
-    from pydantic import InstanceOf
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from typing_extensions import Self
 

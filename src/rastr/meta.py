@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 from affine import Affine
 from pydantic import BaseModel, InstanceOf
 from pyproj import CRS
-from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
 class RasterMeta(BaseModel, extra="forbid"):
@@ -38,13 +44,43 @@ class RasterMeta(BaseModel, extra="forbid"):
             shape: (rows, cols) of the raster array.
 
         Returns:
-            np.ndarray of shape (rows, cols, 2) with (x, y) coordinates for each
-            cell center.
+            (x, y) coordinates for each cell center, with shape (rows, cols, 2)
         """
-        rows, cols = shape
-        x_idx = np.arange(cols)
-        y_idx = np.arange(rows)
-        xv, yv = np.meshgrid(x_idx, y_idx)
-        x_coords, y_coords = self.transform * (xv + 0.5, yv + 0.5)
-        coords = np.stack([x_coords, y_coords], axis=-1)
+        x_coords = self.get_cell_x_coords(shape[1])  # cols for x-coordinates
+        y_coords = self.get_cell_y_coords(shape[0])  # rows for y-coordinates
+        coords = np.stack(np.meshgrid(x_coords, y_coords), axis=-1)
         return coords
+
+    def get_cell_x_coords(self, n_columns: int) -> np.ndarray:
+        """Return an array of x coordinates for the center of each cell.
+
+        The coordinates will be in the coordinate system defined by the
+        raster's transform.
+
+        Args:
+            n_columns: Number of columns in the raster array.
+
+        Returns:
+            x_coordinates at cell centers, with shape (n_columns,)
+        """
+        x_idx = np.arange(n_columns) + 0.5
+        y_idx = np.zeros_like(x_idx)  # Use y=0 for a single row
+        x_coords, _ = self.transform * (x_idx, y_idx)
+        return x_coords
+
+    def get_cell_y_coords(self, n_rows: int) -> np.ndarray:
+        """Return an array of y coordinates for the center of each cell.
+
+        The coordinates will be in the coordinate system defined by the
+        raster's transform.
+
+        Args:
+            n_rows: Number of rows in the raster array.
+
+        Returns:
+            y_coordinates at cell centers, with shape (n_rows,)
+        """
+        x_idx = np.zeros(n_rows)  # Use x=0 for a single column
+        y_idx = np.arange(n_rows) + 0.5
+        _, y_coords = self.transform * (x_idx, y_idx)
+        return y_coords

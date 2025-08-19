@@ -1,6 +1,12 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
-from numpy.typing import NDArray
 from scipy.interpolate import NearestNDInterpolator
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 def fillna_nearest_neighbours(arr: NDArray[np.float64]) -> NDArray[np.float64]:

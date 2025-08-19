@@ -1,17 +1,25 @@
-from collections.abc import Iterable
-from functools import partial
+from __future__ import annotations
 
-import geopandas as gpd
+from functools import partial
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pandas as pd
 import rasterio.features
 from affine import Affine
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point
 from tqdm.notebook import tqdm
 
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
-from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import geopandas as gpd
+    from shapely.geometry import Polygon
+
+    from rastr.meta import RasterMeta
 
 
 class MissingColumnsError(ValueError):

@@ -1,7 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import geopandas as gpd
 import numpy as np
-from geopandas.array import GeometryArray
 from shapely import BufferCapStyle, BufferJoinStyle
+
+if TYPE_CHECKING:
+    from geopandas.array import GeometryArray
 
 
 def create_point_grid(

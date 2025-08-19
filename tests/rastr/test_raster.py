@@ -787,7 +787,8 @@ class TestCrop:
         # Assert
         assert cropped == base_raster  # Border cells are not clipped, despite overlap
 
-    def test_overflow_crops_boundary_case(self, base_raster: RasterModel):
+    @pytest.mark.parametrize("strategy", ["overflow", "underflow"])
+    def test_boundary_case(self, base_raster: RasterModel, strategy: str):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         bounds = (minx, miny, maxx - (maxx - minx) / 4, maxy - (maxy - miny) / 4)
@@ -796,7 +797,7 @@ class TestCrop:
         )  # Cells on the upper right are removed
 
         # Act
-        cropped = base_raster.crop(bounds, strategy="overflow")
+        cropped = base_raster.crop(bounds, strategy=strategy)
 
         # Assert
         assert cropped.arr.shape == (3, 3)  # Should crop one side only

@@ -751,16 +751,11 @@ class RasterModel(BaseModel):
         # Crop the array
         cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
 
-        # Create new transform with the adjusted origin
-        new_transform = rasterio.transform.Affine(
-            self.raster_meta.transform.a,
-            self.raster_meta.transform.b,
-            self.raster_meta.transform.c + min_col * self.raster_meta.transform.a,
-            self.raster_meta.transform.d,
-            self.raster_meta.transform.e,
-            self.raster_meta.transform.f + min_row * self.raster_meta.transform.e,
         # Shift the transform by the number of pixels cropped (min_col, min_row)
-        new_transform = self.raster_meta.transform * rasterio.transform.Affine.translation(min_col, min_row)
+        new_transform = (
+            self.raster_meta.transform
+            * rasterio.transform.Affine.translation(min_col, min_row)
+        )
 
         # Create new metadata
         new_meta = RasterMeta(

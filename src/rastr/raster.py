@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 import geopandas as gpd
 import matplotlib as mpl
 import numpy as np
+import numpy.ma
 import pandas as pd
 import rasterio.plot
 import rasterio.sample
@@ -35,17 +37,11 @@ if TYPE_CHECKING:
 
     from folium import Map
     from matplotlib.axes import Axes
-    from numpy.typing import NDArray
+    from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from typing_extensions import Self
 
-try:
-    import folium
-    import folium.raster_layers
-except ImportError:
-    FOLIUM_INSTALLED = False
-else:
-    FOLIUM_INSTALLED = True
+FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
 
 try:
     from rasterio._err import CPLE_BaseError
@@ -209,7 +205,7 @@ class RasterModel(BaseModel):
 
     def sample(
         self,
-        xy: list[tuple[float, float]],
+        xy: list[tuple[float, float]] | ArrayLike,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
     ) -> NDArray[np.float64]:
@@ -226,6 +222,8 @@ class RasterModel(BaseModel):
         """
         # If this function is too slow, consider the optimizations detailed here:
         # https://rdrn.me/optimising-sampling/
+
+        xy = np.asarray(xy, dtype=float)
 
         # Short-circuit
         if len(xy) == 0:
@@ -263,7 +261,7 @@ class RasterModel(BaseModel):
 
             # Convert the sampled values to a NumPy array and set masked values to NaN
             raster_values = np.array(
-                [s.data[0] if not s.mask else np.nan for s in samples]
+                [s.data[0] if not numpy.ma.getmask(s) else np.nan for s in samples]
             ).astype(float)
 
             if len(xy_nan_idxs) > 0:
@@ -317,6 +315,7 @@ class RasterModel(BaseModel):
         if not FOLIUM_INSTALLED:
             msg = "The 'folium' package is required for 'explore()'."
             raise ImportError(msg)
+        import folium.raster_layers  # noqa: PLC0415
 
         if m is None:
             m = folium.Map()
@@ -385,8 +384,9 @@ class RasterModel(BaseModel):
     ) -> Axes:
         """Plot the raster on a matplotlib axis."""
         if ax is None:
-            _, ax = plt.subplots()
-        ax: Axes
+            _, _ax = plt.subplots()
+            _ax: Axes
+            ax = _ax
 
         if basemap:
             msg = "Basemap plotting is not yet implemented."
@@ -408,8 +408,8 @@ class RasterModel(BaseModel):
         max_y_nonzero = np.max(y_nonzero)
 
         # Transform to raster CRS
-        x1, y1 = self.raster_meta.transform * (min_x_nonzero, min_y_nonzero)
-        x2, y2 = self.raster_meta.transform * (max_x_nonzero, max_y_nonzero)
+        x1, y1 = self.raster_meta.transform * (min_x_nonzero, min_y_nonzero)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        x2, y2 = self.raster_meta.transform * (max_x_nonzero, max_y_nonzero)  # type: ignore[reportAssignmentType]
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
 
@@ -430,7 +430,8 @@ class RasterModel(BaseModel):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig = ax.get_figure()
-        fig.colorbar(img, label=cbar_label, cax=cax)
+        if fig is not None:
+            fig.colorbar(img, label=cbar_label, cax=cax)
         return ax
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
@@ -744,7 +745,7 @@ class RasterModel(BaseModel):
 
     @field_validator("arr")
     @classmethod
-    def check_2d_array(cls, v: np.ndarray) -> np.ndarray:
+    def check_2d_array(cls, v: NDArray) -> NDArray:
         """Validator to ensure the cell array is 2D."""
         if v.ndim != 2:
             msg = "Cell array must be 2D"

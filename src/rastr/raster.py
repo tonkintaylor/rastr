@@ -724,6 +724,52 @@ class RasterModel(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
+    def crop_nan(self) -> Self:
+        """Crop the raster by trimming away all-NaN slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        non-NaN values.
+        """
+        arr = self.arr
+
+        # Check if the entire array is NaN
+        if np.all(np.isnan(arr)):
+            msg = "Cannot crop raster: all values are NaN"
+            raise ValueError(msg)
+
+        # Find rows and columns that are not all NaN
+        nan_row_mask = np.all(np.isnan(arr), axis=1)
+        nan_col_mask = np.all(np.isnan(arr), axis=0)
+
+        # Find the bounding indices
+        (row_indices,) = np.where(~nan_row_mask)
+        (col_indices,) = np.where(~nan_col_mask)
+
+        min_row, max_row = row_indices[0], row_indices[-1]
+        min_col, max_col = col_indices[0], col_indices[-1]
+
+        # Crop the array
+        cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
+
+        # Create new transform with the adjusted origin
+        new_transform = rasterio.transform.Affine(
+            self.raster_meta.transform.a,
+            self.raster_meta.transform.b,
+            self.raster_meta.transform.c + min_col * self.raster_meta.transform.a,
+            self.raster_meta.transform.d,
+            self.raster_meta.transform.e,
+            self.raster_meta.transform.f + min_row * self.raster_meta.transform.e,
+        )
+
+        # Create new metadata
+        new_meta = RasterMeta(
+            cell_size=self.raster_meta.cell_size,
+            crs=self.raster_meta.crs,
+            transform=new_transform,
+        )
+
+        return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
     ) -> Self:

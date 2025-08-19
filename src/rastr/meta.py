@@ -65,7 +65,7 @@ class RasterMeta(BaseModel, extra="forbid"):
         """
         x_idx = np.arange(n_columns) + 0.5
         y_idx = np.zeros_like(x_idx)  # Use y=0 for a single row
-        x_coords, _ = self.transform * (x_idx, y_idx)
+        x_coords, _ = self.transform * (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
         return x_coords
 
     def get_cell_y_coords(self, n_rows: int) -> np.ndarray:
@@ -82,5 +82,5 @@ class RasterMeta(BaseModel, extra="forbid"):
         """
         x_idx = np.zeros(n_rows)  # Use x=0 for a single column
         y_idx = np.arange(n_rows) + 0.5
-        _, y_coords = self.transform * (x_idx, y_idx)
+        _, y_coords = self.transform * (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
         return y_coords

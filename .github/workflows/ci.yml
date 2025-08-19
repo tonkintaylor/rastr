@@ -51,9 +51,14 @@ jobs:
           uv pip install --system -r ci-requirements.txt
 
       - name: Run pre-commit
-        if: matrix.pre-commit
+        if: matrix.checks
         run: |
           uv run --frozen pre-commit run --all-files
+
+      - name: Run pyright
+        if: matrix.checks
+        run: |
+          uv run pyright
 
       - name: Run pytest
         uses: pavelzw/pytest-action@510c5e90c360a185039bea56ce8b3e7e51a16507 # v2.2.0
@@ -77,13 +82,13 @@ jobs:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         resolution: ["highest"]
-        pre-commit: [true]
+        checks: [true]
         pytest: [true]
         include:
           - os: "ubuntu-latest"
             python-version: "3.10"
             resolution: "lowest-direct"
-            pre-commit: false
+            checks: false
             pytest: true
 
   code-analysis:

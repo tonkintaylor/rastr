@@ -77,7 +77,7 @@ class TestSample:
                 cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
-                irrelevant_field="irrelevant",
+                irrelevant_field="irrelevant",  # type: ignore[reportCallIssue]
             )
 
     def test_short_circuit(self):
@@ -96,6 +96,16 @@ class TestSample:
 
         # Assert
         assert len(result) == 0
+
+    def test_ndarray_input(self, example_raster: RasterModel):
+        # Arrange
+        coords = np.array([[0, 0], [1, 1]])
+
+        # Act
+        result = example_raster.sample(coords, na_action="raise")
+
+        # Assert
+        np.testing.assert_array_equal(result, np.array([1.0, 1.0]))
 
 
 class TestBounds:
@@ -264,7 +274,7 @@ class TestRasterModel:
 
             # Act
             with pytest.raises(TypeError, match="unsupported operand type"):
-                raster + "hello"
+                raster + "hello"  # type: ignore[reportOperatorIssue]
 
     class TestMul:
         def test_basic(self):
@@ -369,7 +379,7 @@ class TestRasterModel:
 
             # Act
             with pytest.raises(TypeError):
-                raster * "hello"
+                raster * "hello"  # type: ignore[reportOperatorIssue]
 
     class TestTrueDiv:
         def test_basic(self):
@@ -476,7 +486,7 @@ class TestRasterModel:
 
             # Act
             with pytest.raises(TypeError):
-                raster / "hello"
+                raster / "hello"  # type: ignore[reportOperatorIssue]
 
     class TestSub:
         def test_basic(self):
@@ -798,7 +808,7 @@ class TestCrop:
         with pytest.raises(
             NotImplementedError, match="Unsupported cropping strategy: invalid_strategy"
         ):
-            base_raster.crop(bounds, strategy="invalid_strategy")
+            base_raster.crop(bounds, strategy="invalid_strategy")  # type: ignore[reportArgumentType]
 
 
 class TestResample:

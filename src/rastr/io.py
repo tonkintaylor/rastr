@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import rasterio
-from pyproj.crs import CRS
+from pyproj.crs.crs import CRS
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel

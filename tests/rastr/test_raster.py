@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
+import folium
 import geopandas as gpd
 import numpy as np
 import pytest
 from affine import Affine
+from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 from shapely.geometry import Polygon
@@ -1023,3 +1026,129 @@ class TestResample:
         # Assert
         assert resampled.raster_meta.cell_size == new_cell_size
         assert isinstance(resampled, RasterModel)
+
+
+class TestExplore:
+    @pytest.fixture
+    def explore_map(self):
+        # Hard-coded test data and simple raster with known min/max
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+        return raster.explore(cbar_label="My Legend")
+
+    def test_overlay(self, explore_map):
+        m = explore_map
+        # Assert: an ImageOverlay is present
+        has_image_overlay = any(
+            isinstance(child, folium.raster_layers.ImageOverlay)
+            for child in m._children.values()
+        )
+        assert has_image_overlay, "Expected an ImageOverlay to be added to the map"
+
+    def test_cbar(self, explore_map):
+        m = explore_map
+        expected_min = 1.0
+        expected_max = 4.0
+        # Assert: a LinearColormap legend is present with expected properties
+        legends = [
+            child for child in m._children.values() if isinstance(child, LinearColormap)
+        ]
+        assert len(legends) >= 1, "Expected a LinearColormap legend to be added"
+        legend = legends[-1]
+
+        # Caption is set from cbar_label
+        assert getattr(legend, "caption", None) == "My Legend"
+
+        # vmin/vmax should reflect original data range (not normalized)
+        assert pytest.approx(legend.vmin) == expected_min
+        assert pytest.approx(legend.vmax) == expected_max
+
+    def test_explore_without_folium_raises(self, monkeypatch):
+        # Arrange a minimal raster
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Simulate Folium not installed
+        monkeypatch.setattr("rastr.raster.FOLIUM_INSTALLED", False, raising=False)
+
+        # Act / Assert
+        with pytest.raises(ImportError, match="folium.*required"):
+            raster.explore()
+
+    def test_homogenous_raster(self):
+        # Arrange a homogeneous raster
+        arr = np.array([[1.0, 1.0], [1.0, 1.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Act
+        map_ = raster.explore()
+
+        # Assert
+        assert isinstance(map_, folium.Map)
+        assert len(map_._children) > 0  # Check that something was added to the map
+
+    def test_negative_x_scaling(self):
+        # Arrange a raster with negative x scaling
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Act
+        map_ = raster.explore()
+
+        # Assert
+        assert isinstance(map_, folium.Map)
+        assert len(map_._children) > 0  # Check that something was added to the map
+
+    def test_flip_called_for_negx_scaling(self):
+        # Arrange a raster that should trigger only x-flip (a < 0, e < 0)
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(-1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Patch np.flip as used in module under test
+        with patch("rastr.raster.np.flip", wraps=np.flip) as mock_flip:
+            _ = raster.explore()
+
+        # Assert flip called exactly once (x-axis flip only)
+        assert mock_flip.call_count == 1
+
+    def test_flip_called_twice_for_negx_posy_scaling(self):
+        # Arrange a raster that should trigger both x-flip and y-flip (a < 0, e > 0)
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(-1.0, 0.0, 0.0, 0.0, 1.0, 2.0),
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Patch np.flip as used in module under test
+        with patch("rastr.raster.np.flip", wraps=np.flip) as mock_flip:
+            _ = raster.explore()
+
+        # Assert flip called exactly twice (both axes)
+        assert mock_flip.call_count == 2

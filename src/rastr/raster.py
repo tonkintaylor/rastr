@@ -19,6 +19,7 @@ import rasterio.transform
 import skimage.measure
 import xyzservices.providers as xyz
 from matplotlib import pyplot as plt
+from matplotlib.colors import to_hex
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
@@ -47,6 +48,16 @@ try:
     from rasterio._err import CPLE_BaseError
 except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
+
+# Optional branca (folium dependency) for colorbar legends
+try:
+    from branca.colormap import (
+        LinearColormap as BrancaLinearColormap,
+    )
+
+    HAS_BRANCA = True
+except (ImportError, ModuleNotFoundError):
+    HAS_BRANCA = False
 
 
 CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
@@ -310,6 +321,7 @@ class RasterModel(BaseModel):
         m: Map | None = None,
         opacity: float = 1.0,
         colormap: str = "viridis",
+        cbar_label: str | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
         if not FOLIUM_INSTALLED:
@@ -320,10 +332,11 @@ class RasterModel(BaseModel):
         if m is None:
             m = folium.Map()
 
-        rbga_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
+        rgba_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
             colormap
         ]
 
+        # Cast to GDF to facilitate converting bounds to WGS84
         wgs84_crs = CRS.from_epsg(4326)
         gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
             wgs84_crs
@@ -352,19 +365,34 @@ class RasterModel(BaseModel):
         flip_x = self.raster_meta.transform.a < 0
         flip_y = self.raster_meta.transform.e > 0
         if flip_x:
-            arr = np.flip(self.arr, axis=1)
+            arr = np.flip(arr, axis=1)
         if flip_y:
-            arr = np.flip(self.arr, axis=0)
+            arr = np.flip(arr, axis=0)
 
         img = folium.raster_layers.ImageOverlay(
             image=arr,
             bounds=[[ymin, xmin], [ymax, xmax]],
             opacity=opacity,
-            colormap=rbga_map,
+            colormap=rgba_map,
             mercator_project=True,
         )
 
         img.add_to(m)
+
+        # Add a colorbar legend
+        if HAS_BRANCA:
+            # Determine legend data range in original units
+            vmin = float(min_val) if np.isfinite(min_val) else 0.0
+            vmax = float(max_val) if np.isfinite(max_val) else 1.0
+            if vmax <= vmin:
+                vmax = vmin + 1.0
+
+            sample_points = np.linspace(0, 1, rgba_map.N)
+            colors = [to_hex(rgba_map(x)) for x in sample_points]
+            legend = BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+            if cbar_label:
+                legend.caption = cbar_label
+            legend.add_to(m)
 
         m.fit_bounds([[ymin, xmin], [ymax, xmax]])
 

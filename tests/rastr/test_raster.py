@@ -1,4 +1,6 @@
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import geopandas as gpd
 import numpy as np
@@ -10,6 +12,9 @@ from shapely.geometry import Polygon
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture(scope="module")

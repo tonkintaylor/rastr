@@ -38,7 +38,7 @@ def read_raster_inmem(raster_path: Path | str, crs: CRS | None = None) -> Raster
 def read_raster_mosaic_inmem(
     mosaic_dir: Path | str, *, glob: str = "*.tif", crs: CRS | None = None
 ) -> RasterModel:
-    """Read a raster mosaic from a directory and return an in-memory Raster object.'
+    """Read a raster mosaic from a directory and return an in-memory Raster object.
 
     This assumes that all rasters have the same metadata, e.g. coordinate system,
     cell size, etc.

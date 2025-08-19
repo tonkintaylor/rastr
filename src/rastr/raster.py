@@ -10,7 +10,6 @@ import geopandas as gpd
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
-import rasterio.mask
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform

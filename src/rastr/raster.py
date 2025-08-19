@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import geopandas as gpd
-import matplotlib as mpl
 import numpy as np
 import numpy.ma
 import pandas as pd
@@ -18,9 +17,6 @@ import rasterio.sample
 import rasterio.transform
 import skimage.measure
 import xyzservices.providers as xyz
-from matplotlib import pyplot as plt
-from matplotlib.colors import to_hex
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
@@ -44,6 +40,7 @@ if TYPE_CHECKING:
 
 FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
 BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
+MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 try:
     from rasterio._err import CPLE_BaseError
@@ -318,7 +315,12 @@ class RasterModel(BaseModel):
         if not FOLIUM_INSTALLED:
             msg = "The 'folium' package is required for 'explore()'."
             raise ImportError(msg)
+        if not MATPLOTLIB_INSTALLED:
+            msg = "The 'matplotlib' package is required for 'explore()'."
+            raise ImportError(msg)
+
         import folium.raster_layers
+        import matplotlib as mpl
 
         if m is None:
             m = folium.Map()
@@ -373,6 +375,7 @@ class RasterModel(BaseModel):
         # Add a colorbar legend
         if BRANCA_INSTALLED:
             from branca.colormap import LinearColormap as BrancaLinearColormap
+            from matplotlib.colors import to_hex
 
             # Determine legend data range in original units
             vmin = float(min_val) if np.isfinite(min_val) else 0.0
@@ -404,6 +407,12 @@ class RasterModel(BaseModel):
         cmap: str = "viridis",
     ) -> Axes:
         """Plot the raster on a matplotlib axis."""
+        if not MATPLOTLIB_INSTALLED:
+            msg = "The 'matplotlib' package is required for 'plot()'."
+            raise ImportError(msg)
+
+        from matplotlib import pyplot as plt
+
         if ax is None:
             _, _ax = plt.subplots()
             _ax: Axes
@@ -448,6 +457,7 @@ class RasterModel(BaseModel):
         ax.set_yticklabels([])
         ax.set_xticklabels([])
 
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig = ax.get_figure()

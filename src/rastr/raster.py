@@ -53,10 +53,12 @@ except ImportError:
 # Optional branca (folium dependency) for colorbar legends
 try:
     from branca.colormap import (
-        LinearColormap as BrancaLinearColormap,  # type: ignore[import-not-found]
+        LinearColormap as BrancaLinearColormap,
     )
-except ImportError:  # pragma: no cover - optional dependency
-    BrancaLinearColormap = None  # type: ignore[assignment]
+
+    HAS_BRANCA = True
+except (ImportError, ModuleNotFoundError):
+    HAS_BRANCA = False
 
 
 CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
@@ -366,7 +368,7 @@ class RasterModel(BaseModel):
         img.add_to(m)
 
         # Add a colorbar legend
-        if BrancaLinearColormap is not None:
+        if HAS_BRANCA:
             # Determine legend data range in original units
             vmin = float(min_val) if np.isfinite(min_val) else 0.0
             vmax = float(max_val) if np.isfinite(max_val) else 1.0

@@ -38,8 +38,7 @@ class RasterMeta(BaseModel, extra="forbid"):
             shape: (rows, cols) of the raster array.
 
         Returns:
-            np.ndarray of shape (rows, cols, 2) with (x, y) coordinates for each
-            cell center.
+            (x, y) coordinates for each cell center, with shape (rows, cols, 2)
         """
         x_coords = self.get_cell_x_coords(shape[1])  # cols for x-coordinates
         y_coords = self.get_cell_y_coords(shape[0])  # rows for y-coordinates

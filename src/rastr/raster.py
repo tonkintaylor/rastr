@@ -162,6 +162,16 @@ class RasterModel(BaseModel):
         """Get the coordinates of the cell centres in the raster."""
         return self.raster_meta.get_cell_centre_coords(self.arr.shape)
 
+    @property
+    def cell_x_coords(self) -> NDArray[np.float64]:
+        """Get the x coordinates of the cell centres in the raster."""
+        return self.raster_meta.get_cell_x_coords(self.arr.shape[0])
+
+    @property
+    def cell_y_coords(self) -> NDArray[np.float64]:
+        """Get the y coordinates of the cell centres in the raster."""
+        return self.raster_meta.get_cell_y_coords(self.arr.shape[1])
+
     @contextmanager
     def to_rasterio_dataset(
         self,
@@ -640,9 +650,8 @@ class RasterModel(BaseModel):
         half_cell_size = cell_size / 2
 
         # Get the cell centre coordinates as 1D arrays
-        x_coords, y_coords = self.cell_centre_coords.T
-        x_coords = np.unique(x_coords)
-        y_coords = np.unique(y_coords)
+        x_coords = self.cell_x_coords
+        y_coords = self.cell_y_coords
 
         # Get the indices to crop the array
         if strategy == "underflow":

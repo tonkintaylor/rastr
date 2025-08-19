@@ -1134,7 +1134,7 @@ class TestRasterModel:
             assert cropped.raster_meta.transform == expected_transform
 
     class TestResample:
-        def test_upsampling_doubles_resolution(self, base_raster):
+        def test_upsampling_doubles_resolution(self, base_raster: RasterModel):
             # Arrange
             new_cell_size = 5.0  # Half the original size (10.0)
 
@@ -1148,7 +1148,7 @@ class TestRasterModel:
             assert resampled.arr.shape[1] >= 7
             assert resampled.raster_meta.crs == base_raster.raster_meta.crs
 
-        def test_downsampling_halves_resolution(self, base_raster):
+        def test_downsampling_halves_resolution(self, base_raster: RasterModel):
             # Arrange
             new_cell_size = 20.0  # Double the original size (10.0)
 
@@ -1162,7 +1162,7 @@ class TestRasterModel:
             assert resampled.arr.shape[1] <= 3
             assert resampled.raster_meta.crs == base_raster.raster_meta.crs
 
-        def test_same_cell_size_returns_similar_raster(self, base_raster):
+        def test_same_cell_size_returns_similar_raster(self, base_raster: RasterModel):
             # Arrange
             original_cell_size = base_raster.raster_meta.cell_size
 
@@ -1175,7 +1175,7 @@ class TestRasterModel:
             assert abs(resampled.arr.shape[0] - base_raster.arr.shape[0]) <= 1
             assert abs(resampled.arr.shape[1] - base_raster.arr.shape[1]) <= 1
 
-        def test_extreme_upsampling(self, small_raster):
+        def test_extreme_upsampling(self, small_raster: RasterModel):
             # Arrange
             new_cell_size = 1.0  # Much smaller than original 5.0
 
@@ -1188,7 +1188,7 @@ class TestRasterModel:
             assert resampled.arr.shape[0] >= 8
             assert resampled.arr.shape[1] >= 8
 
-        def test_extreme_downsampling(self, base_raster):
+        def test_extreme_downsampling(self, base_raster: RasterModel):
             # Arrange
             new_cell_size = 100.0  # Much larger than original 10.0
 
@@ -1203,7 +1203,7 @@ class TestRasterModel:
             assert resampled.arr.shape[0] <= 2
             assert resampled.arr.shape[1] <= 2
 
-        def test_transform_scaling(self, small_raster):
+        def test_transform_scaling(self, small_raster: RasterModel):
             # Arrange
             new_cell_size = 2.5  # Half the original cell size
 
@@ -1216,7 +1216,7 @@ class TestRasterModel:
             assert abs(abs(new_transform.a) - new_cell_size) < 0.1
             assert abs(abs(new_transform.e) - new_cell_size) < 0.1
 
-        def test_bilinear_interpolation_smoothing(self, small_raster):
+        def test_bilinear_interpolation_smoothing(self, small_raster: RasterModel):
             # Arrange
             new_cell_size = 2.0  # Between original cells
 
@@ -1236,23 +1236,23 @@ class TestRasterModel:
             assert resampled_min >= original_min - 0.1
             assert resampled_max <= original_max + 0.1
 
-        def test_invalid_resampling_method(self, small_raster):
+        def test_invalid_resampling_method(self, small_raster: RasterModel):
             with pytest.raises(
                 NotImplementedError, match="Unsupported resampling method"
             ):
                 small_raster.resample(new_cell_size=2.0, method="nearest")
 
-        def test_negative_cell_size_fails(self, small_raster):
+        def test_negative_cell_size_fails(self, small_raster: RasterModel):
             # This should fail during the internal calculations
             with pytest.raises((ValueError, RuntimeError)):
                 small_raster.resample(new_cell_size=-1.0)
 
-        def test_zero_cell_size_fails(self, small_raster):
+        def test_zero_cell_size_fails(self, small_raster: RasterModel):
             # This should fail during the internal calculations
             with pytest.raises((ValueError, RuntimeError, ZeroDivisionError)):
                 small_raster.resample(new_cell_size=0.0)
 
-        def test_very_small_cell_size(self, small_raster):
+        def test_very_small_cell_size(self, small_raster: RasterModel):
             # Arrange
             new_cell_size = 0.1  # Very small
 
@@ -1265,7 +1265,7 @@ class TestRasterModel:
             assert resampled.arr.shape[0] >= 20
             assert resampled.arr.shape[1] >= 20
 
-        def test_metadata_preservation(self, base_raster):
+        def test_metadata_preservation(self, base_raster: RasterModel):
             # Arrange
             original_crs = base_raster.raster_meta.crs
             new_cell_size = 5.0
@@ -1279,7 +1279,7 @@ class TestRasterModel:
             # Transform should be updated but maintain CRS
             assert resampled.raster_meta.transform != base_raster.raster_meta.transform
 
-        def test_bounds_consistency(self, base_raster):
+        def test_bounds_consistency(self, base_raster: RasterModel):
             # Arrange
             original_bounds = base_raster.bounds
             new_cell_size = 15.0
@@ -1298,7 +1298,7 @@ class TestRasterModel:
             assert abs(new_bounds[2] - original_bounds[2]) <= tolerance  # xmax
             assert abs(new_bounds[3] - original_bounds[3]) <= tolerance  # ymax
 
-        def test_return_type(self, small_raster):
+        def test_return_type(self, small_raster: RasterModel):
             # Act
             result = small_raster.resample(new_cell_size=2.0)
 
@@ -1306,7 +1306,7 @@ class TestRasterModel:
             assert isinstance(result, RasterModel)
             assert result is not small_raster  # Should be a new instance
 
-        def test_original_raster_unchanged(self, small_raster):
+        def test_original_raster_unchanged(self, small_raster: RasterModel):
             # Arrange
             original_array = small_raster.arr.copy()
             original_cell_size = small_raster.raster_meta.cell_size
@@ -1337,7 +1337,7 @@ class TestRasterModel:
             # Should handle NaN values gracefully
             assert not np.all(np.isnan(resampled.arr))  # Some non-NaN values
 
-        def test_float_precision_cell_size(self, small_raster):
+        def test_float_precision_cell_size(self, small_raster: RasterModel):
             # Arrange
             new_cell_size = 3.7  # Non-integer value
 
@@ -1361,7 +1361,7 @@ class TestRasterModel:
             raster = RasterModel(arr=arr, raster_meta=meta)
             return raster.explore(cbar_label="My Legend")
 
-        def test_overlay(self, explore_map):
+        def test_overlay(self, explore_map: folium.Map):
             m = explore_map
             # Assert: an ImageOverlay is present
             has_image_overlay = any(
@@ -1370,7 +1370,7 @@ class TestRasterModel:
             )
             assert has_image_overlay, "Expected an ImageOverlay to be added to the map"
 
-        def test_cbar(self, explore_map):
+        def test_cbar(self, explore_map: folium.Map):
             m = explore_map
             expected_min = 1.0
             expected_max = 4.0
@@ -1390,7 +1390,7 @@ class TestRasterModel:
             assert pytest.approx(legend.vmin) == expected_min
             assert pytest.approx(legend.vmax) == expected_max
 
-        def test_explore_without_folium_raises(self, monkeypatch):
+        def test_explore_without_folium_raises(self, monkeypatch: pytest.MonkeyPatch):
             # Arrange a minimal raster
             arr = np.array([[1.0, 2.0], [3.0, 4.0]])
             meta = RasterMeta(

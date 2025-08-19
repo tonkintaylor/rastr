@@ -162,6 +162,7 @@ class TestRasterModel:
 
         def test_meta_setter_updates_raster_meta(self, example_raster: RasterModel):
             # Arrange
+            example_raster = example_raster.model_copy(deep=True)
             new_meta = RasterMeta(
                 cell_size=2.0,
                 crs=CRS.from_epsg(4326),

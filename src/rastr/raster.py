@@ -665,11 +665,11 @@ class RasterModel(BaseModel):
                 y_coords <= maxy - half_cell_size
             )
         elif strategy == "overflow":
-            x_idx = (x_coords >= minx - half_cell_size) & (
-                x_coords <= maxx + half_cell_size
+            x_idx = (x_coords > minx - half_cell_size) & (
+                x_coords < maxx + half_cell_size
             )
-            y_idx = (y_coords >= miny - half_cell_size) & (
-                y_coords <= maxy + half_cell_size
+            y_idx = (y_coords > miny - half_cell_size) & (
+                y_coords < maxy + half_cell_size
             )
         else:
             msg = f"Unsupported cropping strategy: {strategy}"

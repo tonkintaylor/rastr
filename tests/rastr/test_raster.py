@@ -787,6 +787,40 @@ class TestCrop:
         # Assert
         assert cropped == base_raster  # Border cells are not clipped, despite overlap
 
+    def test_overflow_crops_boundary_case(self, base_raster: RasterModel):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        bounds = (minx, miny, maxx - (maxx - minx) / 4, maxy - (maxy - miny) / 4)
+        expected_transform = Affine(
+            10, 0.0, minx, 0.0, -10.0, maxy - (maxy - miny) / 4
+        )  # Cells on the upper right are removed
+
+        # Act
+        cropped = base_raster.crop(bounds, strategy="overflow")
+
+        # Assert
+        assert cropped.arr.shape == (3, 3)  # Should crop one side only
+        assert cropped.raster_meta.transform == expected_transform
+        assert cropped.bounds == bounds
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
+        assert cropped.raster_meta.crs == base_raster.raster_meta.crs
+
+    def test_overflow_crops(self, base_raster: RasterModel):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        bounds = (minx + 11, miny + 11, maxx - 11, maxy - 11)
+        expected_transform = Affine(10.0, 0.0, minx + 10, 0.0, -10.0, maxy - 10)
+
+        # Act
+        cropped = base_raster.crop(bounds, strategy="overflow")
+
+        # Assert
+        assert cropped.arr.shape == (2, 2)  # Cells on both sides are removed
+        assert cropped.raster_meta.transform == expected_transform
+        assert cropped.bounds == (minx + 10, miny + 10, maxx - 10, maxy - 10)
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
+        assert cropped.raster_meta.crs == base_raster.raster_meta.crs
+
     @pytest.mark.parametrize(
         "bounds",
         [(1000, 1000, 2000, 2000), (0.0, 60.0, 0.0, 100.0)],

@@ -58,6 +58,28 @@ class TestReadRasterInMem:
         assert raster_obj.arr[1, 1] == pytest.approx(0.4411124)
         assert raster_obj.arr[0, 1] == pytest.approx(0.44069204)
         assert raster_obj.arr[1, 0] == pytest.approx(0.41911235)
+        
+    def test_str_crs(self, assets_dir: Path):
+        # Arrange
+        raster_path = assets_dir / "pga_g_clipped.tif"
+        crs = "EPSG:4326"
+
+        # Act
+        raster_obj = read_raster_inmem(raster_path, crs=crs)
+
+        # Assert
+        assert raster_obj.raster_meta.crs.to_epsg() == 4326
+
+    def test_pyproj_crs(self, assets_dir: Path):
+        # Arrange
+        raster_path = assets_dir / "pga_g_clipped.tif"
+        crs = CRS.from_epsg(4326)
+
+        # Act
+        raster_obj = read_raster_inmem(raster_path, crs=crs)
+
+        # Assert
+        assert raster_obj.raster_meta.crs.to_epsg() == 4326
 
 
 class TestReadRasterMosaicInMem:

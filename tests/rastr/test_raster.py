@@ -672,7 +672,7 @@ class TestRasterModel:
 
             def test_fillna(self, example_raster: RasterModel):
                 # Arrange
-                raster_with_nas = example_raster.model_copy()
+                raster_with_nas = example_raster.model_copy(deep=True)
                 raster_with_nas.arr[0, 0] = np.nan
 
                 # Act

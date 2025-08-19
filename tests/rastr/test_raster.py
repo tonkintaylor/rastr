@@ -587,7 +587,9 @@ class TestRasterModel:
             raster = RasterModel(arr=arr, raster_meta=meta)
 
             # Simulate matplotlib not installed
-            monkeypatch.setattr("rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False)
+            monkeypatch.setattr(
+                "rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False
+            )
 
             # Act / Assert
             with pytest.raises(ImportError, match="matplotlib.*required"):

@@ -745,7 +745,7 @@ class RasterModel(BaseModel):
 
     @field_validator("arr")
     @classmethod
-    def check_2d_array(cls, v: np.ndarray) -> np.ndarray:
+    def check_2d_array(cls, v: NDArray) -> NDArray:
         """Validator to ensure the cell array is 2D."""
         if v.ndim != 2:
             msg = "Cell array must be 2D"

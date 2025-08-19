@@ -312,11 +312,8 @@ class RasterModel(BaseModel):
         cbar_label: str | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
-        if not FOLIUM_INSTALLED:
-            msg = "The 'folium' package is required for 'explore()'."
-            raise ImportError(msg)
-        if not MATPLOTLIB_INSTALLED:
-            msg = "The 'matplotlib' package is required for 'explore()'."
+        if not FOLIUM_INSTALLED or not MATPLOTLIB_INSTALLED:
+            msg = "The 'folium' and 'matplotlib' packages are required for 'explore()'."
             raise ImportError(msg)
 
         import folium.raster_layers
@@ -412,6 +409,7 @@ class RasterModel(BaseModel):
             raise ImportError(msg)
 
         from matplotlib import pyplot as plt
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
 
         if ax is None:
             _, _ax = plt.subplots()
@@ -457,7 +455,6 @@ class RasterModel(BaseModel):
         ax.set_yticklabels([])
         ax.set_xticklabels([])
 
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig = ax.get_figure()

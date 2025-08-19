@@ -144,9 +144,6 @@ lint.ignore = [
   "SIM105",  # This harms refactorability, is slower, and increases learning curve.
   "SIM108",  # This is controversial, the ternary operator is not always clearer.
   "SIM118",  # This is controversial, sometimes .keys() explicitly is clearer.
-  "TC001",   # Too many false positives.
-  "TC002",   # Too many false positives.
-  "TC003",   # Too many false positives.
   "TD",      # These rules don't align well with the way we use TODOs.
   "TD003",   # Too excessive for our purposes (TODO Links).
   "UP015",   # This is controversial, explicit is better than implicit.
@@ -190,6 +187,9 @@ lint.per-file-ignores."tests/**/*.py" = [
 ]
 lint.allowed-confusables = [ "ℹ", "–", "σ" ]
 lint.flake8-tidy-imports.banned-api."pytz".msg = "'zoneinfo' should be preferred to 'pytz' when using Python 3.9 and later, see https://tonkintaylor-sonarqube.azurewebsites.net/coding_rules?open=python%3AS6890&rule_key=python%3AS6890"
+lint.flake8-type-checking.quote-annotations = true
+lint.flake8-type-checking.runtime-evaluated-base-classes = [ "pydantic.BaseModel" ]
+lint.flake8-type-checking.strict = true
 lint.pydocstyle.convention = "google"
 
 [tool.codespell]

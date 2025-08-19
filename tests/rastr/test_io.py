@@ -1,10 +1,15 @@
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import pytest
 from affine import Affine
 from pyproj.crs.crs import CRS
 
 from rastr.io import read_raster_inmem
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _WGS84_CRS = CRS.from_epsg(4326)
 

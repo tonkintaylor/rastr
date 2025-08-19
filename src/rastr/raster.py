@@ -1,7 +1,8 @@
 """Raster data structure."""
 
+from __future__ import annotations
+
 import warnings
-from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -16,16 +17,13 @@ import rasterio.transform
 import skimage.measure
 import xyzservices.providers as xyz
 from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from numpy.typing import NDArray
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
-from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter, MemoryFile
+from rasterio.io import MemoryFile
 from scipy.ndimage import gaussian_filter
 from shapely.geometry import LineString, Polygon
-from typing_extensions import Self
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet
@@ -33,12 +31,17 @@ from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
+
     from folium import Map
+    from matplotlib.axes import Axes
+    from numpy.typing import NDArray
+    from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
+    from typing_extensions import Self
 
 try:
     import folium
     import folium.raster_layers
-    from folium import Map
 except ImportError:
     FOLIUM_INSTALLED = False
 else:

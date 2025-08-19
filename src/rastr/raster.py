@@ -759,7 +759,8 @@ class RasterModel(BaseModel):
             self.raster_meta.transform.d,
             self.raster_meta.transform.e,
             self.raster_meta.transform.f + min_row * self.raster_meta.transform.e,
-        )
+        # Shift the transform by the number of pixels cropped (min_col, min_row)
+        new_transform = self.raster_meta.transform * rasterio.transform.Affine.translation(min_col, min_row)
 
         # Create new metadata
         new_meta = RasterMeta(

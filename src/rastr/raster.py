@@ -43,21 +43,12 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
 FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
+BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 
 try:
     from rasterio._err import CPLE_BaseError
 except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
-
-# Optional branca (folium dependency) for colorbar legends
-try:
-    from branca.colormap import (
-        LinearColormap as BrancaLinearColormap,
-    )
-
-    HAS_BRANCA = True
-except (ImportError, ModuleNotFoundError):
-    HAS_BRANCA = False
 
 
 CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
@@ -327,7 +318,7 @@ class RasterModel(BaseModel):
         if not FOLIUM_INSTALLED:
             msg = "The 'folium' package is required for 'explore()'."
             raise ImportError(msg)
-        import folium.raster_layers  # noqa: PLC0415
+        import folium.raster_layers
 
         if m is None:
             m = folium.Map()
@@ -380,7 +371,9 @@ class RasterModel(BaseModel):
         img.add_to(m)
 
         # Add a colorbar legend
-        if HAS_BRANCA:
+        if BRANCA_INSTALLED:
+            from branca.colormap import LinearColormap as BrancaLinearColormap
+
             # Determine legend data range in original units
             vmin = float(min_val) if np.isfinite(min_val) else 0.0
             vmax = float(max_val) if np.isfinite(max_val) else 1.0

@@ -175,16 +175,19 @@ lint.per-file-ignores."src/{scripts,notebooks}/**" = [
 ]
 lint.per-file-ignores."tests/**" = [ "INP" ]
 lint.per-file-ignores."tests/**/*.py" = [
-  "ANN",     # We don't need annotations in tests
+  "ANN201",  # We don't need return type annotations in tests
   "D",       # We don't need docstrings in tests
   "FBT001",  # Fine for fixtures
   "INP",     # Tests don't need __init__.py files
   "PLR0913", # When we use fixtures, our test functions can have many arguments
   "S101",    # Using assert is fine in tests
   "SLF001",  # Accessing private members is sometimes necessary in tests
+  "TID253",  # Conditional imports are not banned for tests
 ]
 lint.allowed-confusables = [ "ℹ", "–", "σ" ]
 lint.flake8-tidy-imports.banned-api."pytz".msg = "'zoneinfo' should be preferred to 'pytz' when using Python 3.9 and later, see https://tonkintaylor-sonarqube.azurewebsites.net/coding_rules?open=python%3AS6890&rule_key=python%3AS6890"
+lint.flake8-tidy-imports.banned-module-level-imports = [ "branca", "folium" ]
+
 lint.flake8-type-checking.quote-annotations = true
 lint.flake8-type-checking.runtime-evaluated-base-classes = [ "pydantic.BaseModel" ]
 lint.flake8-type-checking.strict = true

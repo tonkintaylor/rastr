@@ -532,6 +532,12 @@ class RasterModel(BaseModel):
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
 
+    def apply(self, func: Callable[[NDArray], NDArray]) -> Self:
+        """Apply a function to the raster array."""
+        new_raster = self.model_copy()
+        new_raster.arr = func(self.arr)
+        return new_raster
+
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
 

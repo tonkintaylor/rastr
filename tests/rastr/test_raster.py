@@ -534,6 +534,14 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[0, -1], [-2, -3]]))
 
+    class TestApply:
+        def test_sine(self, example_raster: RasterModel):
+            # Act
+            result = example_raster.apply(np.sin)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.sin(example_raster.arr))
+
     class TestToFile:
         def test_saving_gtiff(self, tmp_path: Path, example_raster: RasterModel):
             # Arrange

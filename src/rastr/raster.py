@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import numpy.ma
-import pandas as pd
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
@@ -395,6 +394,8 @@ class RasterModel(BaseModel):
 
     def to_clipboard(self) -> None:
         """Copy the raster cell array to the clipboard."""
+        import pandas as pd
+
         pd.DataFrame(self.arr).to_clipboard(index=False, header=False)
 
     def plot(

@@ -81,7 +81,10 @@ class RasterModel(BaseModel):
 
         # Set the meta
         if meta is not None and raster_meta is not None:
-            msg = "Specify either 'meta' or 'raster_meta', not both: they are aliases."
+            msg = (
+                "Only one of 'meta' or 'raster_meta' should be provided, they are "
+                "aliases."
+            )
             raise ValueError(msg)
         elif meta is not None and raster_meta is None:
             raster_meta = meta

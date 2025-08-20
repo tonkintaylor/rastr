@@ -1239,6 +1239,4 @@ urllib3==2.5.0 \
 xyzservices==2025.4.0 \
     --hash=sha256:6fe764713648fac53450fbc61a3c366cb6ae5335a1b2ae0c3796b495de3709d8 \
     --hash=sha256:8d4db9a59213ccb4ce1cf70210584f30b10795bff47627cdfb862b39ff6e10c9
-    # via
-    #   folium
-    #   rastr
+    # via folium

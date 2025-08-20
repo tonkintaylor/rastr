@@ -16,7 +16,6 @@ import rasterio.plot
 import rasterio.sample
 import rasterio.transform
 import skimage.measure
-import xyzservices.providers as xyz
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
@@ -46,9 +45,6 @@ try:
     from rasterio._err import CPLE_BaseError
 except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
-
-
-CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class RasterCellArrayShapeError(ValueError):

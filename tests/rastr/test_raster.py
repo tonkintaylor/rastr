@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def example_raster():
     meta = RasterMeta(
         cell_size=1.0,
@@ -33,7 +33,7 @@ def example_raster():
     return RasterModel(arr=arr, raster_meta=meta)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def example_neg_scaled_raster():
     meta = RasterMeta(
         cell_size=1.0,
@@ -45,7 +45,7 @@ def example_neg_scaled_raster():
     return RasterModel(arr=arr, raster_meta=meta)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def example_raster_with_zeros():
     meta = RasterMeta(
         cell_size=1.0,
@@ -672,7 +672,7 @@ class TestRasterModel:
 
             def test_fillna(self, example_raster: RasterModel):
                 # Arrange
-                raster_with_nas = example_raster.model_copy(deep=True)
+                raster_with_nas = example_raster
                 raster_with_nas.arr[0, 0] = np.nan
 
                 # Act

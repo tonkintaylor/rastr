@@ -118,11 +118,9 @@ def raster_distance_from_polygon(
 
 
 def _pbar(iterable: Iterable[_T], *, desc: str | None = None) -> Iterable[_T]:
-    if TQDM_INSTALLED:
-        from tqdm import tqdm
+    from tqdm import tqdm
 
-        return tqdm(iterable, desc=desc)
-    return iterable
+    return tqdm(iterable, desc=desc)
 
 
 def full_raster(

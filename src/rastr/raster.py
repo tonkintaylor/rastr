@@ -8,7 +8,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-import geopandas as gpd
 import numpy as np
 import numpy.ma
 import pandas as pd
@@ -32,20 +31,22 @@ from rastr.meta import RasterMeta
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    import geopandas as gpd
     from folium import Map
     from matplotlib.axes import Axes
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from typing_extensions import Self
 
-FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
-BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
-MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
-
 try:
     from rasterio._err import CPLE_BaseError
 except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
+
+
+FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
+BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
+MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 
 CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
@@ -317,6 +318,7 @@ class RasterModel(BaseModel):
             raise ImportError(msg)
 
         import folium.raster_layers
+        import geopandas as gpd
         import matplotlib as mpl
 
         if m is None:
@@ -464,6 +466,8 @@ class RasterModel(BaseModel):
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""
+        import geopandas as gpd
+
         polygons = create_fishnet(bounds=self.bounds, res=self.raster_meta.cell_size)
         point_tuples = [polygon.centroid.coords[0] for polygon in polygons]
         raster_gdf = gpd.GeoDataFrame(
@@ -578,6 +582,7 @@ class RasterModel(BaseModel):
                        Catmull-Rom spline algorithm. If set to False, the raw
                        contours will be returned without any smoothing.
         """
+        import geopandas as gpd
 
         all_levels = []
         all_geoms = []

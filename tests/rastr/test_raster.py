@@ -60,96 +60,152 @@ def example_raster_with_zeros():
     )
 
 
-class TestSample:
-    def test_sample_nan_raise(self, example_raster: RasterModel):
-        with pytest.raises(ValueError, match="NaN value found in input coordinates"):
-            example_raster.sample([(0, 0), (1, np.nan)], na_action="raise")
-
-    def test_sample_nan_ignore(self, example_raster: RasterModel):
-        np.testing.assert_array_equal(
-            example_raster.sample([(0, 0), (2, 2), (2, np.nan)], na_action="ignore"),
-            [1.0, 4, np.nan],
-        )
-
-    def test_oob_query(self, example_raster: RasterModel):
-        result = example_raster.sample([(-99.0, 92640.20)], na_action="raise")
-        np.testing.assert_array_equal(result, np.array([np.nan]))
-
-    def test_raster_meta_with_irrelevant_fields(self):
-        with pytest.raises(ValidationError):
-            RasterMeta(
-                cell_size=1.0,
-                crs=CRS.from_epsg(2193),
-                transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
-                irrelevant_field="irrelevant",  # type: ignore[reportCallIssue]
+class TestRasterModel:
+    class TestInit:
+        def test_meta_and_arr(self, example_raster: RasterModel):
+            # Act, Assert
+            RasterModel(
+                arr=example_raster.arr,
+                meta=example_raster.raster_meta,
             )
 
-    def test_short_circuit(self):
-        # Arrange
-        raster = RasterModel(
-            arr=np.array([[1, 2], [3, 4]]),
-            raster_meta=RasterMeta(
-                cell_size=1.0,
-                crs=CRS.from_epsg(2193),
-                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
-            ),
-        )
+        def test_both_meta_and_raster_meta(self, example_raster: RasterModel):
+            # Act, Assert
+            with pytest.raises(
+                ValueError,
+                match="Only one of 'meta' or 'raster_meta' should be provided",
+            ):
+                RasterModel(
+                    arr=example_raster.arr,
+                    meta=example_raster.raster_meta,
+                    raster_meta=example_raster.raster_meta,
+                )
 
-        # Act
-        result = raster.sample([], na_action="raise")
+        def test_missing_meta(self, example_raster: RasterModel):
+            # Act, Assert
+            with pytest.raises(
+                ValueError, match="The attribute 'raster_meta' is required."
+            ):
+                RasterModel(arr=example_raster.arr)
 
-        # Assert
-        assert len(result) == 0
+    class TestMetaAlias:
+        def test_meta_getter(self, example_raster: RasterModel):
+            # Act
+            meta_via_alias = example_raster.meta
+            meta_direct = example_raster.raster_meta
 
-    def test_ndarray_input(self, example_raster: RasterModel):
-        # Arrange
-        coords = np.array([[0, 0], [1, 1]])
+            # Assert
+            assert meta_via_alias is meta_direct
+            assert meta_via_alias == meta_direct
 
-        # Act
-        result = example_raster.sample(coords, na_action="raise")
+        def test_meta_setter(self, example_raster: RasterModel):
+            # Arrange
+            example_raster = example_raster.model_copy(deep=True)
+            new_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
+            )
+            original_meta = example_raster.raster_meta
 
-        # Assert
-        np.testing.assert_array_equal(result, np.array([1.0, 1.0]))
+            # Act
+            example_raster.meta = new_meta
 
+            # Assert
+            assert example_raster.raster_meta is new_meta
+            assert example_raster.meta is new_meta
+            assert example_raster.raster_meta != original_meta
 
-class TestBounds:
-    def test_bounds(self, example_raster: RasterModel):
-        assert example_raster.bounds == (0.0, 0.0, 4.0, 4.0)
+    class TestSample:
+        def test_sample_nan_raise(self, example_raster: RasterModel):
+            with pytest.raises(
+                ValueError, match="NaN value found in input coordinates"
+            ):
+                example_raster.sample([(0, 0), (1, np.nan)], na_action="raise")
 
-    def test_bounds_neg_scaled(self, example_neg_scaled_raster: RasterModel):
-        assert example_neg_scaled_raster.bounds == (0.0, -4.0, 4.0, 0.0)
+        def test_sample_nan_ignore(self, example_raster: RasterModel):
+            np.testing.assert_array_equal(
+                example_raster.sample(
+                    [(0, 0), (2, 2), (2, np.nan)], na_action="ignore"
+                ),
+                [1.0, 4, np.nan],
+            )
 
+        def test_oob_query(self, example_raster: RasterModel):
+            result = example_raster.sample([(-99.0, 92640.20)], na_action="raise")
+            np.testing.assert_array_equal(result, np.array([np.nan]))
 
-class TestAsGeoDataFrame:
-    def test_as_geodataframe(self, example_raster: RasterModel):
-        raster_gdf = example_raster.as_geodataframe(name="ben")
+        def test_raster_meta_with_irrelevant_fields(self):
+            with pytest.raises(ValidationError):
+                RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+                    irrelevant_field="irrelevant",  # type: ignore[reportCallIssue]
+                )
 
-        expected_polygons = {
-            Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
-            Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
-            Polygon([(0, 1), (1, 1), (1, 2), (0, 2)]),
-            Polygon([(1, 1), (2, 1), (2, 2), (1, 2)]),
-        }
+        def test_short_circuit(self):
+            # Arrange
+            raster = RasterModel(
+                arr=np.array([[1, 2], [3, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
 
-        # Check that the result is a GeoDataFrame
-        assert isinstance(raster_gdf, gpd.GeoDataFrame)
+            # Act
+            result = raster.sample([], na_action="raise")
 
-        assert "ben" in raster_gdf.columns, "The name column is missing"
+            # Assert
+            assert len(result) == 0
 
-        # Check the CRS is correctly set
-        assert raster_gdf.crs == example_raster.raster_meta.crs
+        def test_ndarray_input(self, example_raster: RasterModel):
+            # Arrange
+            coords = np.array([[0, 0], [1, 1]])
 
-        # Check the geometry and value columns are correct
-        match_found = [
-            any(raster_gdf.geometry.apply(lambda x, poly=poly: x.equals(poly)))
-            for poly in expected_polygons
-        ]
-        assert all(match_found), (
-            "Not all expected polygons match the geometries in the GeoDataFrame"
-        )
+            # Act
+            result = example_raster.sample(coords, na_action="raise")
 
+            # Assert
+            np.testing.assert_array_equal(result, np.array([1.0, 1.0]))
 
-class TestRasterModel:
+    class TestBounds:
+        def test_bounds(self, example_raster: RasterModel):
+            assert example_raster.bounds == (0.0, 0.0, 4.0, 4.0)
+
+        def test_bounds_neg_scaled(self, example_neg_scaled_raster: RasterModel):
+            assert example_neg_scaled_raster.bounds == (0.0, -4.0, 4.0, 0.0)
+
+    class TestAsGeoDataFrame:
+        def test_as_geodataframe(self, example_raster: RasterModel):
+            raster_gdf = example_raster.as_geodataframe(name="ben")
+
+            expected_polygons = {
+                Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
+                Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
+                Polygon([(0, 1), (1, 1), (1, 2), (0, 2)]),
+                Polygon([(1, 1), (2, 1), (2, 2), (1, 2)]),
+            }
+
+            # Check that the result is a GeoDataFrame
+            assert isinstance(raster_gdf, gpd.GeoDataFrame)
+
+            assert "ben" in raster_gdf.columns, "The name column is missing"
+
+            # Check the CRS is correctly set
+            assert raster_gdf.crs == example_raster.raster_meta.crs
+
+            # Check the geometry and value columns are correct
+            match_found = [
+                any(raster_gdf.geometry.apply(lambda x, poly=poly: x.equals(poly)))
+                for poly in expected_polygons
+            ]
+            assert all(match_found), (
+                "Not all expected polygons match the geometries in the GeoDataFrame"
+            )
+
     class TestAdd:
         def test_basic(self):
             # Arrange

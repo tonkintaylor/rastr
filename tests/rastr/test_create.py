@@ -169,6 +169,30 @@ class TestRasterDistanceFromPolygon:
         )
         assert isinstance(result, RasterModel)
 
+    def test_show_pbar_without_tqdm_warns(self, monkeypatch: pytest.MonkeyPatch):
+        # Arrange
+        monkeypatch.setattr("rastr.create.TQDM_INSTALLED", False)
+
+        polygon = Polygon([(0, 0), (1, 1), (0, 1)])
+        extent_polygon = Polygon([(0, 0), (1, 1), (0, 1)])
+        raster_config = RasterMeta(
+            cell_size=1, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
+        )
+
+        # Act, Assert
+        expected_msg = (
+            "The 'tqdm' package is not installed. Progress bars will not be shown."
+        )
+        with pytest.warns(UserWarning, match=expected_msg):
+            result = raster_distance_from_polygon(
+                polygon,
+                extent_polygon=extent_polygon,
+                raster_meta=raster_config,
+                show_pbar=True,
+            )
+
+        assert isinstance(result, RasterModel)
+
 
 class TestFullRaster:
     def test_full_raster(self):

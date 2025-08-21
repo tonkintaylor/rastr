@@ -44,7 +44,6 @@ dependencies = [
   "shapely>=2.1.1",
   "tqdm>=4.67.1",
   "typing-extensions>=4.14.1",
-  "xyzservices>=2025.4.0",
 ]
 
 [dependency-groups]
@@ -62,6 +61,7 @@ dev = [
   "pip>=25.1.1",
   "pre-commit>=4.2.0",
   "pre-commit-update>=0.8.0",
+  "pyinstrument>=5.1.1",
   "pyright[nodejs]>=1.1.403",
   "ruff>=0.12.5",
   "tqdm>=4.67.1",

@@ -690,8 +690,7 @@ class RasterModel(BaseModel):
     def crop(
         self,
         bounds: tuple[float, float, float, float],
-        *,
-        strategy: Literal["underflow"] = "underflow",
+        strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:
         """Crop the raster to the specified bounds.
 
@@ -699,7 +698,9 @@ class RasterModel(BaseModel):
             bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.
             strategy:   The cropping strategy to use. 'underflow' will crop the raster
                         to be fully within the bounds, ignoring any cells that are
-                        partially outside the bounds.
+                        partially outside the bounds. 'overflow' will instead include
+                        cells that intersect the bounds, ensuring the bounds area
+                        remains covered with cells.
 
         Returns:
             A new RasterModel instance cropped to the specified bounds.
@@ -724,7 +725,13 @@ class RasterModel(BaseModel):
             y_idx = (y_coords >= miny + half_cell_size) & (
                 y_coords <= maxy - half_cell_size
             )
-
+        elif strategy == "overflow":
+            x_idx = (x_coords > minx - half_cell_size) & (
+                x_coords < maxx + half_cell_size
+            )
+            y_idx = (y_coords > miny - half_cell_size) & (
+                y_coords < maxy + half_cell_size
+            )
         else:
             msg = f"Unsupported cropping strategy: {strategy}"
             raise NotImplementedError(msg)

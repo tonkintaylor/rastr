@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from unittest.mock import patch
 
 import folium
@@ -877,7 +877,9 @@ class TestCrop:
         assert cropped == base_raster  # Border cells are not clipped, despite overlap
 
     @pytest.mark.parametrize("strategy", ["overflow", "underflow"])
-    def test_boundary_case(self, base_raster: RasterModel, strategy: str):
+    def test_boundary_case(
+        self, base_raster: RasterModel, strategy: Literal["overflow", "underflow"]
+    ):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         bounds = (minx, miny, maxx - (maxx - minx) / 4, maxy - (maxy - miny) / 4)

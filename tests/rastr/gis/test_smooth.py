@@ -54,7 +54,7 @@ class TestCatmullRomSmooth:
 
     @pytest.mark.parametrize("alpha", [0.0, 0.5, 1.0])
     @pytest.mark.parametrize("subdivs", [2, 5, 10])
-    def test_parameter_variations(self, alpha, subdivs):
+    def test_parameter_variations(self, alpha: float, subdivs: int):
         # Arrange
         ls = LineString([(0, 0), (1, 2), (2, 0)])
         # Act
@@ -146,7 +146,9 @@ class TestCatmullRomSmooth:
             ),
         ],
     )
-    def test_regression(self, alpha, subdivs, expected):
+    def test_regression(
+        self, alpha: float, subdivs: int, expected: list[tuple[float, float]]
+    ):
         # Arrange
         ls = LineString([(0, 0), (1, 1), (2, 0)])
         # Act

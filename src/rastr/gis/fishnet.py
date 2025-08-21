@@ -8,11 +8,12 @@ from shapely import BufferCapStyle, BufferJoinStyle
 
 if TYPE_CHECKING:
     from geopandas.array import GeometryArray
+    from numpy.typing import NDArray
 
 
 def create_point_grid(
     *, bounds: tuple[float, float, float, float], cell_size: float
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[NDArray, NDArray]:
     """Create a regular grid of point coordinates for raster centers.
 
     This function replicates the original grid generation logic that uses
@@ -31,7 +32,8 @@ def create_point_grid(
     x_coords = np.arange(xmin + cell_size / 2, xmax + cell_size / 2, cell_size)
     y_coords = np.arange(ymax - cell_size / 2, ymin - cell_size / 2, -cell_size)
 
-    return np.meshgrid(x_coords, y_coords)
+    x_points, y_points = np.meshgrid(x_coords, y_coords)  # type: ignore[reportAssignmentType]
+    return x_points, y_points
 
 
 def get_point_grid_shape(

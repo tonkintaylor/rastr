@@ -8,6 +8,7 @@ from pydantic import BaseModel, InstanceOf
 from pyproj import CRS
 
 if TYPE_CHECKING:
+    from numpy.typing import NDArray
     from typing_extensions import Self
 
 
@@ -34,7 +35,7 @@ class RasterMeta(BaseModel, extra="forbid"):
             transform=Affine.scale(2.0, 2.0),
         )
 
-    def get_cell_centre_coords(self, shape: tuple[int, int]) -> np.ndarray:
+    def get_cell_centre_coords(self, shape: tuple[int, int]) -> NDArray:
         """Return an array of (x, y) coordinates for the center of each cell.
 
         The coordinates will be in the coordinate system defined by the
@@ -51,7 +52,7 @@ class RasterMeta(BaseModel, extra="forbid"):
         coords = np.stack(np.meshgrid(x_coords, y_coords), axis=-1)
         return coords
 
-    def get_cell_x_coords(self, n_columns: int) -> np.ndarray:
+    def get_cell_x_coords(self, n_columns: int) -> NDArray:
         """Return an array of x coordinates for the center of each cell.
 
         The coordinates will be in the coordinate system defined by the
@@ -65,10 +66,10 @@ class RasterMeta(BaseModel, extra="forbid"):
         """
         x_idx = np.arange(n_columns) + 0.5
         y_idx = np.zeros_like(x_idx)  # Use y=0 for a single row
-        x_coords, _ = self.transform * (x_idx, y_idx)
+        x_coords, _ = self.transform * (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
         return x_coords
 
-    def get_cell_y_coords(self, n_rows: int) -> np.ndarray:
+    def get_cell_y_coords(self, n_rows: int) -> NDArray:
         """Return an array of y coordinates for the center of each cell.
 
         The coordinates will be in the coordinate system defined by the
@@ -82,5 +83,5 @@ class RasterMeta(BaseModel, extra="forbid"):
         """
         x_idx = np.zeros(n_rows)  # Use x=0 for a single column
         y_idx = np.arange(n_rows) + 0.5
-        _, y_coords = self.transform * (x_idx, y_idx)
+        _, y_coords = self.transform * (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
         return y_coords

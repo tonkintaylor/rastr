@@ -18,7 +18,9 @@ attrs==25.3.0 \
 branca==0.8.1 \
     --hash=sha256:ac397c2d79bd13af0d04193b26d5ed17031d27609a7f1fab50c438b8ae712390 \
     --hash=sha256:d29c5fab31f7c21a92e34bf3f854234e29fecdcf5d2df306b616f20d816be425
-    # via folium
+    # via
+    #   folium
+    #   rastr
 certifi==2025.8.3 \
     --hash=sha256:e564105f78ded564e3ae7c923924435e1daa7463faeab5bb932bc53ffae63407 \
     --hash=sha256:f6c12493cfb1b06ba2ff328595af9350c65d6644968e5d3a2ffd78699af217a5
@@ -1237,6 +1239,4 @@ urllib3==2.5.0 \
 xyzservices==2025.4.0 \
     --hash=sha256:6fe764713648fac53450fbc61a3c366cb6ae5335a1b2ae0c3796b495de3709d8 \
     --hash=sha256:8d4db9a59213ccb4ce1cf70210584f30b10795bff47627cdfb862b39ff6e10c9
-    # via
-    #   folium
-    #   rastr
+    # via folium

@@ -44,7 +44,6 @@ dependencies = [
   "shapely>=2.1.1",
   "tqdm>=4.67.1",
   "typing-extensions>=4.14.1",
-  "xyzservices>=2025.4.0",
 ]
 
 [dependency-groups]

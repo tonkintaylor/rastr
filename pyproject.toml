@@ -193,6 +193,7 @@ lint.flake8-tidy-imports.banned-module-level-imports = [
   "matplotlib",
   "mpl_toolkits",
   "pandas",
+  "tqdm",
 ]
 
 lint.flake8-type-checking.quote-annotations = true

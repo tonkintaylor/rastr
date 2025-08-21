@@ -1,21 +1,28 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import importlib.util
+import warnings
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 import rasterio.features
 from affine import Affine
 from shapely.geometry import Point
-from tqdm.notebook import tqdm
 
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
 from rastr.raster import RasterModel
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     import geopandas as gpd
     from shapely.geometry import Polygon
 
     from rastr.meta import RasterMeta
+
+TQDM_INSTALLED = importlib.util.find_spec("tqdm") is not None
+
+_T = TypeVar("_T")
 
 
 class MissingColumnsError(ValueError):
@@ -65,6 +72,11 @@ def raster_distance_from_polygon(
     Raises:
         ValueError: If the provided CRS is geographic (lat/lon).
     """
+    if show_pbar and not TQDM_INSTALLED:
+        msg = "The 'tqdm' package is not installed. Progress bars will not be shown."
+        warnings.warn(msg, UserWarning, stacklevel=2)
+        show_pbar = False
+
     # Check if the provided CRS is projected (cartesian)
     if raster_meta.crs.is_geographic:
         err_msg = (
@@ -92,18 +104,22 @@ def raster_distance_from_polygon(
     else:
         raise AssertionError
 
-    points = [Point(x, y) for x, y in zip(x.flatten(), y.flatten(), strict=True)]
+    pts = [Point(x, y) for x, y in zip(x.flatten(), y.flatten(), strict=True)]
 
-    _points = tqdm(points, desc="Finding points within extent") if show_pbar else points
-    mask = [distance_extent.intersects(point) for point in _points]
+    _pts = _pbar(pts, desc="Finding points within extent") if show_pbar else pts
+    mask = [distance_extent.intersects(pt) for pt in _pts]
 
-    _points = tqdm(points, desc="Calculating distances") if show_pbar else points
-    distances = np.where(
-        mask, np.array([polygon.distance(point) for point in _points]), np.nan
-    )
+    _pts = _pbar(pts, desc="Calculating distances") if show_pbar else pts
+    distances = np.where(mask, np.array([polygon.distance(pt) for pt in _pts]), np.nan)
     distance_raster = distances.reshape(x.shape)
 
     return RasterModel(arr=distance_raster, raster_meta=raster_meta)
+
+
+def _pbar(iterable: Iterable[_T], *, desc: str | None = None) -> Iterable[_T]:
+    from tqdm import tqdm
+
+    return tqdm(iterable, desc=desc)
 
 
 def full_raster(

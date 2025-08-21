@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import partial
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -14,8 +13,6 @@ from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
 from rastr.raster import RasterModel
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     import geopandas as gpd
     from shapely.geometry import Polygon
 
@@ -69,18 +66,6 @@ def raster_distance_from_polygon(
     Raises:
         ValueError: If the provided CRS is geographic (lat/lon).
     """
-    if extent_polygon is None and snap_raster is None:
-        err_msg = "Either 'extent_polygon' or 'snap_raster' must be provided. "
-        raise ValueError(err_msg)
-    elif extent_polygon is not None and snap_raster is not None:
-        err_msg = "Only one of 'extent_polygon' or 'snap_raster' can be provided. "
-        raise ValueError(err_msg)
-
-    if not show_pbar:
-
-        def _pbar(x: Iterable) -> None:
-            return x  # No-op if no progress bar is needed
-
     # Check if the provided CRS is projected (cartesian)
     if raster_meta.crs.is_geographic:
         err_msg = (
@@ -88,30 +73,34 @@ def raster_distance_from_polygon(
         )
         raise ValueError(err_msg)
 
-    # Calculate the coordinates
-    if snap_raster is not None:
+    if extent_polygon is None and snap_raster is None:
+        err_msg = "Either 'extent_polygon' or 'snap_raster' must be provided. "
+        raise ValueError(err_msg)
+    elif extent_polygon is not None and snap_raster is not None:
+        err_msg = "Only one of 'extent_polygon' or 'snap_raster' can be provided. "
+        raise ValueError(err_msg)
+    elif extent_polygon is None and snap_raster is not None:
+        # Calculate the coordinates
         x, y = snap_raster.get_xy()
-    else:
+
+        # Create a mask to identify points for which distance should be calculated
+        distance_extent = snap_raster.bbox.difference(polygon)
+    elif extent_polygon is not None and snap_raster is None:
         x, y = create_point_grid(
             bounds=extent_polygon.bounds, cell_size=raster_meta.cell_size
         )
+        distance_extent = extent_polygon.difference(polygon)
+    else:
+        raise AssertionError
 
     points = [Point(x, y) for x, y in zip(x.flatten(), y.flatten(), strict=True)]
 
-    # Create a mask to identify points for which distance should be calculated
-    if extent_polygon is not None:
-        distance_extent = extent_polygon.difference(polygon)
-    else:
-        distance_extent = snap_raster.bbox.difference(polygon)
+    _points = tqdm(points, desc="Finding points within extent") if show_pbar else points
+    mask = [distance_extent.intersects(point) for point in _points]
 
-    if show_pbar:
-        _pbar = partial(tqdm, desc="Finding points within extent")
-    mask = [distance_extent.intersects(point) for point in _pbar(points)]
-
-    if show_pbar:
-        _pbar = partial(tqdm, desc="Calculating distances")
+    _points = tqdm(points, desc="Calculating distances") if show_pbar else points
     distances = np.where(
-        mask, np.array([polygon.distance(point) for point in _pbar(points)]), np.nan
+        mask, np.array([polygon.distance(point) for point in _points]), np.nan
     )
     distance_raster = distances.reshape(x.shape)
 
@@ -193,7 +182,8 @@ def rasterize_gdf(
             shapes,
             out_shape=shape,
             transform=transform,
-            fill=np.nan,  # Fill gaps with NaN
+            # Fill gaps with NaN
+            fill=np.nan,  # type: ignore[reportArgumentType] docstring contradicts inferred annotation
             dtype=np.float32,
         )
 

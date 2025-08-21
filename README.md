@@ -12,9 +12,11 @@
 A lightweight geospatial raster datatype library for Python focused on simplicity.
 
 ## Overview
+
 `rastr` provides an intuitive interface for creating, reading, manipulating, and exporting geospatial raster data in Python.
 
 ### Features
+
 - 🧮 **Complete raster arithmetic**: Full support for mathematical operations (`+`, `-`, `*`, `/`) between rasters and scalars.
 - 📊 **Flexible visualization**: Built-in plotting with matplotlib and interactive mapping with folium.
 - 🗺️ **Geospatial analysis tools**: Contour generation, Gaussian blurring, and spatial sampling.
@@ -87,8 +89,16 @@ gdf = raster.as_geodataframe(name="elevation")
 ```
 
 ## Limitations
+
 Current version limitations:
+
 - Only Single-band rasters are supported.
 - In-memory processing only (streaming support planned).
 - Square cells only (rectangular cell support planned).
 - Only float dtypes (integer support planned).
+
+### Contributing
+
+See the
+[CONTRIBUTING.md](https://github.com/usethis-python/usethis-python/blob/main/CONTRIBUTING.md)
+file.

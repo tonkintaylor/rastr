@@ -5,7 +5,6 @@ import warnings
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
-import pandas as pd
 import rasterio.features
 from affine import Affine
 from shapely.geometry import Point
@@ -236,6 +235,8 @@ def _validate_columns_numeric(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> 
     Raises:
         NonNumericColumnsError: If any columns contain non-numeric data.
     """
+    import pandas as pd
+
     non_numeric_cols = []
     for col in target_cols:
         if not pd.api.types.is_numeric_dtype(gdf[col]):

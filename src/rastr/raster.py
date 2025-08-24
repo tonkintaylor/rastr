@@ -565,7 +565,12 @@ class RasterModel(BaseModel):
         return cls(arr=arr, raster_meta=raster_meta)
 
     def apply(self, func: Callable[[NDArray], NDArray]) -> Self:
-        """Apply a function to the raster array."""
+        """Apply a function element-wise to the raster array.
+        
+        Creates a new raster instance with the same metadata (CRS, transform, etc.)
+        but with the data array transformed by the provided function. The original
+        raster is not modified.
+        """
         new_raster = self.model_copy()
         new_raster.arr = func(self.arr)
         return new_raster

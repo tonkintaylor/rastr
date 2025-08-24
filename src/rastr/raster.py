@@ -18,7 +18,6 @@ from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from scipy.ndimage import gaussian_filter
 from shapely.geometry import LineString, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
@@ -664,6 +663,7 @@ class RasterModel(BaseModel):
                    coordinate distance (e.g. meters). A larger sigma results in a more
                    blurred image.
         """
+        from scipy.ndimage import gaussian_filter
 
         cell_sigma = sigma / self.raster_meta.cell_size
 

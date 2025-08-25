@@ -15,6 +15,7 @@ import rasterio.sample
 import rasterio.transform
 import skimage.measure
 from pydantic import BaseModel, InstanceOf, field_validator
+from pyproj import Transformer
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
@@ -334,15 +335,31 @@ class RasterModel(BaseModel):
             ]
         )
 
-    def explore(
+    def explore(  # noqa: C901, PLR0912, PLR0915
         self,
         *,
         m: Map | None = None,
         opacity: float = 1.0,
         colormap: str = "viridis",
         cbar_label: str | None = None,
+        tooltip: bool = False,
     ) -> Map:
-        """Display the raster on a folium map."""
+        """Display the raster on a folium interactive map with color mapping and legend.
+
+        Requires 'folium' and 'matplotlib' to be installed.
+        The overlay is georeferenced using the raster's CRS and bounds.
+
+        Args:
+            m: Optional folium Map instance to add the raster overlay to. If None, a new
+            map is created.
+            opacity: Opacity of the raster overlay (0.0 = transparent, 1.0 = opaque).
+            colormap: Name of the matplotlib colormap to use for visualization.
+            cbar_label: Optional label for the colorbar legend.
+            tooltip: If True, enables tooltips on the raster overlay.
+
+        Returns:
+            A folium Map object with the raster image overlay and colorbar legend.
+        """
         if not FOLIUM_INSTALLED or not MATPLOTLIB_INSTALLED:
             msg = "The 'folium' and 'matplotlib' packages are required for 'explore()'."
             raise ImportError(msg)
@@ -400,6 +417,52 @@ class RasterModel(BaseModel):
         )
 
         img.add_to(m)
+
+        # Add invisible polygons for per-cell tooltips if requested
+        if tooltip:
+            x_coords = self.cell_x_coords
+            y_coords = self.cell_y_coords
+            cell_size = self.raster_meta.cell_size
+            crs_is_wgs84 = self.raster_meta.crs == wgs84_crs
+            transformer = Transformer.from_crs(
+                self.raster_meta.crs, wgs84_crs, always_xy=True
+            )
+            features = []
+
+            for i, x in enumerate(x_coords):
+                for j, y in enumerate(y_coords):
+                    val = self.arr[i, j]
+                    if not np.isfinite(val):
+                        continue
+                    half = cell_size / 2
+                    corners = [
+                        (x - half, y - half),
+                        (x - half, y + half),
+                        (x + half, y + half),
+                        (x + half, y - half),
+                        (x - half, y - half),
+                    ]
+                    if not crs_is_wgs84:
+                        lonlat = [transformer.transform(cx, cy) for cx, cy in corners]
+                    else:
+                        lonlat = corners
+
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "Polygon",
+                                "coordinates": [lonlat],
+                            },
+                            "properties": {"value": float(val)},
+                        }
+                    )
+            geojson = {"type": "FeatureCollection", "features": features}
+            folium.GeoJson(
+                geojson,
+                style_function=lambda _: {"fillOpacity": 0, "color": "#00000000"},
+                tooltip=folium.GeoJsonTooltip(fields=["value"], aliases=["Value"]),
+            ).add_to(m)
 
         # Add a colorbar legend
         if BRANCA_INSTALLED:

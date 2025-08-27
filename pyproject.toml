@@ -256,7 +256,7 @@ output = "test-reports/coverage.xml"
 
 [tool.uv]
 default-groups = [ "dev", "test", "doc" ]
-required-version = "==0.7.13"              # sync with .pre-commit-config.yaml and release.yml
+required-version = "==0.7.13"             # sync with .pre-commit-config.yaml and release.yml
 link-mode = "symlink"
 
 [tool.importlinter]

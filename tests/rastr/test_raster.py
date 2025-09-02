@@ -171,6 +171,17 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(result, np.array([1.0, 1.0]))
 
+        def test_shapely_points_input(self, example_raster: RasterModel):
+            # Arrange
+            from shapely.geometry import Point
+            points = [Point(0, 0), Point(2, 2)]
+
+            # Act
+            result = example_raster.sample(points, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array([1.0, 4.0]))
+
     class TestBounds:
         def test_bounds(self, example_raster: RasterModel):
             assert example_raster.bounds == (0.0, 0.0, 4.0, 4.0)

@@ -12,7 +12,7 @@ from affine import Affine
 from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
@@ -173,7 +173,6 @@ class TestRasterModel:
 
         def test_shapely_points_input(self, example_raster: RasterModel):
             # Arrange
-            from shapely.geometry import Point
             points = [Point(0, 0), Point(2, 2)]
 
             # Act

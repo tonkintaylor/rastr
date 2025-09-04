@@ -580,20 +580,8 @@ class RasterModel(BaseModel):
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Get the x and y coordinates of the raster in meshgrid format."""
-        col_idx, row_idx = np.meshgrid(
-            np.arange(self.arr.shape[1]),
-            np.arange(self.arr.shape[0]),
-        )
-
-        col_idx = col_idx.flatten()
-        row_idx = row_idx.flatten()
-
-        coords = np.vstack((row_idx, col_idx)).T
-
-        x, y = rasterio.transform.xy(self.raster_meta.transform, *coords.T)
-        x = np.array(x).reshape(self.arr.shape)
-        y = np.array(y).reshape(self.arr.shape)
-        return x, y
+        coords = self.raster_meta.get_cell_centre_coords(self.arr.shape)
+        return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
         self, *, levels: list[float], smoothing: bool = True

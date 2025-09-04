@@ -255,7 +255,7 @@ class RasterModel(BaseModel):
         # https://rdrn.me/optimising-sampling/
 
         # Convert shapely Points to coordinate tuples if needed
-        if len(xy) > 0 and isinstance(xy[0], Point):
+        if isinstance(xy, (list, tuple)) and xy and isinstance(xy[0], Point):
             xy = [(point.x, point.y) for point in xy]
 
         xy = np.asarray(xy, dtype=float)

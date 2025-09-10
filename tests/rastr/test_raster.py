@@ -12,7 +12,7 @@ from affine import Affine
 from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
-from shapely.geometry import Polygon
+from shapely.geometry import LineString, MultiLineString, Polygon
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
@@ -1328,7 +1328,6 @@ class TestContour:
         assert set(gdf["level"]) == set(levels)
         
         # Geometries should be MultiLineString (dissolved from multiple LineStrings)
-        from shapely.geometry import MultiLineString, LineString
         for geom in gdf.geometry:
             assert isinstance(geom, (MultiLineString, LineString))  # Can be either depending on dissolve result
 

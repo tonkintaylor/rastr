@@ -292,7 +292,7 @@ def raster_from_point_cloud(
     Interpolation is only possible within the convex hull of the points. Outside of
     this, cells will be NaN-valued.
 
-    Parameters:
+    Args:
         x: X coordinates of points.
         y: Y coordinates of points.
         z: Values at each (x, y) point to assign the raster.

@@ -1294,3 +1294,46 @@ class TestExplore:
 
         # Assert flip called exactly twice (both axes)
         assert mock_flip.call_count == 2
+
+
+class TestContour:
+    def test_contour_with_list_levels(self):
+        # Arrange
+        raster = RasterModel.example()
+        levels = [0.0, 0.5]
+        
+        # Act
+        contour_gdf = raster.contour(levels=levels)
+        
+        # Assert
+        assert isinstance(contour_gdf, gpd.GeoDataFrame)
+        assert "level" in contour_gdf.columns
+        assert len(contour_gdf) >= 0  # Should return some contours or empty GDF
+
+    def test_contour_with_ndarray_levels(self):
+        # Arrange
+        raster = RasterModel.example()
+        levels = np.array([0.0, 0.5])
+        
+        # Act
+        contour_gdf = raster.contour(levels=levels)
+        
+        # Assert
+        assert isinstance(contour_gdf, gpd.GeoDataFrame)
+        assert "level" in contour_gdf.columns
+        assert len(contour_gdf) >= 0  # Should return some contours or empty GDF
+
+    def test_contour_list_and_ndarray_equivalent(self):
+        # Arrange
+        raster = RasterModel.example()
+        levels_list = [0.0, 0.5]
+        levels_array = np.array([0.0, 0.5])
+        
+        # Act
+        contour_gdf_list = raster.contour(levels=levels_list)
+        contour_gdf_array = raster.contour(levels=levels_array)
+        
+        # Assert
+        # Results should be equivalent (same number of contours at same levels)
+        assert len(contour_gdf_list) == len(contour_gdf_array)
+        assert list(contour_gdf_list["level"]) == list(contour_gdf_array["level"])

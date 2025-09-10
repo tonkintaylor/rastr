@@ -6,7 +6,7 @@ import importlib.util
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import numpy.ma
@@ -572,6 +572,43 @@ class RasterModel(BaseModel):
 
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
+
+    @overload
+    def apply(
+        self,
+        func: Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[True],
+    ) -> Self: ...
+    @overload
+    def apply(
+        self,
+        func: Callable[[float], float] | Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[False] = False,
+    ) -> Self: ...
+    def apply(self, func, *, raw=False) -> Self:
+        """Apply a function element-wise to the raster array.
+
+        Creates a new raster instance with the same metadata (CRS, transform, etc.)
+        but with the data array transformed by the provided function. The original
+        raster is not modified.
+
+        Args:
+            func: The function to apply to the raster array. If `raw` is True, this
+                  function should accept and return a NumPy array. If `raw` is False,
+                  this function should accept and return a single float value.
+            raw: If True, the function is applied directly to the entire array at
+                 once. If False, the function is applied element-wise to each cell
+                 in the array using `np.vectorize()`. Default is False.
+        """
+        new_raster = self.model_copy()
+        if raw:
+            new_arr = func(self.arr)
+        else:
+            new_arr = np.vectorize(func)(self.arr)
+        new_raster.arr = np.asarray(new_arr)
+        return new_raster
 
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.

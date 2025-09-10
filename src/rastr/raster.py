@@ -701,7 +701,7 @@ class RasterModel(BaseModel):
         bounds: tuple[float, float, float, float],
         strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:
-        """Crop the raster to the specified bounds (minx, miny, maxx, maxy).
+        """Crop the raster to the specified bounds as (minx, miny, maxx, maxy).
 
         Args:
             bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.

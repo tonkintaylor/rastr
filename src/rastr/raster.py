@@ -595,7 +595,7 @@ class RasterModel(BaseModel):
         contouring, to denoise the contours.
 
         Args:
-            levels: A list or array of contour levels to generate. The contour lines 
+            levels: A list or array of contour levels to generate. The contour lines
                     will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the

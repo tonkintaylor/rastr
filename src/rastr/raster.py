@@ -570,7 +570,7 @@ class RasterModel(BaseModel):
     ) -> Self: ...
     @overload
     def apply(self, func: Callable[[float], float], *, raw: Literal[False]) -> Self: ...
-    def apply(self, func, *, raw) -> Self:
+    def apply(self, func, *, raw=False) -> Self:
         """Apply a function element-wise to the raster array.
 
         Creates a new raster instance with the same metadata (CRS, transform, etc.)

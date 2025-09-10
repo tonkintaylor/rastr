@@ -46,6 +46,20 @@ BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 
+def _get_xy_tuple(xy: tuple[float, float] | Point) -> tuple[float, float]:
+    """Convert Point or coordinate tuple to coordinate tuple.
+
+    Args:
+        xy: Either a coordinate tuple or a shapely Point object.
+
+    Returns:
+        A coordinate tuple (x, y).
+    """
+    if isinstance(xy, Point):
+        return (xy.x, xy.y)
+    return xy
+
+
 class RasterCellArrayShapeError(ValueError):
     """Custom error for invalid raster cell array shapes."""
 
@@ -255,8 +269,8 @@ class RasterModel(BaseModel):
         # https://rdrn.me/optimising-sampling/
 
         # Convert shapely Points to coordinate tuples if needed
-        if isinstance(xy, (list, tuple)) and xy and isinstance(xy[0], Point):
-            xy = [(point.x, point.y) for point in xy]
+        if isinstance(xy, (list, tuple)):
+            xy = [_get_xy_tuple(point) for point in xy]
 
         xy = np.asarray(xy, dtype=float)
 

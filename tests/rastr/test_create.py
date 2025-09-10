@@ -729,3 +729,71 @@ class TestRasterFromPointCloud:
         assert np.all(raster.arr >= 0)  # All values should be non-negative
         assert np.all(raster.arr <= 1000)  # All values should be within z range
         assert 450 < raster.arr.mean() < 550  # Mean should be roughly accurate
+
+    def test_same_xy_different_z(self):
+        # Arrange
+        x = [0, 0, 0, 1, 1]
+        y = [0, 0, 1, 0, 1]
+        z = [10, 15, 20, 30, 40]  # Two points at (0,0) with different z
+
+        # Act
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Duplicate (x, y) points found. Each (x, y) point must be unique."
+            ),
+        ):
+            raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    def test_collinear_points(self):
+        # Arrange
+        x = [0, 1, 2]
+        y = [0, 0, 0]  # All points are collinear along y=0
+        z = [10, 20, 30]
+
+        # Act / Assert
+        with pytest.raises(
+            ValueError,
+            match=re.escape("Failed to interpolate."),
+        ):
+            raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    class TestInsufficientPoints:
+        def test_empty_inputs(self):
+            # Arrange
+            x: list[float] = []
+            y: list[float] = []
+            z: list[float] = []
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError,
+                match=re.escape("At least three (x, y, z) points are required"),
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        def test_only_two_points(self):
+            # Arrange
+            x = [0, 1]
+            y = [0, 1]
+            z = [10, 20]
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError,
+                match=re.escape("At least three (x, y, z) points are required"),
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    def test_2d_arrays(self):
+        # Arrange
+        x = np.array([[0, 0], [1, 1]])
+        y = np.array([[0, 1], [0, 1]])
+        z = np.array([[10, 20], [30, 40]])
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+        assert raster.arr.shape == (2, 2)

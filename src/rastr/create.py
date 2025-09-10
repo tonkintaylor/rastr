@@ -292,6 +292,8 @@ def raster_from_point_cloud(
     Interpolation is only possible within the convex hull of the points. Outside of
     this, cells will be NaN-valued.
 
+    All (x,y) points must be unique.
+
     Args:
         x: X coordinates of points.
         y: Y coordinates of points.
@@ -302,18 +304,28 @@ def raster_from_point_cloud(
 
     Returns:
         InMemRaster containing the interpolated values.
+
+    Raises:
+        ValueError: If any (x, y) points are duplicated, or if they are all collinear.
     """
     from scipy.interpolate import LinearNDInterpolator
-    from scipy.spatial import KDTree
+    from scipy.spatial import KDTree, QhullError
 
-    x = np.asarray(x)
-    y = np.asarray(y)
-    z = np.asarray(z)
+    x = np.asarray(x).ravel()
+    y = np.asarray(y).ravel()
+    z = np.asarray(z).ravel()
     crs = CRS.from_user_input(crs)
+    xy_points = np.column_stack((x, y))
 
     # Validate input arrays
     if len(x) != len(y) or len(x) != len(z):
         msg = "Length of x, y, and z must be equal."
+        raise ValueError(msg)
+    if len(x) < 3:
+        msg = "At least three (x, y, z) points are required to triangulate a surface."
+        raise ValueError(msg)
+    if len(xy_points) != len(np.unique(xy_points, axis=0)):
+        msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."
         raise ValueError(msg)
 
     # Heuristic for cell size if not provided
@@ -322,8 +334,7 @@ def raster_from_point_cloud(
         tree = KDTree(np.column_stack((x, y)))
         distances, _ = tree.query(np.column_stack((x, y)), k=2)
         distances: np.ndarray
-        nearest_distances = distances[:, 1]  # Exclude zero distance to self
-        cell_size = float(np.percentile(nearest_distances, 5)) / 2
+        cell_size = float(np.percentile(distances[distances > 0], 5)) / 2
 
     # Compute bounds from data
     minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
@@ -345,9 +356,18 @@ def raster_from_point_cloud(
     grid_y = np.array(ys).ravel()
 
     # Perform interpolation
-    interpolator = LinearNDInterpolator(
-        points=np.column_stack((x, y)), values=z, fill_value=np.nan
-    )
+    try:
+        interpolator = LinearNDInterpolator(
+            points=xy_points, values=z, fill_value=np.nan
+        )
+    except QhullError as err:
+        msg = (
+            "Failed to interpolate. This may be due to insufficient or "
+            "degenerate input points. Ensure that the (x, y) points are not all "
+            "collinear (i.e. that the convex hull is non-degenerate)."
+        )
+        raise ValueError(msg) from err
+
     grid_values = np.array(interpolator(np.column_stack((grid_x, grid_y))))
 
     arr = grid_values.reshape(shape).astype(np.float32)

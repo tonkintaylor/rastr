@@ -10,6 +10,7 @@
 - Write unit tests using `pytest` inside `tests/`, structured based on `src/`.  
   - Example: `src/x/y/z` → `tests/x/y/test_z.py`  
 - Use test fixtures and group tests into classes when appropriate.  
+- When testing methods on classes, create nested test classes within the test class associated with the overall tested class (e.g., `TestContour` nested within `TestRasterModel` when testing the `contour` method of `RasterModel`).
 - After modifying a function, run its unit tests using pytest.
 - Run tests in virtual environment: `.\.venv\Scripts\activate; python -m pytest tests/path/to/test_file.py -v`
 

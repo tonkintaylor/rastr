@@ -303,7 +303,7 @@ def raster_from_point_cloud(
                    on the spacing between (x, y) points.
 
     Returns:
-        InMemRaster containing the interpolated values.
+        Raster containing the interpolated values.
 
     Raises:
         ValueError: If any (x, y) points are duplicated, or if they are all collinear.

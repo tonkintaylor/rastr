@@ -6,12 +6,10 @@ import importlib.util
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
-import geopandas as gpd
 import numpy as np
 import numpy.ma
-import pandas as pd
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
@@ -20,8 +18,7 @@ from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from scipy.ndimage import gaussian_filter
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet
@@ -31,20 +28,22 @@ from rastr.meta import RasterMeta
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    import geopandas as gpd
     from folium import Map
     from matplotlib.axes import Axes
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from typing_extensions import Self
 
-FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
-BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
-MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
-
 try:
     from rasterio._err import CPLE_BaseError
 except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
+
+
+FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
+BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
+MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 
 class RasterCellArrayShapeError(ValueError):
@@ -236,14 +235,15 @@ class RasterModel(BaseModel):
 
     def sample(
         self,
-        xy: list[tuple[float, float]] | ArrayLike,
+        xy: list[tuple[float, float]] | list[Point] | ArrayLike,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
     ) -> NDArray[np.float64]:
         """Sample raster values at GeoSeries locations and return sampled values.
 
         Args:
-            xy: A list of (x, y) coordinates to sample the raster at.
+            xy: A list of (x, y) coordinates or shapely Point objects to sample the
+                raster at.
             na_action: Action to take when a NaN value is encountered in the input xy.
                        Options are "raise" (raise an error) or "ignore" (replace with
                        NaN).
@@ -253,6 +253,10 @@ class RasterModel(BaseModel):
         """
         # If this function is too slow, consider the optimizations detailed here:
         # https://rdrn.me/optimising-sampling/
+
+        # Convert shapely Points to coordinate tuples if needed
+        if isinstance(xy, (list, tuple)):
+            xy = [_get_xy_tuple(point) for point in xy]
 
         xy = np.asarray(xy, dtype=float)
 
@@ -349,6 +353,7 @@ class RasterModel(BaseModel):
             raise ImportError(msg)
 
         import folium.raster_layers
+        import geopandas as gpd
         import matplotlib as mpl
 
         if m is None:
@@ -425,6 +430,8 @@ class RasterModel(BaseModel):
 
     def to_clipboard(self) -> None:
         """Copy the raster cell array to the clipboard."""
+        import pandas as pd
+
         pd.DataFrame(self.arr).to_clipboard(index=False, header=False)
 
     def plot(
@@ -496,6 +503,8 @@ class RasterModel(BaseModel):
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""
+        import geopandas as gpd
+
         polygons = create_fishnet(bounds=self.bounds, res=self.raster_meta.cell_size)
         point_tuples = [polygon.centroid.coords[0] for polygon in polygons]
         raster_gdf = gpd.GeoDataFrame(
@@ -612,24 +621,22 @@ class RasterModel(BaseModel):
         return new_raster
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Get the x and y coordinates of the raster in meshgrid format."""
-        col_idx, row_idx = np.meshgrid(
-            np.arange(self.arr.shape[1]),
-            np.arange(self.arr.shape[0]),
-        )
+        """Get the x and y coordinates of the raster cell centres in meshgrid format.
 
-        col_idx = col_idx.flatten()
-        row_idx = row_idx.flatten()
+        Returns the coordinates of the cell centres as two separate 2D arrays in
+        meshgrid format, where each array has the same shape as the raster data array.
 
-        coords = np.vstack((row_idx, col_idx)).T
-
-        x, y = rasterio.transform.xy(self.raster_meta.transform, *coords.T)
-        x = np.array(x).reshape(self.arr.shape)
-        y = np.array(y).reshape(self.arr.shape)
-        return x, y
+        Returns:
+            A tuple of (x, y) coordinate arrays where:
+            - x: 2D array of x-coordinates of cell centres
+            - y: 2D array of y-coordinates of cell centres
+            Both arrays have the same shape as the raster data array.
+        """
+        coords = self.raster_meta.get_cell_centre_coords(self.arr.shape)
+        return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, *, levels: list[float], smoothing: bool = True
+        self, *, levels: list[float] | NDArray, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
@@ -640,13 +647,14 @@ class RasterModel(BaseModel):
         contouring, to denoise the contours.
 
         Args:
-            levels: A list of contour levels to generate. The contour lines will be
-                    generated for each level in this list.
+            levels: A list or array of contour levels to generate. The contour lines
+                    will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the
                        Catmull-Rom spline algorithm. If set to False, the raw
                        contours will be returned without any smoothing.
         """
+        import geopandas as gpd
 
         all_levels = []
         all_geoms = []
@@ -695,6 +703,7 @@ class RasterModel(BaseModel):
                    coordinate distance (e.g. meters). A larger sigma results in a more
                    blurred image.
         """
+        from scipy.ndimage import gaussian_filter
 
         cell_sigma = sigma / self.raster_meta.cell_size
 
@@ -855,3 +864,18 @@ class RasterModel(BaseModel):
             msg = "Cell array must be 2D"
             raise RasterCellArrayShapeError(msg)
         return v
+
+
+def _get_xy_tuple(xy: Any) -> tuple[float, float]:
+    """Convert Point or coordinate tuple to coordinate tuple.
+
+    Args:
+        xy: Either a coordinate tuple or a shapely Point object.
+
+    Returns:
+        A coordinate tuple (x, y).
+    """
+    if isinstance(xy, Point):
+        return (xy.x, xy.y)
+    x, y = xy
+    return (float(x), float(y))

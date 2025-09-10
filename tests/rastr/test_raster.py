@@ -12,7 +12,7 @@ from affine import Affine
 from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
@@ -170,6 +170,16 @@ class TestRasterModel:
 
             # Assert
             np.testing.assert_array_equal(result, np.array([1.0, 1.0]))
+
+        def test_shapely_points_input(self, example_raster: RasterModel):
+            # Arrange
+            points = [Point(0, 0), Point(2, 2)]
+
+            # Act
+            result = example_raster.sample(points, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array([1.0, 4.0]))
 
     class TestBounds:
         def test_bounds(self, example_raster: RasterModel):
@@ -773,6 +783,48 @@ class TestRasterModel:
                         [[np.nan, np.nan], [np.nan, np.nan]]
                     ),  # No change expected
                 )
+
+    class TestContour:
+        def test_contour_with_list_levels(self):
+            # Arrange
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+
+            # Act
+            contour_gdf = raster.contour(levels=levels)
+
+            # Assert
+            assert isinstance(contour_gdf, gpd.GeoDataFrame)
+            assert "level" in contour_gdf.columns
+            assert len(contour_gdf) >= 0  # Should return some contours or empty GDF
+
+        def test_contour_with_ndarray_levels(self):
+            # Arrange
+            raster = RasterModel.example()
+            levels = np.array([0.0, 0.5])
+
+            # Act
+            contour_gdf = raster.contour(levels=levels)
+
+            # Assert
+            assert isinstance(contour_gdf, gpd.GeoDataFrame)
+            assert "level" in contour_gdf.columns
+            assert len(contour_gdf) >= 0  # Should return some contours or empty GDF
+
+        def test_contour_list_and_ndarray_equivalent(self):
+            # Arrange
+            raster = RasterModel.example()
+            levels_list = [0.0, 0.5]
+            levels_array = np.array([0.0, 0.5])
+
+            # Act
+            contour_gdf_list = raster.contour(levels=levels_list)
+            contour_gdf_array = raster.contour(levels=levels_array)
+
+            # Assert
+            # Results should be equivalent (same number of contours at same levels)
+            assert len(contour_gdf_list) == len(contour_gdf_array)
+            assert list(contour_gdf_list["level"]) == list(contour_gdf_array["level"])
 
 
 @pytest.fixture

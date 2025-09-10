@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.interpolate import NearestNDInterpolator
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -17,6 +16,8 @@ def fillna_nearest_neighbours(arr: NDArray[np.float64]) -> NDArray[np.float64]:
     In the case of tiebreaks, the value from the neighbour with the lowest index is
     imputed.
     """
+    from scipy.interpolate import NearestNDInterpolator
+
     nonnan_mask = np.nonzero(~np.isnan(arr))
     nonnan_idxs = np.array(nonnan_mask).transpose()
 

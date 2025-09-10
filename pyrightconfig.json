@@ -1,0 +1,16 @@
+{
+    "include": [
+        "src",
+        "tests"
+    ],
+    "reportUnusedExpression": "error",
+    "executionEnvironments": [
+        {
+            "root": "tests",
+            "reportUnusedExpression": "none"
+        },
+        {
+            "root": "src"
+        }
+    ]
+}

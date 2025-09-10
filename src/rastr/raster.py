@@ -1,30 +1,24 @@
 """Raster data structure."""
 
-from collections.abc import Callable, Generator
+from __future__ import annotations
+
+import importlib.util
+import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-import geopandas as gpd
-import matplotlib as mpl
 import numpy as np
-import pandas as pd
+import numpy.ma
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
 import skimage.measure
-import xyzservices.providers as xyz
-from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from numpy.typing import NDArray
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
-from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter, MemoryFile
-from scipy.ndimage import gaussian_filter
-from shapely.geometry import LineString, Polygon
-from typing_extensions import Self
+from rasterio.io import MemoryFile
+from shapely.geometry import LineString, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet
@@ -32,16 +26,14 @@ from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
 
 if TYPE_CHECKING:
-    from folium import Map
+    from collections.abc import Callable, Generator
 
-try:
-    import folium
-    import folium.raster_layers
+    import geopandas as gpd
     from folium import Map
-except ImportError:
-    FOLIUM_INSTALLED = False
-else:
-    FOLIUM_INSTALLED = True
+    from matplotlib.axes import Axes
+    from numpy.typing import ArrayLike, NDArray
+    from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
+    from typing_extensions import Self
 
 try:
     from rasterio._err import CPLE_BaseError
@@ -49,7 +41,9 @@ except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
 
 
-CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
+FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
+BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
+MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 
 class RasterCellArrayShapeError(ValueError):
@@ -61,6 +55,42 @@ class RasterModel(BaseModel):
 
     arr: InstanceOf[np.ndarray]
     raster_meta: RasterMeta
+
+    @property
+    def meta(self) -> RasterMeta:
+        """Alias for raster_meta."""
+        return self.raster_meta
+
+    @meta.setter
+    def meta(self, value: RasterMeta) -> None:
+        self.raster_meta = value
+
+    def __init__(
+        self,
+        *,
+        arr: ArrayLike,
+        meta: RasterMeta | None = None,
+        raster_meta: RasterMeta | None = None,
+    ) -> None:
+        arr = np.asarray(arr)
+
+        # Set the meta
+        if meta is not None and raster_meta is not None:
+            msg = (
+                "Only one of 'meta' or 'raster_meta' should be provided, they are "
+                "aliases."
+            )
+            raise ValueError(msg)
+        elif meta is not None and raster_meta is None:
+            raster_meta = meta
+        elif meta is None and raster_meta is not None:
+            pass
+        else:
+            # Don't need to mention `'meta'` to simplify the messaging.
+            msg = "The attribute 'raster_meta' is required."
+            raise ValueError(msg)
+
+        super().__init__(arr=arr, raster_meta=raster_meta)
 
     def __eq__(self, other: object) -> bool:
         """Check equality of two RasterModel objects."""
@@ -160,6 +190,16 @@ class RasterModel(BaseModel):
         """Get the coordinates of the cell centres in the raster."""
         return self.raster_meta.get_cell_centre_coords(self.arr.shape)
 
+    @property
+    def cell_x_coords(self) -> NDArray[np.float64]:
+        """Get the x coordinates of the cell centres in the raster."""
+        return self.raster_meta.get_cell_x_coords(self.arr.shape[0])
+
+    @property
+    def cell_y_coords(self) -> NDArray[np.float64]:
+        """Get the y coordinates of the cell centres in the raster."""
+        return self.raster_meta.get_cell_y_coords(self.arr.shape[1])
+
     @contextmanager
     def to_rasterio_dataset(
         self,
@@ -195,14 +235,15 @@ class RasterModel(BaseModel):
 
     def sample(
         self,
-        xy: list[tuple[float, float]],
+        xy: list[tuple[float, float]] | list[Point] | ArrayLike,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
     ) -> NDArray[np.float64]:
         """Sample raster values at GeoSeries locations and return sampled values.
 
         Args:
-            xy: A list of (x, y) coordinates to sample the raster at.
+            xy: A list of (x, y) coordinates or shapely Point objects to sample the
+                raster at.
             na_action: Action to take when a NaN value is encountered in the input xy.
                        Options are "raise" (raise an error) or "ignore" (replace with
                        NaN).
@@ -212,6 +253,12 @@ class RasterModel(BaseModel):
         """
         # If this function is too slow, consider the optimizations detailed here:
         # https://rdrn.me/optimising-sampling/
+
+        # Convert shapely Points to coordinate tuples if needed
+        if isinstance(xy, (list, tuple)):
+            xy = [_get_xy_tuple(point) for point in xy]
+
+        xy = np.asarray(xy, dtype=float)
 
         # Short-circuit
         if len(xy) == 0:
@@ -249,7 +296,7 @@ class RasterModel(BaseModel):
 
             # Convert the sampled values to a NumPy array and set masked values to NaN
             raster_values = np.array(
-                [s.data[0] if not s.mask else np.nan for s in samples]
+                [s.data[0] if not numpy.ma.getmask(s) else np.nan for s in samples]
             ).astype(float)
 
             if len(xy_nan_idxs) > 0:
@@ -298,19 +345,25 @@ class RasterModel(BaseModel):
         m: Map | None = None,
         opacity: float = 1.0,
         colormap: str = "viridis",
+        cbar_label: str | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
-        if not FOLIUM_INSTALLED:
-            msg = "The 'folium' package is required for 'explore()'."
+        if not FOLIUM_INSTALLED or not MATPLOTLIB_INSTALLED:
+            msg = "The 'folium' and 'matplotlib' packages are required for 'explore()'."
             raise ImportError(msg)
+
+        import folium.raster_layers
+        import geopandas as gpd
+        import matplotlib as mpl
 
         if m is None:
             m = folium.Map()
 
-        rbga_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
+        rgba_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
             colormap
         ]
 
+        # Cast to GDF to facilitate converting bounds to WGS84
         wgs84_crs = CRS.from_epsg(4326)
         gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
             wgs84_crs
@@ -320,8 +373,15 @@ class RasterModel(BaseModel):
         arr = np.array(self.arr)
 
         # Normalize the data to the range [0, 1] as this is the cmap range
-        min_val = np.nanmin(arr)
-        max_val = np.nanmax(arr)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="All-NaN slice encountered",
+                category=RuntimeWarning,
+            )
+            min_val = np.nanmin(arr)
+            max_val = np.nanmax(arr)
+
         if max_val > min_val:  # Prevent division by zero
             arr = (arr - min_val) / (max_val - min_val)
         else:
@@ -332,19 +392,37 @@ class RasterModel(BaseModel):
         flip_x = self.raster_meta.transform.a < 0
         flip_y = self.raster_meta.transform.e > 0
         if flip_x:
-            arr = np.flip(self.arr, axis=1)
+            arr = np.flip(arr, axis=1)
         if flip_y:
-            arr = np.flip(self.arr, axis=0)
+            arr = np.flip(arr, axis=0)
 
         img = folium.raster_layers.ImageOverlay(
             image=arr,
             bounds=[[ymin, xmin], [ymax, xmax]],
             opacity=opacity,
-            colormap=rbga_map,
+            colormap=rgba_map,
             mercator_project=True,
         )
 
         img.add_to(m)
+
+        # Add a colorbar legend
+        if BRANCA_INSTALLED:
+            from branca.colormap import LinearColormap as BrancaLinearColormap
+            from matplotlib.colors import to_hex
+
+            # Determine legend data range in original units
+            vmin = float(min_val) if np.isfinite(min_val) else 0.0
+            vmax = float(max_val) if np.isfinite(max_val) else 1.0
+            if vmax <= vmin:
+                vmax = vmin + 1.0
+
+            sample_points = np.linspace(0, 1, rgba_map.N)
+            colors = [to_hex(rgba_map(x)) for x in sample_points]
+            legend = BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+            if cbar_label:
+                legend.caption = cbar_label
+            legend.add_to(m)
 
         m.fit_bounds([[ymin, xmin], [ymax, xmax]])
 
@@ -352,6 +430,8 @@ class RasterModel(BaseModel):
 
     def to_clipboard(self) -> None:
         """Copy the raster cell array to the clipboard."""
+        import pandas as pd
+
         pd.DataFrame(self.arr).to_clipboard(index=False, header=False)
 
     def plot(
@@ -363,9 +443,17 @@ class RasterModel(BaseModel):
         cmap: str = "viridis",
     ) -> Axes:
         """Plot the raster on a matplotlib axis."""
+        if not MATPLOTLIB_INSTALLED:
+            msg = "The 'matplotlib' package is required for 'plot()'."
+            raise ImportError(msg)
+
+        from matplotlib import pyplot as plt
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+
         if ax is None:
-            _, ax = plt.subplots()
-        ax: Axes
+            _, _ax = plt.subplots()
+            _ax: Axes
+            ax = _ax
 
         if basemap:
             msg = "Basemap plotting is not yet implemented."
@@ -387,8 +475,8 @@ class RasterModel(BaseModel):
         max_y_nonzero = np.max(y_nonzero)
 
         # Transform to raster CRS
-        x1, y1 = self.raster_meta.transform * (min_x_nonzero, min_y_nonzero)
-        x2, y2 = self.raster_meta.transform * (max_x_nonzero, max_y_nonzero)
+        x1, y1 = self.raster_meta.transform * (min_x_nonzero, min_y_nonzero)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        x2, y2 = self.raster_meta.transform * (max_x_nonzero, max_y_nonzero)  # type: ignore[reportAssignmentType]
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
 
@@ -409,11 +497,14 @@ class RasterModel(BaseModel):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig = ax.get_figure()
-        fig.colorbar(img, label=cbar_label, cax=cax)
+        if fig is not None:
+            fig.colorbar(img, label=cbar_label, cax=cax)
         return ax
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""
+        import geopandas as gpd
+
         polygons = create_fishnet(bounds=self.bounds, res=self.raster_meta.cell_size)
         point_tuples = [polygon.centroid.coords[0] for polygon in polygons]
         raster_gdf = gpd.GeoDataFrame(
@@ -493,24 +584,22 @@ class RasterModel(BaseModel):
         return new_raster
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Get the x and y coordinates of the raster in meshgrid format."""
-        col_idx, row_idx = np.meshgrid(
-            np.arange(self.arr.shape[1]),
-            np.arange(self.arr.shape[0]),
-        )
+        """Get the x and y coordinates of the raster cell centres in meshgrid format.
 
-        col_idx = col_idx.flatten()
-        row_idx = row_idx.flatten()
+        Returns the coordinates of the cell centres as two separate 2D arrays in
+        meshgrid format, where each array has the same shape as the raster data array.
 
-        coords = np.vstack((row_idx, col_idx)).T
-
-        x, y = rasterio.transform.xy(self.raster_meta.transform, *coords.T)
-        x = np.array(x).reshape(self.arr.shape)
-        y = np.array(y).reshape(self.arr.shape)
-        return x, y
+        Returns:
+            A tuple of (x, y) coordinate arrays where:
+            - x: 2D array of x-coordinates of cell centres
+            - y: 2D array of y-coordinates of cell centres
+            Both arrays have the same shape as the raster data array.
+        """
+        coords = self.raster_meta.get_cell_centre_coords(self.arr.shape)
+        return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, *, levels: list[float], smoothing: bool = True
+        self, *, levels: list[float] | NDArray, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
@@ -521,13 +610,14 @@ class RasterModel(BaseModel):
         contouring, to denoise the contours.
 
         Args:
-            levels: A list of contour levels to generate. The contour lines will be
-                    generated for each level in this list.
+            levels: A list or array of contour levels to generate. The contour lines
+                    will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the
                        Catmull-Rom spline algorithm. If set to False, the raw
                        contours will be returned without any smoothing.
         """
+        import geopandas as gpd
 
         all_levels = []
         all_geoms = []
@@ -576,6 +666,7 @@ class RasterModel(BaseModel):
                    coordinate distance (e.g. meters). A larger sigma results in a more
                    blurred image.
         """
+        from scipy.ndimage import gaussian_filter
 
         cell_sigma = sigma / self.raster_meta.cell_size
 
@@ -604,6 +695,82 @@ class RasterModel(BaseModel):
         raster.arr = fillna_nearest_neighbours(arr=self.arr)
 
         return raster
+
+    def crop(
+        self,
+        bounds: tuple[float, float, float, float],
+        strategy: Literal["underflow", "overflow"] = "underflow",
+    ) -> Self:
+        """Crop the raster to the specified bounds.
+
+        Args:
+            bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.
+            strategy:   The cropping strategy to use. 'underflow' will crop the raster
+                        to be fully within the bounds, ignoring any cells that are
+                        partially outside the bounds. 'overflow' will instead include
+                        cells that intersect the bounds, ensuring the bounds area
+                        remains covered with cells.
+
+        Returns:
+            A new RasterModel instance cropped to the specified bounds.
+        """
+
+        minx, miny, maxx, maxy = bounds
+        arr = self.arr
+
+        # Get the half cell size for cropping
+        cell_size = self.raster_meta.cell_size
+        half_cell_size = cell_size / 2
+
+        # Get the cell centre coordinates as 1D arrays
+        x_coords = self.cell_x_coords
+        y_coords = self.cell_y_coords
+
+        # Get the indices to crop the array
+        if strategy == "underflow":
+            x_idx = (x_coords >= minx + half_cell_size) & (
+                x_coords <= maxx - half_cell_size
+            )
+            y_idx = (y_coords >= miny + half_cell_size) & (
+                y_coords <= maxy - half_cell_size
+            )
+        elif strategy == "overflow":
+            x_idx = (x_coords > minx - half_cell_size) & (
+                x_coords < maxx + half_cell_size
+            )
+            y_idx = (y_coords > miny - half_cell_size) & (
+                y_coords < maxy + half_cell_size
+            )
+        else:
+            msg = f"Unsupported cropping strategy: {strategy}"
+            raise NotImplementedError(msg)
+
+        # Crop the array
+        cropped_arr = arr[np.ix_(x_idx, y_idx)]
+
+        # Check the shape of the cropped array
+        if cropped_arr.size == 0:
+            msg = "Cropped array is empty; no cells within the specified bounds."
+            raise ValueError(msg)
+
+        # Recalculate the transform for the cropped raster
+        x_coords = x_coords[x_idx]
+        y_coords = y_coords[y_idx]
+        transform = rasterio.transform.from_bounds(
+            west=x_coords.min() - half_cell_size,
+            south=y_coords.min() - half_cell_size,
+            east=x_coords.max() + half_cell_size,
+            north=y_coords.max() + half_cell_size,
+            width=cropped_arr.shape[1],
+            height=cropped_arr.shape[0],
+        )
+
+        # Update the raster
+        cls = self.__class__
+        new_meta = RasterMeta(
+            cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
+        )
+        return cls(arr=cropped_arr, raster_meta=new_meta)
 
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
@@ -654,9 +821,24 @@ class RasterModel(BaseModel):
 
     @field_validator("arr")
     @classmethod
-    def check_2d_array(cls, v: np.ndarray) -> np.ndarray:
+    def check_2d_array(cls, v: NDArray) -> NDArray:
         """Validator to ensure the cell array is 2D."""
         if v.ndim != 2:
             msg = "Cell array must be 2D"
             raise RasterCellArrayShapeError(msg)
         return v
+
+
+def _get_xy_tuple(xy: Any) -> tuple[float, float]:
+    """Convert Point or coordinate tuple to coordinate tuple.
+
+    Args:
+        xy: Either a coordinate tuple or a shapely Point object.
+
+    Returns:
+        A coordinate tuple (x, y).
+    """
+    if isinstance(xy, Point):
+        return (xy.x, xy.y)
+    x, y = xy
+    return (float(x), float(y))

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
 from shapely.geometry import Polygon
 
@@ -7,8 +11,13 @@ from rastr.gis.fishnet import (
     get_point_grid_shape,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Collection
 
-def _normalize_polygon(polygon):
+    from geopandas.array import GeometryArray
+
+
+def _normalize_polygon(polygon: Polygon) -> Polygon:
     """Normalize a polygon's coordinates by sorting them."""
     coords = sorted(
         polygon.exterior.coords[:-1]
@@ -17,9 +26,14 @@ def _normalize_polygon(polygon):
 
 
 def assert_polygons_equal(
-    result: list[Polygon], expected: list[Polygon], tol: float = 1e-9
+    result: Collection[Polygon] | GeometryArray,
+    expected: Collection[Polygon] | GeometryArray,
+    tol: float = 1e-9,
 ) -> None:
     """Assert that two lists of polygons are equal."""
+    result = list(result)
+    expected = list(expected)
+
     if len(result) != len(expected):
         pytest.fail(f"Expected {len(expected)} geometries, got {len(result)}")
 

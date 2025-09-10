@@ -1,17 +1,31 @@
-from collections.abc import Iterable
-from functools import partial
+from __future__ import annotations
 
-import geopandas as gpd
+import importlib.util
+import warnings
+from typing import TYPE_CHECKING, TypeVar
+
 import numpy as np
-import pandas as pd
 import rasterio.features
+import rasterio.transform
 from affine import Affine
-from shapely.geometry import Point, Polygon
-from tqdm.notebook import tqdm
+from pyproj import CRS
+from shapely.geometry import Point
 
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import geopandas as gpd
+    from numpy.typing import ArrayLike
+    from shapely.geometry import Polygon
+
+
+TQDM_INSTALLED = importlib.util.find_spec("tqdm") is not None
+
+_T = TypeVar("_T")
 
 
 class MissingColumnsError(ValueError):
@@ -61,17 +75,10 @@ def raster_distance_from_polygon(
     Raises:
         ValueError: If the provided CRS is geographic (lat/lon).
     """
-    if extent_polygon is None and snap_raster is None:
-        err_msg = "Either 'extent_polygon' or 'snap_raster' must be provided. "
-        raise ValueError(err_msg)
-    elif extent_polygon is not None and snap_raster is not None:
-        err_msg = "Only one of 'extent_polygon' or 'snap_raster' can be provided. "
-        raise ValueError(err_msg)
-
-    if not show_pbar:
-
-        def _pbar(x: Iterable) -> None:
-            return x  # No-op if no progress bar is needed
+    if show_pbar and not TQDM_INSTALLED:
+        msg = "The 'tqdm' package is not installed. Progress bars will not be shown."
+        warnings.warn(msg, UserWarning, stacklevel=2)
+        show_pbar = False
 
     # Check if the provided CRS is projected (cartesian)
     if raster_meta.crs.is_geographic:
@@ -80,34 +87,42 @@ def raster_distance_from_polygon(
         )
         raise ValueError(err_msg)
 
-    # Calculate the coordinates
-    if snap_raster is not None:
+    if extent_polygon is None and snap_raster is None:
+        err_msg = "Either 'extent_polygon' or 'snap_raster' must be provided. "
+        raise ValueError(err_msg)
+    elif extent_polygon is not None and snap_raster is not None:
+        err_msg = "Only one of 'extent_polygon' or 'snap_raster' can be provided. "
+        raise ValueError(err_msg)
+    elif extent_polygon is None and snap_raster is not None:
+        # Calculate the coordinates
         x, y = snap_raster.get_xy()
-    else:
+
+        # Create a mask to identify points for which distance should be calculated
+        distance_extent = snap_raster.bbox.difference(polygon)
+    elif extent_polygon is not None and snap_raster is None:
         x, y = create_point_grid(
             bounds=extent_polygon.bounds, cell_size=raster_meta.cell_size
         )
-
-    points = [Point(x, y) for x, y in zip(x.flatten(), y.flatten(), strict=True)]
-
-    # Create a mask to identify points for which distance should be calculated
-    if extent_polygon is not None:
         distance_extent = extent_polygon.difference(polygon)
     else:
-        distance_extent = snap_raster.bbox.difference(polygon)
+        raise AssertionError
 
-    if show_pbar:
-        _pbar = partial(tqdm, desc="Finding points within extent")
-    mask = [distance_extent.intersects(point) for point in _pbar(points)]
+    pts = [Point(x, y) for x, y in zip(x.flatten(), y.flatten(), strict=True)]
 
-    if show_pbar:
-        _pbar = partial(tqdm, desc="Calculating distances")
-    distances = np.where(
-        mask, np.array([polygon.distance(point) for point in _pbar(points)]), np.nan
-    )
+    _pts = _pbar(pts, desc="Finding points within extent") if show_pbar else pts
+    mask = [distance_extent.intersects(pt) for pt in _pts]
+
+    _pts = _pbar(pts, desc="Calculating distances") if show_pbar else pts
+    distances = np.where(mask, np.array([polygon.distance(pt) for pt in _pts]), np.nan)
     distance_raster = distances.reshape(x.shape)
 
     return RasterModel(arr=distance_raster, raster_meta=raster_meta)
+
+
+def _pbar(iterable: Iterable[_T], *, desc: str | None = None) -> Iterable[_T]:
+    from tqdm import tqdm
+
+    return tqdm(iterable, desc=desc)
 
 
 def full_raster(
@@ -185,7 +200,8 @@ def rasterize_gdf(
             shapes,
             out_shape=shape,
             transform=transform,
-            fill=np.nan,  # Fill gaps with NaN
+            # Fill gaps with NaN
+            fill=np.nan,  # type: ignore[reportArgumentType] docstring contradicts inferred annotation
             dtype=np.float32,
         )
 
@@ -222,6 +238,8 @@ def _validate_columns_numeric(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> 
     Raises:
         NonNumericColumnsError: If any columns contain non-numeric data.
     """
+    import pandas as pd
+
     non_numeric_cols = []
     for col in target_cols:
         if not pd.api.types.is_numeric_dtype(gdf[col]):
@@ -259,3 +277,105 @@ def _validate_no_overlapping_geometries(gdf: gpd.GeoDataFrame) -> None:
                     "Overlapping geometries can lead to data loss during rasterization."
                 )
                 raise OverlappingGeometriesError(msg)
+
+
+def raster_from_point_cloud(
+    x: ArrayLike,
+    y: ArrayLike,
+    z: ArrayLike,
+    *,
+    crs: CRS | str,
+    cell_size: float | None = None,
+) -> RasterModel:
+    """Create a raster from a point cloud via interpolation.
+
+    Interpolation is only possible within the convex hull of the points. Outside of
+    this, cells will be NaN-valued.
+
+    All (x,y) points must be unique.
+
+    Args:
+        x: X coordinates of points.
+        y: Y coordinates of points.
+        z: Values at each (x, y) point to assign the raster.
+        crs: Coordinate reference system for the (x, y) coordinates.
+        cell_size: Desired cell size for the raster. If None, a heuristic is used based
+                   on the spacing between (x, y) points.
+
+    Returns:
+        Raster containing the interpolated values.
+
+    Raises:
+        ValueError: If any (x, y) points are duplicated, or if they are all collinear.
+    """
+    from scipy.interpolate import LinearNDInterpolator
+    from scipy.spatial import KDTree, QhullError
+
+    x = np.asarray(x).ravel()
+    y = np.asarray(y).ravel()
+    z = np.asarray(z).ravel()
+    crs = CRS.from_user_input(crs)
+
+    # Validate input arrays
+    if len(x) != len(y) or len(x) != len(z):
+        msg = "Length of x, y, and z must be equal."
+        raise ValueError(msg)
+    if len(x) < 3:
+        msg = "At least three (x, y, z) points are required to triangulate a surface."
+        raise ValueError(msg)
+    # Check for duplicate (x, y) points
+    xy_points = np.column_stack((x, y))
+    if len(xy_points) != len(np.unique(xy_points, axis=0)):
+        msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."
+        raise ValueError(msg)
+
+    # Heuristic for cell size if not provided
+    if cell_size is None:
+        # Half the 5th percentile of nearest neighbor distances between the (x,y) points
+        tree = KDTree(np.column_stack((x, y)))
+        distances, _ = tree.query(np.column_stack((x, y)), k=2)
+        distances: np.ndarray
+        cell_size = float(np.percentile(distances[distances > 0], 5)) / 2
+
+    # Compute bounds from data
+    minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
+
+    # Compute grid shape
+    width = int(np.ceil((maxx - minx) / cell_size))
+    height = int(np.ceil((maxy - miny) / cell_size))
+    shape = (height, width)
+
+    # Compute transform: upper left corner is (minx, maxy)
+    transform = Affine.translation(minx, maxy) * Affine.scale(cell_size, -cell_size)
+
+    # Create grid coordinates for raster cells
+    rows, cols = np.indices(shape)
+    xs, ys = rasterio.transform.xy(
+        transform=transform, rows=rows, cols=cols, offset="center"
+    )
+    grid_x = np.array(xs).ravel()
+    grid_y = np.array(ys).ravel()
+
+    # Perform interpolation
+    try:
+        interpolator = LinearNDInterpolator(
+            points=xy_points, values=z, fill_value=np.nan
+        )
+    except QhullError as err:
+        msg = (
+            "Failed to interpolate. This may be due to insufficient or "
+            "degenerate input points. Ensure that the (x, y) points are not all "
+            "collinear (i.e. that the convex hull is non-degenerate)."
+        )
+        raise ValueError(msg) from err
+
+    grid_values = np.array(interpolator(np.column_stack((grid_x, grid_y))))
+
+    arr = grid_values.reshape(shape).astype(np.float32)
+
+    raster_meta = RasterMeta(
+        cell_size=cell_size,
+        crs=crs,
+        transform=transform,
+    )
+    return RasterModel(arr=arr, raster_meta=raster_meta)

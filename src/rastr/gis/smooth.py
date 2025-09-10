@@ -5,11 +5,14 @@ Fork + Port of <https://github.com/philipschall/shapelysmooth> (Public domain)
 
 from __future__ import annotations
 
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import numpy as np
 from shapely.geometry import LineString, Polygon
 from typing_extensions import assert_never
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 T: TypeAlias = LineString | Polygon
 
@@ -46,7 +49,7 @@ def catmull_rom_smooth(geometry: T, alpha: float = 0.5, subdivs: int = 10) -> T:
 
 
 def _catmull_rom(
-    coords: np.ndarray,
+    coords: NDArray,
     *,
     alpha: float = 0.5,
     subdivs: int = 8,
@@ -89,7 +92,7 @@ def _catmull_rom(
 
 
 def _recursive_eval(
-    slice4: np.ndarray, tangents: list[float], ts: np.ndarray
+    slice4: NDArray, tangents: list[float], ts: NDArray
 ) -> list[tuple[float, float]]:
     """De Boor/De Casteljau-style recursive linear interpolation over 4 control points.
 
@@ -128,7 +131,7 @@ def _recursive_eval(
 
 def _get_coords(
     geometry: LineString | Polygon,
-) -> tuple[np.ndarray, list[np.ndarray]]:
+) -> tuple[NDArray, list[NDArray]]:
     if isinstance(geometry, LineString):
         return np.array(geometry.coords), []
     elif isinstance(geometry, Polygon):

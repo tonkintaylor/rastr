@@ -579,7 +579,17 @@ class RasterModel(BaseModel):
         return new_raster
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Get the x and y coordinates of the raster in meshgrid format."""
+        """Get the x and y coordinates of the raster cell centres in meshgrid format.
+
+        Returns the coordinates of the cell centres as two separate 2D arrays in
+        meshgrid format, where each array has the same shape as the raster data array.
+
+        Returns:
+            A tuple of (x, y) coordinate arrays where:
+            - x: 2D array of x-coordinates of cell centres
+            - y: 2D array of y-coordinates of cell centres
+            Both arrays have the same shape as the raster data array.
+        """
         coords = self.raster_meta.get_cell_centre_coords(self.arr.shape)
         return coords[:, :, 0], coords[:, :, 1]
 

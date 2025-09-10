@@ -6,7 +6,7 @@ import importlib.util
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import numpy.ma
@@ -831,7 +831,7 @@ class RasterModel(BaseModel):
         return v
 
 
-def _get_xy_tuple(xy: tuple[float, float] | Point) -> tuple[float, float]:
+def _get_xy_tuple(xy: Any) -> tuple[float, float]:
     """Convert Point or coordinate tuple to coordinate tuple.
 
     Args:
@@ -842,4 +842,5 @@ def _get_xy_tuple(xy: tuple[float, float] | Point) -> tuple[float, float]:
     """
     if isinstance(xy, Point):
         return (xy.x, xy.y)
-    return xy
+    x, y = xy
+    return (float(x), float(y))

@@ -12,7 +12,7 @@ from affine import Affine
 from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
@@ -170,6 +170,16 @@ class TestRasterModel:
 
             # Assert
             np.testing.assert_array_equal(result, np.array([1.0, 1.0]))
+
+        def test_shapely_points_input(self, example_raster: RasterModel):
+            # Arrange
+            points = [Point(0, 0), Point(2, 2)]
+
+            # Act
+            result = example_raster.sample(points, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array([1.0, 4.0]))
 
     class TestBounds:
         def test_bounds(self, example_raster: RasterModel):

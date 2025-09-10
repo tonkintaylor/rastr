@@ -486,6 +486,7 @@ class TestRasterizeGdf:
         # The small polygon might not intersect with any cell centers
 
     def test_very_small_cell_size(self):
+        """Test with very small cell size creating high resolution raster."""
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS

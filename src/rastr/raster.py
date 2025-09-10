@@ -588,8 +588,10 @@ class RasterModel(BaseModel):
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
-        The contour lines are returned as a GeoDataFrame with the contours as linestring
-        geometries and the contour levels as attributes in a column named 'level'.
+        The contour lines are returned as a GeoDataFrame with the contours dissolved
+        by level, resulting in one row per contour level. Each row contains a 
+        (Multi)LineString geometry representing all contour lines for that level,
+        and the contour level value in a column named 'level'.
 
         Consider calling `blur()` before this method to smooth the raster data before
         contouring, to denoise the contours.
@@ -641,7 +643,8 @@ class RasterModel(BaseModel):
             crs=self.raster_meta.crs,
         )
 
-        return contour_gdf
+        # Dissolve contours by level to merge all contour lines of the same level
+        return contour_gdf.dissolve(by="level").reset_index()
 
     def blur(self, sigma: float) -> Self:
         """Apply a Gaussian blur to the raster data.

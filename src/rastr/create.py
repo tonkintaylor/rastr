@@ -6,19 +6,22 @@ from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 import rasterio.features
+import rasterio.transform
 from affine import Affine
+from pyproj import CRS
 from shapely.geometry import Point
 
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
+from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     import geopandas as gpd
+    from numpy.typing import ArrayLike
     from shapely.geometry import Polygon
 
-    from rastr.meta import RasterMeta
 
 TQDM_INSTALLED = importlib.util.find_spec("tqdm") is not None
 
@@ -274,3 +277,84 @@ def _validate_no_overlapping_geometries(gdf: gpd.GeoDataFrame) -> None:
                     "Overlapping geometries can lead to data loss during rasterization."
                 )
                 raise OverlappingGeometriesError(msg)
+
+
+def raster_from_point_cloud(
+    x: ArrayLike,
+    y: ArrayLike,
+    z: ArrayLike,
+    *,
+    crs: CRS | str,
+    cell_size: float | None = None,
+) -> RasterModel:
+    """Create a raster from a point cloud via interpolation.
+
+    Interpolation is only possible within the convex hull of the points. Outside of
+    this, cells will be NaN-valued.
+
+    Parameters:
+        x: X coordinates of points.
+        y: Y coordinates of points.
+        z: Values at each (x, y) point to assign the raster.
+        crs: Coordinate reference system for the (x, y) coordinates.
+        cell_size: Desired cell size for the raster. If None, a heuristic is used based
+                   on the spacing between (x, y) points.
+
+    Returns:
+        InMemRaster containing the interpolated values.
+    """
+    from scipy.interpolate import LinearNDInterpolator
+    from scipy.spatial import KDTree
+
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+    crs = CRS.from_user_input(crs)
+
+    # Validate input arrays
+    if len(x) != len(y) or len(x) != len(z):
+        msg = "Length of x, y, and z must be equal."
+        raise ValueError(msg)
+
+    # Heuristic for cell size if not provided
+    if cell_size is None:
+        # Half the 5th percentile of nearest neighbor distances between the (x,y) points
+        tree = KDTree(np.column_stack((x, y)))
+        distances, _ = tree.query(np.column_stack((x, y)), k=2)
+        distances: np.ndarray
+        nearest_distances = distances[:, 1]  # Exclude zero distance to self
+        cell_size = float(np.percentile(nearest_distances, 5)) / 2
+
+    # Compute bounds from data
+    minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
+
+    # Compute grid shape
+    width = int(np.ceil((maxx - minx) / cell_size))
+    height = int(np.ceil((maxy - miny) / cell_size))
+    shape = (height, width)
+
+    # Compute transform: upper left corner is (minx, maxy)
+    transform = Affine.translation(minx, maxy) * Affine.scale(cell_size, -cell_size)
+
+    # Create grid coordinates for raster cells
+    rows, cols = np.indices(shape)
+    xs, ys = rasterio.transform.xy(
+        transform=transform, rows=rows, cols=cols, offset="center"
+    )
+    grid_x = np.array(xs).ravel()
+    grid_y = np.array(ys).ravel()
+
+    # Perform interpolation
+    interpolator = LinearNDInterpolator(
+        points=np.column_stack((x, y)), values=z, fill_value=np.nan
+    )
+    grid_values = np.array(interpolator(np.column_stack((grid_x, grid_y))))
+
+    arr = grid_values.reshape(shape).astype(np.float32)
+
+    raster_meta = RasterMeta(
+        cell_size=cell_size,
+        crs=crs,
+        transform=transform,
+    )
+    return RasterModel(arr=arr, raster_meta=raster_meta)

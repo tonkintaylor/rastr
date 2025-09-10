@@ -15,6 +15,7 @@ from rastr.create import (
     _validate_columns_numeric,
     full_raster,
     raster_distance_from_polygon,
+    raster_from_point_cloud,
     rasterize_gdf,
 )
 from rastr.meta import RasterMeta
@@ -485,7 +486,6 @@ class TestRasterizeGdf:
         # The small polygon might not intersect with any cell centers
 
     def test_very_small_cell_size(self):
-        """Test with very small cell size creating high resolution raster."""
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -606,3 +606,125 @@ class TestRasterizeGdf:
         # Point should be assigned to one of the adjacent cells
         non_nan_count = np.count_nonzero(~np.isnan(raster_array))
         assert non_nan_count >= 1, "Boundary point should be rasterized"
+
+
+class TestRasterFromPointCloud:
+    def test_square(self):
+        """Test rasterization from a simple square point cloud.
+
+        (0,1,20)            (1,1,40)
+           ┌─────────┬─────────┐
+           │         │         │
+           │         │         │
+           │    x    │    x    │
+           │         │         │
+           │         │         │
+           ├─────────┼─────────┤
+           │         │         │
+           │         │         │
+           │    x    │    x    │
+           │         │         │
+           │         │         │
+           └─────────└─────────┘
+        (0,0,10)            (1,0,30)
+
+        The three nearest points to (0.5, 1.5) are (0,0), (0,1), and (1,1), as shown
+        below:
+
+        (0,1,20)            (1,1,40)
+            ┌─────────┬─────────┐
+            │\\       │   //////│
+            │  \\   //│///      │
+            │    x//  │    x    │
+            │   /     │         │
+            │   /     │         │
+            ├─────────┼─────────┤
+            │  /      │         │
+            │  /      │         │
+            │ /  x    │    x    │
+            │ /       │         │
+            │/        │         │
+            └─────────└─────────┘
+        (0,0,10)            (1,0,30)
+
+        In barycentric coordinates of the triangle formed by these points, (0.5, 1.5)
+        is (1/4, 1/2, 1/4). Thus, the interpolated value is:
+        1/4*10 + 1/2*20 + 1/4*40 = 2.5 + 10 + 10 = 22.5.
+        """
+
+        # Arrange
+        x = [0, 0, 1, 1]
+        y = [0, 1, 0, 1]
+        z = [10, 20, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+        assert raster.arr.shape == (2, 2)
+        expected_array = np.array(
+            [
+                [0.25 * 10 + 0.5 * 20 + 0.25 * 40, 0.25 * 30 + 0.5 * 40 + 0.25 * 20],
+                [0.25 * 20 + 0.5 * 10 + 0.25 * 30, 0.25 * 10 + 0.5 * 30 + 0.25 * 40],
+            ]
+        )
+        np.testing.assert_array_equal(raster.arr, expected_array)
+
+    def test_cell_size_heuristic(self):
+        """Test that the cell size heuristic works as expected."""
+        # Arrange
+        x = [0, 0, 1, 1]
+        y = [0, 1, 0, 1]
+        z = [10, 20, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+        assert raster.arr.shape == (2, 2)
+
+    class TestLengthMismatch:
+        def test_xy(self):
+            # Arrange
+            x = [0, 0, 1]
+            y = [0, 1, 0, 1]
+            z = [10, 20, 30]
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError, match="Length of x, y, and z must be equal."
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        def test_xz(self):
+            # Arrange
+            x = [0, 0, 1]
+            y = [0, 1, 0]
+            z = [10, 20, 30, 40]
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError, match="Length of x, y, and z must be equal."
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    def test_random_point_cloud(self):
+        # Arrange
+        rng = np.random.default_rng(42)
+        x = rng.uniform(0, 100, size=1000)
+        y = rng.uniform(0, 100, size=1000)
+        z = rng.uniform(0, 1000, size=1000)
+
+        # Act
+        raster = raster_from_point_cloud(
+            x=x, y=y, z=z, crs="EPSG:2193", cell_size=5.0
+        ).extrapolate()  # Fill NaNs at the edges
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+        assert raster.arr.shape == (20, 20)
+        assert np.all(raster.arr >= 0)  # All values should be non-negative
+        assert np.all(raster.arr <= 1000)  # All values should be within z range
+        assert 450 < raster.arr.mean() < 550  # Mean should be roughly accurate

@@ -6,7 +6,7 @@ import importlib.util
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, overload
 
 import geopandas as gpd
 import numpy as np
@@ -564,15 +564,32 @@ class RasterModel(BaseModel):
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
 
-    def apply(self, func: Callable[[NDArray], NDArray]) -> Self:
+    @overload
+    def apply(
+        self, func: Callable[[NDArray], NDArray], *, raw: Literal[True]
+    ) -> Self: ...
+    @overload
+    def apply(self, func: Callable[[float], float], *, raw: Literal[False]) -> Self: ...
+    def apply(self, func, *, raw) -> Self:
         """Apply a function element-wise to the raster array.
-        
+
         Creates a new raster instance with the same metadata (CRS, transform, etc.)
         but with the data array transformed by the provided function. The original
         raster is not modified.
+
+        Args:
+            func: The function to apply to the raster array. If `raw` is True, this
+                  function should accept and return a NumPy array. If `raw` is False,
+                  this function should accept and return a single float value.
+            raw: If True, the function is applied directly to the entire array at
+                 once. If False, the function is applied element-wise to each cell
+                 in the array using `np.vectorize()`. Default is False.
         """
         new_raster = self.model_copy()
-        new_raster.arr = func(self.arr)
+        if raw:
+            new_raster.arr = func(self.arr)
+        else:
+            new_raster.arr = np.vectorize(func)(self.arr)
         return new_raster
 
     def fillna(self, value: float) -> Self:

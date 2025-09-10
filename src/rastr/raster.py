@@ -566,10 +566,18 @@ class RasterModel(BaseModel):
 
     @overload
     def apply(
-        self, func: Callable[[NDArray], NDArray], *, raw: Literal[True]
+        self,
+        func: Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[True],
     ) -> Self: ...
     @overload
-    def apply(self, func: Callable[[float], float], *, raw: Literal[False]) -> Self: ...
+    def apply(
+        self,
+        func: Callable[[float], float] | Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[False] = False,
+    ) -> Self: ...
     def apply(self, func, *, raw=False) -> Self:
         """Apply a function element-wise to the raster array.
 
@@ -587,9 +595,10 @@ class RasterModel(BaseModel):
         """
         new_raster = self.model_copy()
         if raw:
-            new_raster.arr = func(self.arr)
+            new_arr = func(self.arr)
         else:
-            new_raster.arr = np.vectorize(func)(self.arr)
+            new_arr = np.vectorize(func)(self.arr)
+        new_raster.arr = np.asarray(new_arr)
         return new_raster
 
     def fillna(self, value: float) -> Self:

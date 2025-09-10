@@ -771,10 +771,10 @@ class TestRasterModel:
             # Arrange
             raster = RasterModel.example()
             levels = [0.0, 0.5]
-            
+
             # Act
             contour_gdf = raster.contour(levels=levels)
-            
+
             # Assert
             assert isinstance(contour_gdf, gpd.GeoDataFrame)
             assert "level" in contour_gdf.columns
@@ -784,10 +784,10 @@ class TestRasterModel:
             # Arrange
             raster = RasterModel.example()
             levels = np.array([0.0, 0.5])
-            
+
             # Act
             contour_gdf = raster.contour(levels=levels)
-            
+
             # Assert
             assert isinstance(contour_gdf, gpd.GeoDataFrame)
             assert "level" in contour_gdf.columns
@@ -798,11 +798,11 @@ class TestRasterModel:
             raster = RasterModel.example()
             levels_list = [0.0, 0.5]
             levels_array = np.array([0.0, 0.5])
-            
+
             # Act
             contour_gdf_list = raster.contour(levels=levels_list)
             contour_gdf_array = raster.contour(levels=levels_array)
-            
+
             # Assert
             # Results should be equivalent (same number of contours at same levels)
             assert len(contour_gdf_list) == len(contour_gdf_array)
@@ -1336,6 +1336,3 @@ class TestExplore:
 
         # Assert flip called exactly twice (both axes)
         assert mock_flip.call_count == 2
-
-
-

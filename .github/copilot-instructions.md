@@ -61,6 +61,7 @@
 - Add type annotations to function signatures (ANN201, ANN204)
 - Use `dict` instead of `Dict` for type annotation (UP006)
 - Avoid importing deprecated types like `typing.Dict` (UP035)
+- Use `NDArray` without specific dtype parameter (e.g., `NDArray` instead of `NDArray[np.number]`) for generic array parameters
 
 ## Testing
 

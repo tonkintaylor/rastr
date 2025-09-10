@@ -315,7 +315,6 @@ def raster_from_point_cloud(
     y = np.asarray(y).ravel()
     z = np.asarray(z).ravel()
     crs = CRS.from_user_input(crs)
-    xy_points = np.column_stack((x, y))
 
     # Validate input arrays
     if len(x) != len(y) or len(x) != len(z):
@@ -324,6 +323,8 @@ def raster_from_point_cloud(
     if len(x) < 3:
         msg = "At least three (x, y, z) points are required to triangulate a surface."
         raise ValueError(msg)
+    # Check for duplicate (x, y) points
+    xy_points = np.column_stack((x, y))
     if len(xy_points) != len(np.unique(xy_points, axis=0)):
         msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."
         raise ValueError(msg)

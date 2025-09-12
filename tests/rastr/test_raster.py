@@ -116,6 +116,43 @@ class TestRasterModel:
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
 
+    class TestCrsProperty:
+        def test_crs_getter(self, example_raster: RasterModel):
+            # Act
+            crs_via_property = example_raster.crs
+            crs_via_meta = example_raster.meta.crs
+            crs_via_raster_meta = example_raster.raster_meta.crs
+
+            # Assert
+            assert crs_via_property is crs_via_meta
+            assert crs_via_property is crs_via_raster_meta
+            assert crs_via_property == crs_via_meta
+            assert crs_via_property == crs_via_raster_meta
+
+        def test_crs_type(self, example_raster: RasterModel):
+            # Act
+            crs = example_raster.crs
+
+            # Assert
+            assert isinstance(crs, CRS)
+
+        def test_crs_with_different_crs(self):
+            # Arrange
+            meta_wgs84 = RasterMeta(
+                cell_size=0.01,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(0.01, 0.0, 0.0, 0.0, -0.01, 0.0),
+            )
+            arr = np.array([[1, 2], [3, 4]], dtype=float)
+            raster_wgs84 = RasterModel(arr=arr, raster_meta=meta_wgs84)
+
+            # Act
+            crs = raster_wgs84.crs
+
+            # Assert
+            assert crs.to_epsg() == 4326
+            assert crs == CRS.from_epsg(4326)
+
     class TestSample:
         def test_sample_nan_raise(self, example_raster: RasterModel):
             with pytest.raises(

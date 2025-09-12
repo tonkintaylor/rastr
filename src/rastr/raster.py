@@ -65,6 +65,11 @@ class RasterModel(BaseModel):
     def meta(self, value: RasterMeta) -> None:
         self.raster_meta = value
 
+    @property
+    def crs(self) -> CRS:
+        """Convenience property to access the CRS via meta."""
+        return self.meta.crs
+
     def __init__(
         self,
         *,

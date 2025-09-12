@@ -827,52 +827,49 @@ class TestRasterModel:
             assert list(contour_gdf_list["level"]) == list(contour_gdf_array["level"])
 
         def test_contour_returns_gdf_with_correct_columns(self):
-            """Test that contour method returns a GeoDataFrame with expected columns."""
             raster = RasterModel.example()
             gdf = raster.contour(levels=[0.0, 0.5])
-            
+
             assert isinstance(gdf, gpd.GeoDataFrame)
             assert list(gdf.columns) == ["level", "geometry"]
             assert "level" in gdf.columns
             assert "geometry" in gdf.columns
 
         def test_contour_levels_in_result(self):
-            """Test that contour method includes all requested levels in the result."""
             raster = RasterModel.example()
             levels = [0.0, 0.5]
             gdf = raster.contour(levels=levels)
-            
+
             result_levels = set(gdf["level"].unique())
             expected_levels = set(levels)
             assert result_levels == expected_levels
 
         def test_contour_dissolve_behavior_one_row_per_level(self):
-            """Test that contour method returns exactly one row per level after dissolve."""
             raster = RasterModel.example()
             levels = [0.0, 0.5]
             gdf = raster.contour(levels=levels)
-            
+
             # After dissolving, should have exactly one row per level
             assert len(gdf) == len(levels)
             assert set(gdf["level"]) == set(levels)
-            
+
             # Geometries should be MultiLineString (dissolved from multiple LineStrings)
             for geom in gdf.geometry:
-                assert isinstance(geom, (MultiLineString, LineString))  # Can be either depending on dissolve result
+                assert isinstance(
+                    geom, (MultiLineString, LineString)
+                )  # Can be either depending on dissolve result
 
         def test_contour_with_smoothing(self):
-            """Test contour method with smoothing enabled."""
             raster = RasterModel.example()
             gdf = raster.contour(levels=[0.0], smoothing=True)
-            
+
             assert len(gdf) > 0
             assert all(gdf["level"] == 0.0)
 
         def test_contour_without_smoothing(self):
-            """Test contour method with smoothing disabled."""
             raster = RasterModel.example()
             gdf = raster.contour(levels=[0.0], smoothing=False)
-            
+
             assert len(gdf) > 0
             assert all(gdf["level"] == 0.0)
 
@@ -1404,6 +1401,3 @@ class TestExplore:
 
         # Assert flip called exactly twice (both axes)
         assert mock_flip.call_count == 2
-
-
-

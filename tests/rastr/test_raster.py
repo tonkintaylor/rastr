@@ -116,7 +116,7 @@ class TestRasterModel:
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
 
-    class TestCrsProperty:
+    class TestCRS:
         def test_crs_getter(self, example_raster: RasterModel):
             # Act
             crs_via_property = example_raster.crs

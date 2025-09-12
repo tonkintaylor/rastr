@@ -696,7 +696,7 @@ class RasterModel(BaseModel):
         )
 
         # Dissolve contours by level to merge all contour lines of the same level
-        return contour_gdf.dissolve(by="level").reset_index()
+        return contour_gdf.dissolve(by="level", as_index=False)
 
     def blur(self, sigma: float) -> Self:
         """Apply a Gaussian blur to the raster data.

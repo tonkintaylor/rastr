@@ -641,7 +641,7 @@ class RasterModel(BaseModel):
         """Create contour lines from the raster data, optionally with smoothing.
 
         The contour lines are returned as a GeoDataFrame with the contours dissolved
-        by level, resulting in one row per contour level. Each row contains a 
+        by level, resulting in one row per contour level. Each row contains a
         (Multi)LineString geometry representing all contour lines for that level,
         and the contour level value in a column named 'level'.
 

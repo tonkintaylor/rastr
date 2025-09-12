@@ -65,6 +65,11 @@ class RasterModel(BaseModel):
     def meta(self, value: RasterMeta) -> None:
         self.raster_meta = value
 
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the raster array."""
+        return self.arr.shape
+
     def __init__(
         self,
         *,

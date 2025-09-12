@@ -116,6 +116,47 @@ class TestRasterModel:
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
 
+    class TestShape:
+        def test_shape_property(self, example_raster: RasterModel):
+            # Act
+            shape = example_raster.shape
+
+            # Assert
+            assert shape == (2, 2)
+            assert shape == example_raster.arr.shape
+
+        def test_shape_property_different_sizes(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+
+            # Test 3x4 array
+            arr_3x4 = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
+            raster_3x4 = RasterModel(arr=arr_3x4, raster_meta=meta)
+
+            # Act & Assert
+            assert raster_3x4.shape == (3, 4)
+            assert raster_3x4.shape == raster_3x4.arr.shape
+
+            # Test 1x5 array
+            arr_1x5 = np.array([[1, 2, 3, 4, 5]])
+            raster_1x5 = RasterModel(arr=arr_1x5, raster_meta=meta)
+
+            # Act & Assert
+            assert raster_1x5.shape == (1, 5)
+            assert raster_1x5.shape == raster_1x5.arr.shape
+
+        def test_shape_property_return_type(self, example_raster: RasterModel):
+            # Act
+            shape = example_raster.shape
+
+            # Assert
+            assert isinstance(shape, tuple)
+            assert all(isinstance(dim, int) for dim in shape)
+
     class TestSample:
         def test_sample_nan_raise(self, example_raster: RasterModel):
             with pytest.raises(

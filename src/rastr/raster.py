@@ -70,6 +70,15 @@ class RasterModel(BaseModel):
         """Shape of the raster array."""
         return self.arr.shape
 
+    def crs(self) -> CRS:
+        """Convenience property to access the CRS via meta."""
+        return self.meta.crs
+
+    @crs.setter
+    def crs(self, value: CRS) -> None:
+        """Set the CRS via meta."""
+        self.meta.crs = value
+
     def __init__(
         self,
         *,

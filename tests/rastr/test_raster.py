@@ -116,6 +116,34 @@ class TestRasterModel:
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
 
+    class TestCRS:
+        def test_crs_getter(self, example_raster: RasterModel):
+            # Act
+            crs_via_property = example_raster.crs
+            crs_via_meta = example_raster.meta.crs
+            crs_via_raster_meta = example_raster.raster_meta.crs
+
+            # Assert
+            assert crs_via_property is crs_via_meta
+            assert crs_via_property is crs_via_raster_meta
+            assert crs_via_property == crs_via_meta
+            assert crs_via_property == crs_via_raster_meta
+            assert isinstance(crs_via_property, CRS)
+
+        def test_crs_setter(self, example_raster: RasterModel):
+            # Arrange
+            new_crs = CRS.from_epsg(4326)
+            original_crs = example_raster.crs
+
+            # Act
+            example_raster.crs = new_crs
+
+            # Assert
+            assert example_raster.crs is new_crs
+            assert example_raster.meta.crs is new_crs
+            assert example_raster.raster_meta.crs is new_crs
+            assert example_raster.crs != original_crs
+
     class TestSample:
         def test_sample_nan_raise(self, example_raster: RasterModel):
             with pytest.raises(

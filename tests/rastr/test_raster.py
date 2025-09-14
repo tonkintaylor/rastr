@@ -876,13 +876,13 @@ class TestCrop:
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
         bounds = (minx, miny + cell_size, maxx, maxy - cell_size)
-        expected_transform = Affine(20.0, 0.0, 0.0, 0.0, -5.0, 100.0 - cell_size)
+        expected_transform = Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0 - cell_size)
 
         # Act
         cropped = base_raster.crop(bounds)
 
         # Assert
-        assert cropped.arr.shape == (4, 2)
+        assert cropped.arr.shape == (2, 4)  # Y-crop reduces rows, keeps columns
         assert cropped.bounds == bounds
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
@@ -893,13 +893,13 @@ class TestCrop:
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
         bounds = (minx + cell_size, miny, maxx - cell_size, maxy)
-        expected_transform = Affine(5.0, 0.0, minx + cell_size, 0.0, -20.0, 100.0)
+        expected_transform = Affine(10.0, 0.0, minx + cell_size, 0.0, -10.0, 100.0)
 
         # Act
         cropped = base_raster.crop(bounds)
 
         # Assert
-        assert cropped.arr.shape == (2, 4)
+        assert cropped.arr.shape == (4, 2)  # X-crop reduces columns, keeps rows
         assert cropped.bounds == bounds
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs

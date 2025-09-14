@@ -904,13 +904,13 @@ class TestCrop:
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
         bounds = (minx, miny + cell_size, maxx, maxy - cell_size)
-        expected_transform = Affine(20.0, 0.0, 0.0, 0.0, -5.0, 100.0 - cell_size)
+        expected_transform = Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0 - cell_size)
 
         # Act
         cropped = base_raster.crop(bounds)
 
         # Assert
-        assert cropped.arr.shape == (4, 2)
+        assert cropped.arr.shape == (2, 4)  # Y-crop reduces rows, keeps columns
         assert cropped.bounds == bounds
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
@@ -921,13 +921,13 @@ class TestCrop:
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
         bounds = (minx + cell_size, miny, maxx - cell_size, maxy)
-        expected_transform = Affine(5.0, 0.0, minx + cell_size, 0.0, -20.0, 100.0)
+        expected_transform = Affine(10.0, 0.0, minx + cell_size, 0.0, -10.0, 100.0)
 
         # Act
         cropped = base_raster.crop(bounds)
 
         # Assert
-        assert cropped.arr.shape == (2, 4)
+        assert cropped.arr.shape == (4, 2)  # X-crop reduces columns, keeps rows
         assert cropped.bounds == bounds
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
@@ -1015,6 +1015,46 @@ class TestCrop:
             match="Cropped array is empty; no cells within the specified bounds.",
         ):
             base_raster.crop(bounds)
+
+    def test_crop_non_square_raster_indexing(self):
+        """Test that crop method correctly indexes non-square rasters.
+
+        This tests the fix for issue #140 where array indexing was backwards,
+        causing spatial misalignment in cropped rasters.
+        """
+        # Arrange: Create a non-square raster with distinctive values
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.array(
+            [
+                [1, 2, 3, 4, 5],  # row 0
+                [6, 7, 8, 9, 10],  # row 1
+                [11, 12, 13, 14, 15],  # row 2
+            ],
+            dtype=float,
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Act: Crop to select middle 3 columns (keeping all rows)
+        bounds = (1.0, 0.0, 4.0, 3.0)  # Should select columns at x=1.5, 2.5, 3.5
+        cropped = raster.crop(bounds)
+
+        # Assert: Result should have all 3 rows but only 3 columns
+        expected_shape = (3, 3)
+        expected_array = np.array(
+            [
+                [2, 3, 4],  # row 0, columns 1,2,3 (0-indexed)
+                [7, 8, 9],  # row 1, columns 1,2,3
+                [12, 13, 14],  # row 2, columns 1,2,3
+            ],
+            dtype=float,
+        )
+
+        assert cropped.arr.shape == expected_shape
+        np.testing.assert_array_equal(cropped.arr, expected_array)
 
     def test_unsupported_crop_strategy(self, base_raster: RasterModel):
         # Arrange

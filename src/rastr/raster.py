@@ -203,12 +203,12 @@ class RasterModel(BaseModel):
     @property
     def cell_x_coords(self) -> NDArray[np.float64]:
         """Get the x coordinates of the cell centres in the raster."""
-        return self.raster_meta.get_cell_x_coords(self.arr.shape[0])
+        return self.raster_meta.get_cell_x_coords(self.arr.shape[1])
 
     @property
     def cell_y_coords(self) -> NDArray[np.float64]:
         """Get the y coordinates of the cell centres in the raster."""
-        return self.raster_meta.get_cell_y_coords(self.arr.shape[1])
+        return self.raster_meta.get_cell_y_coords(self.arr.shape[0])
 
     @contextmanager
     def to_rasterio_dataset(
@@ -793,7 +793,7 @@ class RasterModel(BaseModel):
             raise NotImplementedError(msg)
 
         # Crop the array
-        cropped_arr = arr[np.ix_(x_idx, y_idx)]
+        cropped_arr = arr[np.ix_(y_idx, x_idx)]
 
         # Check the shape of the cropped array
         if cropped_arr.size == 0:

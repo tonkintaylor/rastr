@@ -6,7 +6,7 @@ import importlib.util
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import numpy.ma
@@ -18,7 +18,7 @@ from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet
@@ -64,6 +64,16 @@ class RasterModel(BaseModel):
     @meta.setter
     def meta(self, value: RasterMeta) -> None:
         self.raster_meta = value
+
+    @property
+    def crs(self) -> CRS:
+        """Convenience property to access the CRS via meta."""
+        return self.meta.crs
+
+    @crs.setter
+    def crs(self, value: CRS) -> None:
+        """Set the CRS via meta."""
+        self.meta.crs = value
 
     def __init__(
         self,
@@ -235,14 +245,15 @@ class RasterModel(BaseModel):
 
     def sample(
         self,
-        xy: list[tuple[float, float]] | ArrayLike,
+        xy: list[tuple[float, float]] | list[Point] | ArrayLike,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
     ) -> NDArray[np.float64]:
         """Sample raster values at GeoSeries locations and return sampled values.
 
         Args:
-            xy: A list of (x, y) coordinates to sample the raster at.
+            xy: A list of (x, y) coordinates or shapely Point objects to sample the
+                raster at.
             na_action: Action to take when a NaN value is encountered in the input xy.
                        Options are "raise" (raise an error) or "ignore" (replace with
                        NaN).
@@ -252,6 +263,10 @@ class RasterModel(BaseModel):
         """
         # If this function is too slow, consider the optimizations detailed here:
         # https://rdrn.me/optimising-sampling/
+
+        # Convert shapely Points to coordinate tuples if needed
+        if isinstance(xy, (list, tuple)):
+            xy = [_get_xy_tuple(point) for point in xy]
 
         xy = np.asarray(xy, dtype=float)
 
@@ -568,6 +583,43 @@ class RasterModel(BaseModel):
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
 
+    @overload
+    def apply(
+        self,
+        func: Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[True],
+    ) -> Self: ...
+    @overload
+    def apply(
+        self,
+        func: Callable[[float], float] | Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[False] = False,
+    ) -> Self: ...
+    def apply(self, func, *, raw=False) -> Self:
+        """Apply a function element-wise to the raster array.
+
+        Creates a new raster instance with the same metadata (CRS, transform, etc.)
+        but with the data array transformed by the provided function. The original
+        raster is not modified.
+
+        Args:
+            func: The function to apply to the raster array. If `raw` is True, this
+                  function should accept and return a NumPy array. If `raw` is False,
+                  this function should accept and return a single float value.
+            raw: If True, the function is applied directly to the entire array at
+                 once. If False, the function is applied element-wise to each cell
+                 in the array using `np.vectorize()`. Default is False.
+        """
+        new_raster = self.model_copy()
+        if raw:
+            new_arr = func(self.arr)
+        else:
+            new_arr = np.vectorize(func)(self.arr)
+        new_raster.arr = np.asarray(new_arr)
+        return new_raster
+
     def max(self) -> float:
         """Get the maximum value in the raster, ignoring NaN values.
 
@@ -632,24 +684,22 @@ class RasterModel(BaseModel):
         return new_raster
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Get the x and y coordinates of the raster in meshgrid format."""
-        col_idx, row_idx = np.meshgrid(
-            np.arange(self.arr.shape[1]),
-            np.arange(self.arr.shape[0]),
-        )
+        """Get the x and y coordinates of the raster cell centres in meshgrid format.
 
-        col_idx = col_idx.flatten()
-        row_idx = row_idx.flatten()
+        Returns the coordinates of the cell centres as two separate 2D arrays in
+        meshgrid format, where each array has the same shape as the raster data array.
 
-        coords = np.vstack((row_idx, col_idx)).T
-
-        x, y = rasterio.transform.xy(self.raster_meta.transform, *coords.T)
-        x = np.array(x).reshape(self.arr.shape)
-        y = np.array(y).reshape(self.arr.shape)
-        return x, y
+        Returns:
+            A tuple of (x, y) coordinate arrays where:
+            - x: 2D array of x-coordinates of cell centres
+            - y: 2D array of y-coordinates of cell centres
+            Both arrays have the same shape as the raster data array.
+        """
+        coords = self.raster_meta.get_cell_centre_coords(self.arr.shape)
+        return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, *, levels: list[float], smoothing: bool = True
+        self, *, levels: list[float] | NDArray, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
@@ -660,8 +710,8 @@ class RasterModel(BaseModel):
         contouring, to denoise the contours.
 
         Args:
-            levels: A list of contour levels to generate. The contour lines will be
-                    generated for each level in this list.
+            levels: A list or array of contour levels to generate. The contour lines
+                    will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the
                        Catmull-Rom spline algorithm. If set to False, the raw
@@ -877,3 +927,18 @@ class RasterModel(BaseModel):
             msg = "Cell array must be 2D"
             raise RasterCellArrayShapeError(msg)
         return v
+
+
+def _get_xy_tuple(xy: Any) -> tuple[float, float]:
+    """Convert Point or coordinate tuple to coordinate tuple.
+
+    Args:
+        xy: Either a coordinate tuple or a shapely Point object.
+
+    Returns:
+        A coordinate tuple (x, y).
+    """
+    if isinstance(xy, Point):
+        return (xy.x, xy.y)
+    x, y = xy
+    return (float(x), float(y))

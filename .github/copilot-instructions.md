@@ -10,6 +10,7 @@
 - Write unit tests using `pytest` inside `tests/`, structured based on `src/`.  
   - Example: `src/x/y/z` → `tests/x/y/test_z.py`  
 - Use test fixtures and group tests into classes when appropriate.  
+- When testing methods on classes, create nested test classes within the test class associated with the overall tested class (e.g., `TestContour` nested within `TestRasterModel` when testing the `contour` method of `RasterModel`).
 - After modifying a function, run its unit tests using pytest.
 - Run tests in virtual environment: `.\.venv\Scripts\activate; python -m pytest tests/path/to/test_file.py -v`
 
@@ -24,6 +25,7 @@
 - Never create functions that return more than one output value (i.e. Never return tuples). Use dedicated return classes.
 - Do not add exceptions to functions unless explicitly requested.
 - Prefer to type hint strictly with the likes of `Literal["a", "b"]` instead of hinting broader types like `str`. This means the constraints on the input arguments to a function can reside in the type annotation rather than the docstring. Consider @validate_call (from pydantic import validate_call) to avoid boilerplate case-checking in such cases.
+- Prefer `isinstance` rather than `hasattr` for runtime type inference.
 - Refrain from backslash unescaping in raw strings (e.g., `r"\\path"` should be `r"\path"`).
 - When writing scripts, always use "Scripting Style" (Top-Level Code) unless stated otherwise. Write code directly at the module level instead of wrapping in functions or `if __name__ == "__main__":` blocks.
 - For scripts that need to access package files (e.g., templates, data files):
@@ -61,6 +63,7 @@
 - Add type annotations to function signatures (ANN201, ANN204)
 - Use `dict` instead of `Dict` for type annotation (UP006)
 - Avoid importing deprecated types like `typing.Dict` (UP035)
+- Use `NDArray` without specific dtype parameter (e.g., `NDArray` instead of `NDArray[np.number]`) for generic array parameters
 
 ## Testing
 

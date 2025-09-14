@@ -990,35 +990,41 @@ class TestCrop:
 
     def test_crop_non_square_raster_indexing(self):
         """Test that crop method correctly indexes non-square rasters.
-        
+
         This tests the fix for issue #140 where array indexing was backwards,
         causing spatial misalignment in cropped rasters.
         """
-        # Arrange: Create a non-square raster (3 rows, 5 columns) with distinctive values
+        # Arrange: Create a non-square raster with distinctive values
         meta = RasterMeta(
             cell_size=1.0,
             crs=CRS.from_epsg(2193),
-            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0)
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
-        arr = np.array([
-            [1, 2, 3, 4, 5],    # row 0
-            [6, 7, 8, 9, 10],   # row 1  
-            [11, 12, 13, 14, 15] # row 2
-        ], dtype=float)
+        arr = np.array(
+            [
+                [1, 2, 3, 4, 5],  # row 0
+                [6, 7, 8, 9, 10],  # row 1
+                [11, 12, 13, 14, 15],  # row 2
+            ],
+            dtype=float,
+        )
         raster = RasterModel(arr=arr, raster_meta=meta)
-        
+
         # Act: Crop to select middle 3 columns (keeping all rows)
         bounds = (1.0, 0.0, 4.0, 3.0)  # Should select columns at x=1.5, 2.5, 3.5
         cropped = raster.crop(bounds)
-        
+
         # Assert: Result should have all 3 rows but only 3 columns
         expected_shape = (3, 3)
-        expected_array = np.array([
-            [2, 3, 4],    # row 0, columns 1,2,3 (0-indexed)
-            [7, 8, 9],    # row 1, columns 1,2,3
-            [12, 13, 14]  # row 2, columns 1,2,3
-        ], dtype=float)
-        
+        expected_array = np.array(
+            [
+                [2, 3, 4],  # row 0, columns 1,2,3 (0-indexed)
+                [7, 8, 9],  # row 1, columns 1,2,3
+                [12, 13, 14],  # row 2, columns 1,2,3
+            ],
+            dtype=float,
+        )
+
         assert cropped.arr.shape == expected_shape
         np.testing.assert_array_equal(cropped.arr, expected_array)
 

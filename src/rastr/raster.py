@@ -674,7 +674,7 @@ class RasterModel(BaseModel):
                 level=level,
             )
 
-            # Constructg shapely LineString objects
+            # Construct shapely LineString objects
             # Convert to CRS from array index coordinates to raster CRS
             geoms = [
                 LineString(

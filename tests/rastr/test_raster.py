@@ -854,6 +854,36 @@ class TestRasterModel:
             assert len(contour_gdf_list) == len(contour_gdf_array)
             assert list(contour_gdf_list["level"]) == list(contour_gdf_array["level"])
 
+        def test_contour_positional_levels(self):
+            # Arrange
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+
+            # Act - levels as positional argument
+            contour_gdf = raster.contour(levels)
+
+            # Assert
+            assert isinstance(contour_gdf, gpd.GeoDataFrame)
+            assert "level" in contour_gdf.columns
+            assert len(contour_gdf) >= 0  # Should return some contours or empty GDF
+
+        def test_contour_positional_and_keyword_equivalent(self):
+            # Arrange
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+
+            # Act
+            contour_gdf_positional = raster.contour(levels)
+            contour_gdf_keyword = raster.contour(levels=levels)
+
+            # Assert
+            # Results should be equivalent (same number of contours at same levels)
+            assert len(contour_gdf_positional) == len(contour_gdf_keyword)
+            assert (
+                list(contour_gdf_positional["level"]) 
+                == list(contour_gdf_keyword["level"])
+            )
+
 
 @pytest.fixture
 def base_raster():

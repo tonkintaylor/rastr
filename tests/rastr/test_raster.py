@@ -116,6 +116,15 @@ class TestRasterModel:
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
 
+    class TestShape:
+        def test_shape_property(self, example_raster: RasterModel):
+            # Act
+            shape = example_raster.shape
+
+            # Assert
+            assert shape == (2, 2)
+            assert shape == example_raster.arr.shape
+
     class TestCRS:
         def test_crs_getter(self, example_raster: RasterModel):
             # Act

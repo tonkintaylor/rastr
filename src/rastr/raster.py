@@ -66,6 +66,11 @@ class RasterModel(BaseModel):
         self.raster_meta = value
 
     @property
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the raster array."""
+        return self.arr.shape
+
+    @property
     def crs(self) -> CRS:
         """Convenience property to access the CRS via meta."""
         return self.meta.crs

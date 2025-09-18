@@ -863,6 +863,14 @@ class TestRasterModel:
             assert len(contour_gdf_list) == len(contour_gdf_array)
             assert list(contour_gdf_list["level"]) == list(contour_gdf_array["level"])
 
+        def test_contour_positional_levels(self):
+            # Arrange
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+
+            # Act - should pass without error when using positional levels arg
+            contour_gdf = raster.contour(levels)  # noqa: F841
+
         def test_contour_returns_gdf_with_correct_columns(self):
             raster = RasterModel.example()
             gdf = raster.contour(levels=[0.0, 0.5])

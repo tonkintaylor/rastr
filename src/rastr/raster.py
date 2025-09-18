@@ -651,7 +651,7 @@ class RasterModel(BaseModel):
         return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, *, levels: list[float] | NDArray, smoothing: bool = True
+        self, levels: list[float] | NDArray, *, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 

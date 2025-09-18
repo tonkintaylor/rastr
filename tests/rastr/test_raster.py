@@ -860,7 +860,7 @@ class TestRasterModel:
             levels = [0.0, 0.5]
 
             # Act - should pass without error when using positional levels arg
-            contour_gdf = raster.contour(levels)
+            contour_gdf = raster.contour(levels)  # noqa: F841
 
 
 @pytest.fixture

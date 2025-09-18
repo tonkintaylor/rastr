@@ -66,6 +66,11 @@ class RasterModel(BaseModel):
         self.raster_meta = value
 
     @property
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the raster array."""
+        return self.arr.shape
+
+    @property
     def crs(self) -> CRS:
         """Convenience property to access the CRS via meta."""
         return self.meta.crs
@@ -650,8 +655,10 @@ class RasterModel(BaseModel):
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
-        The contour lines are returned as a GeoDataFrame with the contours as linestring
-        geometries and the contour levels as attributes in a column named 'level'.
+        The contour lines are returned as a GeoDataFrame with the contours dissolved
+        by level, resulting in one row per contour level. Each row contains a
+        (Multi)LineString geometry representing all contour lines for that level,
+        and the contour level value in a column named 'level'.
 
         Consider calling `blur()` before this method to smooth the raster data before
         contouring, to denoise the contours.
@@ -674,7 +681,7 @@ class RasterModel(BaseModel):
                 level=level,
             )
 
-            # Constructg shapely LineString objects
+            # Construct shapely LineString objects
             # Convert to CRS from array index coordinates to raster CRS
             geoms = [
                 LineString(
@@ -703,7 +710,8 @@ class RasterModel(BaseModel):
             crs=self.raster_meta.crs,
         )
 
-        return contour_gdf
+        # Dissolve contours by level to merge all contour lines of the same level
+        return contour_gdf.dissolve(by="level", as_index=False)
 
     def blur(self, sigma: float) -> Self:
         """Apply a Gaussian blur to the raster data.
@@ -748,7 +756,7 @@ class RasterModel(BaseModel):
         bounds: tuple[float, float, float, float],
         strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:
-        """Crop the raster to the specified bounds.
+        """Crop the raster to the specified bounds as (minx, miny, maxx, maxy).
 
         Args:
             bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.

@@ -12,7 +12,7 @@ from affine import Affine
 from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
-from shapely.geometry import Point, Polygon
+from shapely.geometry import LineString, MultiLineString, Point, Polygon
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
@@ -115,6 +115,15 @@ class TestRasterModel:
             assert example_raster.raster_meta is new_meta
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
+
+    class TestShape:
+        def test_shape_property(self, example_raster: RasterModel):
+            # Act
+            shape = example_raster.shape
+
+            # Assert
+            assert shape == (2, 2)
+            assert shape == example_raster.arr.shape
 
     class TestCRS:
         def test_crs_getter(self, example_raster: RasterModel):
@@ -861,6 +870,53 @@ class TestRasterModel:
 
             # Act - should pass without error when using positional levels arg
             contour_gdf = raster.contour(levels)  # noqa: F841
+
+        def test_contour_returns_gdf_with_correct_columns(self):
+            raster = RasterModel.example()
+            gdf = raster.contour(levels=[0.0, 0.5])
+
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert list(gdf.columns) == ["level", "geometry"]
+            assert "level" in gdf.columns
+            assert "geometry" in gdf.columns
+
+        def test_contour_levels_in_result(self):
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+            gdf = raster.contour(levels=levels)
+
+            result_levels = set(gdf["level"].unique())
+            expected_levels = set(levels)
+            assert result_levels == expected_levels
+
+        def test_contour_dissolve_behavior_one_row_per_level(self):
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+            gdf = raster.contour(levels=levels)
+
+            # After dissolving, should have exactly one row per level
+            assert len(gdf) == len(levels)
+            assert set(gdf["level"]) == set(levels)
+
+            # Geometries should be MultiLineString (dissolved from multiple LineStrings)
+            for geom in gdf.geometry:
+                assert isinstance(
+                    geom, (MultiLineString, LineString)
+                )  # Can be either depending on dissolve result
+
+        def test_contour_with_smoothing(self):
+            raster = RasterModel.example()
+            gdf = raster.contour(levels=[0.0], smoothing=True)
+
+            assert len(gdf) > 0
+            assert all(gdf["level"] == 0.0)
+
+        def test_contour_without_smoothing(self):
+            raster = RasterModel.example()
+            gdf = raster.contour(levels=[0.0], smoothing=False)
+
+            assert len(gdf) > 0
+            assert all(gdf["level"] == 0.0)
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ import importlib.util
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import numpy.ma
@@ -64,6 +64,21 @@ class RasterModel(BaseModel):
     @meta.setter
     def meta(self, value: RasterMeta) -> None:
         self.raster_meta = value
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the raster array."""
+        return self.arr.shape
+
+    @property
+    def crs(self) -> CRS:
+        """Convenience property to access the CRS via meta."""
+        return self.meta.crs
+
+    @crs.setter
+    def crs(self, value: CRS) -> None:
+        """Set the CRS via meta."""
+        self.meta.crs = value
 
     def __init__(
         self,
@@ -193,12 +208,12 @@ class RasterModel(BaseModel):
     @property
     def cell_x_coords(self) -> NDArray[np.float64]:
         """Get the x coordinates of the cell centres in the raster."""
-        return self.raster_meta.get_cell_x_coords(self.arr.shape[0])
+        return self.raster_meta.get_cell_x_coords(self.arr.shape[1])
 
     @property
     def cell_y_coords(self) -> NDArray[np.float64]:
         """Get the y coordinates of the cell centres in the raster."""
-        return self.raster_meta.get_cell_y_coords(self.arr.shape[1])
+        return self.raster_meta.get_cell_y_coords(self.arr.shape[0])
 
     @contextmanager
     def to_rasterio_dataset(
@@ -573,6 +588,43 @@ class RasterModel(BaseModel):
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
 
+    @overload
+    def apply(
+        self,
+        func: Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[True],
+    ) -> Self: ...
+    @overload
+    def apply(
+        self,
+        func: Callable[[float], float] | Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[False] = False,
+    ) -> Self: ...
+    def apply(self, func, *, raw=False) -> Self:
+        """Apply a function element-wise to the raster array.
+
+        Creates a new raster instance with the same metadata (CRS, transform, etc.)
+        but with the data array transformed by the provided function. The original
+        raster is not modified.
+
+        Args:
+            func: The function to apply to the raster array. If `raw` is True, this
+                  function should accept and return a NumPy array. If `raw` is False,
+                  this function should accept and return a single float value.
+            raw: If True, the function is applied directly to the entire array at
+                 once. If False, the function is applied element-wise to each cell
+                 in the array using `np.vectorize()`. Default is False.
+        """
+        new_raster = self.model_copy()
+        if raw:
+            new_arr = func(self.arr)
+        else:
+            new_arr = np.vectorize(func)(self.arr)
+        new_raster.arr = np.asarray(new_arr)
+        return new_raster
+
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
 
@@ -599,12 +651,14 @@ class RasterModel(BaseModel):
         return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, *, levels: list[float] | NDArray, smoothing: bool = True
+        self, levels: list[float] | NDArray, *, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
-        The contour lines are returned as a GeoDataFrame with the contours as linestring
-        geometries and the contour levels as attributes in a column named 'level'.
+        The contour lines are returned as a GeoDataFrame with the contours dissolved
+        by level, resulting in one row per contour level. Each row contains a
+        (Multi)LineString geometry representing all contour lines for that level,
+        and the contour level value in a column named 'level'.
 
         Consider calling `blur()` before this method to smooth the raster data before
         contouring, to denoise the contours.
@@ -627,7 +681,7 @@ class RasterModel(BaseModel):
                 level=level,
             )
 
-            # Constructg shapely LineString objects
+            # Construct shapely LineString objects
             # Convert to CRS from array index coordinates to raster CRS
             geoms = [
                 LineString(
@@ -656,7 +710,8 @@ class RasterModel(BaseModel):
             crs=self.raster_meta.crs,
         )
 
-        return contour_gdf
+        # Dissolve contours by level to merge all contour lines of the same level
+        return contour_gdf.dissolve(by="level", as_index=False)
 
     def blur(self, sigma: float) -> Self:
         """Apply a Gaussian blur to the raster data.
@@ -701,7 +756,7 @@ class RasterModel(BaseModel):
         bounds: tuple[float, float, float, float],
         strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:
-        """Crop the raster to the specified bounds.
+        """Crop the raster to the specified bounds as (minx, miny, maxx, maxy).
 
         Args:
             bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.
@@ -746,7 +801,7 @@ class RasterModel(BaseModel):
             raise NotImplementedError(msg)
 
         # Crop the array
-        cropped_arr = arr[np.ix_(x_idx, y_idx)]
+        cropped_arr = arr[np.ix_(y_idx, x_idx)]
 
         # Check the shape of the cropped array
         if cropped_arr.size == 0:

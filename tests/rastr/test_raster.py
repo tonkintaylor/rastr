@@ -12,7 +12,7 @@ from affine import Affine
 from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
-from shapely.geometry import Point, Polygon
+from shapely.geometry import LineString, MultiLineString, Point, Polygon
 
 from rastr.meta import RasterMeta
 from rastr.raster import RasterModel
@@ -115,6 +115,43 @@ class TestRasterModel:
             assert example_raster.raster_meta is new_meta
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
+
+    class TestShape:
+        def test_shape_property(self, example_raster: RasterModel):
+            # Act
+            shape = example_raster.shape
+
+            # Assert
+            assert shape == (2, 2)
+            assert shape == example_raster.arr.shape
+
+    class TestCRS:
+        def test_crs_getter(self, example_raster: RasterModel):
+            # Act
+            crs_via_property = example_raster.crs
+            crs_via_meta = example_raster.meta.crs
+            crs_via_raster_meta = example_raster.raster_meta.crs
+
+            # Assert
+            assert crs_via_property is crs_via_meta
+            assert crs_via_property is crs_via_raster_meta
+            assert crs_via_property == crs_via_meta
+            assert crs_via_property == crs_via_raster_meta
+            assert isinstance(crs_via_property, CRS)
+
+        def test_crs_setter(self, example_raster: RasterModel):
+            # Arrange
+            new_crs = CRS.from_epsg(4326)
+            original_crs = example_raster.crs
+
+            # Act
+            example_raster.crs = new_crs
+
+            # Assert
+            assert example_raster.crs is new_crs
+            assert example_raster.meta.crs is new_crs
+            assert example_raster.raster_meta.crs is new_crs
+            assert example_raster.crs != original_crs
 
     class TestSample:
         def test_sample_nan_raise(self, example_raster: RasterModel):
@@ -600,6 +637,14 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[0, -1], [-2, -3]]))
 
+    class TestApply:
+        def test_sine(self, example_raster: RasterModel):
+            # Act
+            result = example_raster.apply(np.sin)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.sin(example_raster.arr))
+
     class TestToFile:
         def test_saving_gtiff(self, tmp_path: Path, example_raster: RasterModel):
             # Arrange
@@ -818,6 +863,61 @@ class TestRasterModel:
             assert len(contour_gdf_list) == len(contour_gdf_array)
             assert list(contour_gdf_list["level"]) == list(contour_gdf_array["level"])
 
+        def test_contour_positional_levels(self):
+            # Arrange
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+
+            # Act - should pass without error when using positional levels arg
+            contour_gdf = raster.contour(levels)  # noqa: F841
+
+        def test_contour_returns_gdf_with_correct_columns(self):
+            raster = RasterModel.example()
+            gdf = raster.contour(levels=[0.0, 0.5])
+
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert list(gdf.columns) == ["level", "geometry"]
+            assert "level" in gdf.columns
+            assert "geometry" in gdf.columns
+
+        def test_contour_levels_in_result(self):
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+            gdf = raster.contour(levels=levels)
+
+            result_levels = set(gdf["level"].unique())
+            expected_levels = set(levels)
+            assert result_levels == expected_levels
+
+        def test_contour_dissolve_behavior_one_row_per_level(self):
+            raster = RasterModel.example()
+            levels = [0.0, 0.5]
+            gdf = raster.contour(levels=levels)
+
+            # After dissolving, should have exactly one row per level
+            assert len(gdf) == len(levels)
+            assert set(gdf["level"]) == set(levels)
+
+            # Geometries should be MultiLineString (dissolved from multiple LineStrings)
+            for geom in gdf.geometry:
+                assert isinstance(
+                    geom, (MultiLineString, LineString)
+                )  # Can be either depending on dissolve result
+
+        def test_contour_with_smoothing(self):
+            raster = RasterModel.example()
+            gdf = raster.contour(levels=[0.0], smoothing=True)
+
+            assert len(gdf) > 0
+            assert all(gdf["level"] == 0.0)
+
+        def test_contour_without_smoothing(self):
+            raster = RasterModel.example()
+            gdf = raster.contour(levels=[0.0], smoothing=False)
+
+            assert len(gdf) > 0
+            assert all(gdf["level"] == 0.0)
+
 
 @pytest.fixture
 def base_raster():
@@ -868,13 +968,13 @@ class TestCrop:
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
         bounds = (minx, miny + cell_size, maxx, maxy - cell_size)
-        expected_transform = Affine(20.0, 0.0, 0.0, 0.0, -5.0, 100.0 - cell_size)
+        expected_transform = Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0 - cell_size)
 
         # Act
         cropped = base_raster.crop(bounds)
 
         # Assert
-        assert cropped.arr.shape == (4, 2)
+        assert cropped.arr.shape == (2, 4)  # Y-crop reduces rows, keeps columns
         assert cropped.bounds == bounds
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
@@ -885,13 +985,13 @@ class TestCrop:
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
         bounds = (minx + cell_size, miny, maxx - cell_size, maxy)
-        expected_transform = Affine(5.0, 0.0, minx + cell_size, 0.0, -20.0, 100.0)
+        expected_transform = Affine(10.0, 0.0, minx + cell_size, 0.0, -10.0, 100.0)
 
         # Act
         cropped = base_raster.crop(bounds)
 
         # Assert
-        assert cropped.arr.shape == (2, 4)
+        assert cropped.arr.shape == (4, 2)  # X-crop reduces columns, keeps rows
         assert cropped.bounds == bounds
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
@@ -979,6 +1079,46 @@ class TestCrop:
             match="Cropped array is empty; no cells within the specified bounds.",
         ):
             base_raster.crop(bounds)
+
+    def test_crop_non_square_raster_indexing(self):
+        """Test that crop method correctly indexes non-square rasters.
+
+        This tests the fix for issue #140 where array indexing was backwards,
+        causing spatial misalignment in cropped rasters.
+        """
+        # Arrange: Create a non-square raster with distinctive values
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.array(
+            [
+                [1, 2, 3, 4, 5],  # row 0
+                [6, 7, 8, 9, 10],  # row 1
+                [11, 12, 13, 14, 15],  # row 2
+            ],
+            dtype=float,
+        )
+        raster = RasterModel(arr=arr, raster_meta=meta)
+
+        # Act: Crop to select middle 3 columns (keeping all rows)
+        bounds = (1.0, 0.0, 4.0, 3.0)  # Should select columns at x=1.5, 2.5, 3.5
+        cropped = raster.crop(bounds)
+
+        # Assert: Result should have all 3 rows but only 3 columns
+        expected_shape = (3, 3)
+        expected_array = np.array(
+            [
+                [2, 3, 4],  # row 0, columns 1,2,3 (0-indexed)
+                [7, 8, 9],  # row 1, columns 1,2,3
+                [12, 13, 14],  # row 2, columns 1,2,3
+            ],
+            dtype=float,
+        )
+
+        assert cropped.arr.shape == expected_shape
+        np.testing.assert_array_equal(cropped.arr, expected_array)
 
     def test_unsupported_crop_strategy(self, base_raster: RasterModel):
         # Arrange

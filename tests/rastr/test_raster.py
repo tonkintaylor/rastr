@@ -1130,6 +1130,14 @@ class TestCrop:
         ):
             base_raster.crop(bounds, strategy="invalid_strategy")  # type: ignore[reportArgumentType]
 
+    def test_strategy_is_keyword_only(self, base_raster: RasterModel):
+        # Arrange
+        bounds = base_raster.bounds
+
+        # Act & Assert
+        with pytest.raises(TypeError):
+            base_raster.crop(bounds, "overflow")  # type: ignore[reportCallIssue]
+
 
 class TestResample:
     def test_upsampling_doubles_resolution(self, base_raster: RasterModel):

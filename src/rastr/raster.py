@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import warnings
+from collections.abc import Collection
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, overload
+from typing import TYPE_CHECKING, Literal, overload
 
 import numpy as np
 import numpy.ma
@@ -248,12 +249,30 @@ class RasterModel(BaseModel):
         finally:
             memfile.close()
 
+    @overload
     def sample(
         self,
-        xy: list[tuple[float, float]] | list[Point] | ArrayLike,
+        xy: Collection[tuple[float, float]] | Collection[Point] | ArrayLike,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
-    ) -> NDArray[np.float64]:
+    ) -> NDArray: ...
+    @overload
+    def sample(
+        self,
+        xy: tuple[float, float] | Point,
+        *,
+        na_action: Literal["raise", "ignore"] = "raise",
+    ) -> float: ...
+    def sample(
+        self,
+        xy: Collection[tuple[float, float]]
+        | Collection[Point]
+        | ArrayLike
+        | tuple[float, float]
+        | Point,
+        *,
+        na_action: Literal["raise", "ignore"] = "raise",
+    ) -> NDArray | float:
         """Sample raster values at GeoSeries locations and return sampled values.
 
         Args:
@@ -270,13 +289,30 @@ class RasterModel(BaseModel):
         # https://rdrn.me/optimising-sampling/
 
         # Convert shapely Points to coordinate tuples if needed
-        if isinstance(xy, (list, tuple)):
-            xy = [_get_xy_tuple(point) for point in xy]
+        if isinstance(xy, Point):
+            xy = [(xy.x, xy.y)]
+            singleton = True
+        elif (
+            isinstance(xy, Collection)
+            and len(xy) > 0
+            and isinstance(next(iter(xy)), Point)
+        ):
+            xy = [(point.x, point.y) for point in xy]  # pyright: ignore[reportAttributeAccessIssue]
+            singleton = False
+        elif (
+            isinstance(xy, tuple)
+            and len(xy) == 2
+            and isinstance(next(iter(xy)), (float, int))
+        ):
+            xy = [xy]  # pyright: ignore[reportAssignmentType]
+            singleton = True
+        else:
+            singleton = False
 
         xy = np.asarray(xy, dtype=float)
 
-        # Short-circuit
         if len(xy) == 0:
+            # Short-circuit
             return np.array([], dtype=float)
 
         # Create in-memory rasterio dataset from the incumbent Raster object
@@ -325,6 +361,10 @@ class RasterModel(BaseModel):
                     np.nan,
                     axis=0,
                 )
+
+        if singleton:
+            (raster_value,) = raster_values
+            return raster_value
 
         return raster_values
 
@@ -883,18 +923,3 @@ class RasterModel(BaseModel):
             msg = "Cell array must be 2D"
             raise RasterCellArrayShapeError(msg)
         return v
-
-
-def _get_xy_tuple(xy: Any) -> tuple[float, float]:
-    """Convert Point or coordinate tuple to coordinate tuple.
-
-    Args:
-        xy: Either a coordinate tuple or a shapely Point object.
-
-    Returns:
-        A coordinate tuple (x, y).
-    """
-    if isinstance(xy, Point):
-        return (xy.x, xy.y)
-    x, y = xy
-    return (float(x), float(y))

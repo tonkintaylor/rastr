@@ -218,6 +218,26 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(result, np.array([1.0, 4.0]))
 
+        def test_single_shapely_point_input(self, example_raster: RasterModel):
+            # Arrange
+            point = Point(0, 0)
+
+            # Act
+            result = example_raster.sample(point, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array(1.0), strict=True)
+
+        def test_single_tuple_input(self, example_raster: RasterModel):
+            # Arrange
+            coord = (0, 0)
+
+            # Act
+            result = example_raster.sample(coord, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array(1.0), strict=True)
+
     class TestBounds:
         def test_bounds(self, example_raster: RasterModel):
             assert example_raster.bounds == (0.0, 0.0, 4.0, 4.0)

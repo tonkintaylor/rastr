@@ -459,7 +459,7 @@ class RasterModel(BaseModel):
         **kwargs: Any,
     ) -> Axes:
         """Plot the raster on a matplotlib axis.
-        
+
         Args:
             ax: A matplotlib axes object to plot on. If None, a new figure will be created.
             cbar_label: Label for the colorbar. If None, no label is added.

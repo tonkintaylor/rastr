@@ -6,6 +6,7 @@ from unittest.mock import patch
 import folium
 import folium.raster_layers
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from affine import Affine
@@ -708,25 +709,29 @@ class TestRasterModel:
 
         def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: RasterModel):
             # Arrange
-            import matplotlib.pyplot as plt
-            
-            # Act
-            ax = example_raster_with_zeros.plot(alpha=0.5)
-            
-            # Assert
-            assert ax is not None
-            plt.close(ax.get_figure())
+            fig, ax = plt.subplots()
 
-        def test_plot_with_additional_kwargs(self, example_raster_with_zeros: RasterModel):
-            # Arrange
-            import matplotlib.pyplot as plt
-            
-            # Act - passing a rasterio.plot.show parameter that should be accepted
-            ax = example_raster_with_zeros.plot(alpha=0.7, interpolation="bilinear")
-            
+            # Act
+            ax = example_raster_with_zeros.plot(alpha=0.5, ax=ax)
+
             # Assert
             assert ax is not None
-            plt.close(ax.get_figure())
+            plt.close(fig)
+
+        def test_plot_with_additional_kwargs(
+            self, example_raster_with_zeros: RasterModel
+        ):
+            # Arrange
+            fig, ax = plt.subplots()
+
+            # Act - passing a rasterio.plot.show parameter that should be accepted
+            ax = example_raster_with_zeros.plot(
+                alpha=0.7, interpolation="bilinear", ax=ax
+            )
+
+            # Assert
+            assert ax is not None
+            plt.close(fig)
 
     class TestExample:
         def test_example(self):

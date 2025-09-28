@@ -682,7 +682,8 @@ class TestRasterModel:
             original_array = example_raster_with_zeros.arr.copy()
 
             # Act
-            example_raster_with_zeros.plot()
+            # Suppression will modify a raster copy internally, but not the original
+            example_raster_with_zeros.plot(suppressed=0)
 
             # Assert
             np.testing.assert_array_equal(example_raster_with_zeros.arr, original_array)
@@ -705,6 +706,21 @@ class TestRasterModel:
             # Act / Assert
             with pytest.raises(ImportError, match="matplotlib.*required"):
                 raster.plot()
+
+        def test_suppress_zeros(self):
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0
+
+            raster.plot(suppressed=0)
+
+        def test_suppress_multiple(self):
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            raster.plot(suppressed=[0, 0.2])
 
     class TestExample:
         def test_example(self):

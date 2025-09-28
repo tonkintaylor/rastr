@@ -46,6 +46,8 @@ FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
 BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
+CONTOUR_PERTURB_EPS = 1e-10
+
 
 class RasterCellArrayShapeError(ValueError):
     """Custom error for invalid raster cell array shapes."""
@@ -715,10 +717,20 @@ class RasterModel(BaseModel):
 
         all_levels = []
         all_geoms = []
+        arr_max = np.nanmax(self.arr)
+        arr_min = np.nanmin(self.arr)
         for level in levels:
+            # If this is the maximum or minimum level, perturb it ever-so-slightly to
+            # ensure we get contours at the edges of the raster
+            perturbed_level = level
+            if level == arr_max:
+                perturbed_level -= CONTOUR_PERTURB_EPS
+            elif level == arr_min:
+                perturbed_level += CONTOUR_PERTURB_EPS
+
             contours = skimage.measure.find_contours(
                 self.arr,
-                level=level,
+                level=perturbed_level,
             )
 
             # Construct shapely LineString objects

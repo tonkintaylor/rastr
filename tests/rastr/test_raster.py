@@ -706,6 +706,28 @@ class TestRasterModel:
             with pytest.raises(ImportError, match="matplotlib.*required"):
                 raster.plot()
 
+        def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: RasterModel):
+            # Arrange
+            import matplotlib.pyplot as plt
+            
+            # Act
+            ax = example_raster_with_zeros.plot(alpha=0.5)
+            
+            # Assert
+            assert ax is not None
+            plt.close(ax.get_figure())
+
+        def test_plot_with_additional_kwargs(self, example_raster_with_zeros: RasterModel):
+            # Arrange
+            import matplotlib.pyplot as plt
+            
+            # Act - passing a rasterio.plot.show parameter that should be accepted
+            ax = example_raster_with_zeros.plot(alpha=0.7, interpolation="bilinear")
+            
+            # Assert
+            assert ax is not None
+            plt.close(ax.get_figure())
+
     class TestExample:
         def test_example(self):
             # Act

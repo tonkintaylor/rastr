@@ -320,9 +320,6 @@ def raster_from_point_cloud(
     if len(x) != len(y) or len(x) != len(z):
         msg = "Length of x, y, and z must be equal."
         raise ValueError(msg)
-    if len(x) < 3:
-        msg = "At least three (x, y, z) points are required to triangulate a surface."
-        raise ValueError(msg)
     xy_finite_mask = np.isfinite(x) & np.isfinite(y)
     if np.any(~xy_finite_mask):
         msg = "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
@@ -330,6 +327,12 @@ def raster_from_point_cloud(
         x = x[xy_finite_mask]
         y = y[xy_finite_mask]
         z = z[xy_finite_mask]
+    if len(x) < 3:
+        msg = (
+            "At least three valid (x, y, z) points are required to triangulate a "
+            "surface."
+        )
+        raise ValueError(msg)
     # Check for duplicate (x, y) points
     xy_points = np.column_stack((x, y))
     if len(xy_points) != len(np.unique(xy_points, axis=0)):

@@ -918,6 +918,36 @@ class TestRasterModel:
             assert len(gdf) > 0
             assert all(gdf["level"] == 0.0)
 
+        def test_level_at_max(self):
+            # https://github.com/tonkintaylor/rastr/issues/154
+
+            # Arrange
+            raster = RasterModel(
+                arr=np.array([[1, 4, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2]]),
+                meta=RasterMeta.example(),
+            )
+
+            # Act
+            gdf = raster.contour(levels=[4])
+
+            # Assert
+            assert len(gdf) > 0
+            assert set(gdf["level"]) == {4.0}
+
+        def test_level_at_min(self):
+            # Arrange
+            raster = RasterModel(
+                arr=np.array([[1, 4, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2]]),
+                meta=RasterMeta.example(),
+            )
+
+            # Act
+            gdf = raster.contour(levels=[1])
+
+            # Assert
+            assert len(gdf) > 0
+            assert set(gdf["level"]) == {1.0}
+
 
 @pytest.fixture
 def base_raster():

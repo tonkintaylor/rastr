@@ -695,7 +695,7 @@ class TestRasterFromPointCloud:
 
             # Act / Assert
             with pytest.raises(
-                ValueError, match="Length of x, y, and z must be equal."
+                ValueError, match=r"Length of x, y, and z must be equal\."
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -707,7 +707,7 @@ class TestRasterFromPointCloud:
 
             # Act / Assert
             with pytest.raises(
-                ValueError, match="Length of x, y, and z must be equal."
+                ValueError, match=r"Length of x, y, and z must be equal\."
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 

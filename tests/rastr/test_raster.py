@@ -84,7 +84,7 @@ class TestRasterModel:
         def test_missing_meta(self, example_raster: RasterModel):
             # Act, Assert
             with pytest.raises(
-                ValueError, match="The attribute 'raster_meta' is required."
+                ValueError, match=r"The attribute 'raster_meta' is required\."
             ):
                 RasterModel(arr=example_raster.arr)
 
@@ -703,7 +703,7 @@ class TestRasterModel:
             )
 
             # Act / Assert
-            with pytest.raises(ImportError, match="matplotlib.*required"):
+            with pytest.raises(ImportError, match=r"matplotlib.*required"):
                 raster.plot()
 
     class TestExample:
@@ -1076,7 +1076,7 @@ class TestCrop:
         # Arrange, Act & Assert
         with pytest.raises(
             ValueError,
-            match="Cropped array is empty; no cells within the specified bounds.",
+            match=r"Cropped array is empty; no cells within the specified bounds\.",
         ):
             base_raster.crop(bounds)
 
@@ -1407,7 +1407,7 @@ class TestExplore:
         monkeypatch.setattr("rastr.raster.FOLIUM_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match="folium.*required"):
+        with pytest.raises(ImportError, match=r"folium.*required"):
             raster.explore()
 
     def test_explore_without_matplotlib_raises(self, monkeypatch: pytest.MonkeyPatch):
@@ -1424,7 +1424,7 @@ class TestExplore:
         monkeypatch.setattr("rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match="matplotlib.*required"):
+        with pytest.raises(ImportError, match=r"matplotlib.*required"):
             raster.explore()
 
     def test_homogenous_raster(self):

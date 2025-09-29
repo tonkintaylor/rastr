@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import numpy.ma
+import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
@@ -30,11 +31,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
     import geopandas as gpd
+    from affine import Affine
     from branca.colormap import LinearColormap as BrancaLinearColormap
     from folium import Map
     from matplotlib.axes import Axes
+    from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
+    from shapely import MultiPolygon
     from typing_extensions import Self
 
 try:
@@ -60,6 +64,15 @@ class RasterModel(BaseModel):
     arr: InstanceOf[np.ndarray]
     raster_meta: RasterMeta
 
+    @field_validator("arr")
+    @classmethod
+    def check_2d_array(cls, v: NDArray) -> NDArray:
+        """Validator to ensure the cell array is 2D."""
+        if v.ndim != 2:
+            msg = "Cell array must be 2D"
+            raise RasterCellArrayShapeError(msg)
+        return v
+
     @property
     def meta(self) -> RasterMeta:
         """Alias for raster_meta."""
@@ -83,6 +96,16 @@ class RasterModel(BaseModel):
     def crs(self, value: CRS) -> None:
         """Set the CRS via meta."""
         self.meta.crs = value
+
+    @property
+    def transform(self) -> Affine:
+        """Convenience property to access the transform via meta."""
+        return self.meta.transform
+
+    @transform.setter
+    def transform(self, value: Affine) -> None:
+        """Set the transform via meta."""
+        self.meta.transform = value
 
     def __init__(
         self,
@@ -119,6 +142,17 @@ class RasterModel(BaseModel):
             np.array_equal(self.arr, other.arr)
             and self.raster_meta == other.raster_meta
         )
+
+    def is_like(self, other: RasterModel) -> bool:
+        """Check if two RasterModel objects have the same metadata and shape.
+
+        Args:
+            other: Another RasterModel to compare with.
+
+        Returns:
+            True if both rasters have the same meta and shape attributes.
+        """
+        return self.meta == other.meta and self.shape == other.shape
 
     __hash__ = BaseModel.__hash__
 
@@ -506,6 +540,7 @@ class RasterModel(BaseModel):
         cbar_label: str | None = None,
         basemap: bool = False,
         cmap: str = "viridis",
+        suppressed: Collection[float] | float = tuple(),
         **kwargs: Any,
     ) -> Axes:
         """Plot the raster on a matplotlib axis.
@@ -516,6 +551,8 @@ class RasterModel(BaseModel):
             cbar_label: Label for the colorbar. If None, no label is added.
             basemap: Whether to add a basemap. Currently not implemented.
             cmap: Colormap to use for the plot.
+            suppressed: Values to suppress from the plot (i.e. not display). This can be
+                        useful for zeroes especially.
             **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
                       This includes parameters like `alpha` for transparency.
         """
@@ -526,6 +563,8 @@ class RasterModel(BaseModel):
         from matplotlib import pyplot as plt
         from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+        suppressed = np.array(suppressed)
+
         if ax is None:
             _, _ax = plt.subplots()
             _ax: Axes
@@ -535,33 +574,34 @@ class RasterModel(BaseModel):
             msg = "Basemap plotting is not yet implemented."
             raise NotImplementedError(msg)
 
-        arr = self.arr.copy()
+        model = self.model_copy()
+        model.arr = model.arr.copy()
 
-        # Get extent of the non-zero values in array index coordinates
-        (x_nonzero,) = np.nonzero(arr.any(axis=0))
-        (y_nonzero,) = np.nonzero(arr.any(axis=1))
+        # Get extent of the unsuppressed values in array index coordinates
+        suppressed_mask = np.isin(model.arr, suppressed)
+        (x_unsuppressed,) = np.nonzero((~suppressed_mask).any(axis=0))
+        (y_unsuppressed,) = np.nonzero((~suppressed_mask).any(axis=1))
 
-        if len(x_nonzero) == 0 or len(y_nonzero) == 0:
-            msg = "Raster contains no non-zero values; cannot plot."
+        if len(x_unsuppressed) == 0 or len(y_unsuppressed) == 0:
+            msg = "Raster contains no unsuppressed values; cannot plot."
             raise ValueError(msg)
 
-        min_x_nonzero = np.min(x_nonzero)
-        max_x_nonzero = np.max(x_nonzero)
-        min_y_nonzero = np.min(y_nonzero)
-        max_y_nonzero = np.max(y_nonzero)
+        # N.B. these are array index coordinates, so np.min and np.max are safe since
+        # they cannot encounter NaN values.
+        min_x_unsuppressed = np.min(x_unsuppressed)
+        max_x_unsuppressed = np.max(x_unsuppressed)
+        min_y_unsuppressed = np.min(y_unsuppressed)
+        max_y_unsuppressed = np.max(y_unsuppressed)
 
         # Transform to raster CRS
-        x1, y1 = self.raster_meta.transform * (min_x_nonzero, min_y_nonzero)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
-        x2, y2 = self.raster_meta.transform * (max_x_nonzero, max_y_nonzero)  # type: ignore[reportAssignmentType]
+        x1, y1 = self.raster_meta.transform * (min_x_unsuppressed, min_y_unsuppressed)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        x2, y2 = self.raster_meta.transform * (max_x_unsuppressed, max_y_unsuppressed)  # type: ignore[reportAssignmentType]
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
 
-        arr[arr == 0] = np.nan
+        model.arr[suppressed_mask] = np.nan
 
-        with self.to_rasterio_dataset() as dataset:
-            img, *_ = rasterio.plot.show(
-                dataset, with_bounds=True, ax=ax, cmap=cmap, **kwargs
-            ).get_images()
+        img, *_ = model.rio_show(ax=ax, cmap=cmap, with_bounds=True, **kwargs)
 
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
@@ -576,6 +616,20 @@ class RasterModel(BaseModel):
         if fig is not None:
             fig.colorbar(img, label=cbar_label, cax=cax)
         return ax
+
+    def rio_show(self, **kwargs: Any) -> list[AxesImage]:
+        """Plot the raster using rasterio's built-in plotting function.
+
+        This is useful for lower-level access to rasterio's plotting capabilities.
+        Generally, the `plot()` method is preferred for most use cases.
+
+        Args:
+            **kwargs: Keyword arguments to pass to `rasterio.plot.show()`. This includes
+            parameters like `alpha` for transparency, and `with_bounds` to control
+            whether to plot in spatial coordinates or array index coordinates.
+        """
+        with self.to_rasterio_dataset() as dataset:
+            return rasterio.plot.show(dataset, **kwargs).get_images()
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""
@@ -822,6 +876,71 @@ class RasterModel(BaseModel):
 
         return raster
 
+    def pad(self, width: float, *, value: float = np.nan) -> Self:
+        """Extend the raster by adding a constant fill value around the edges.
+
+        By default, the padding value is NaN, but this can be changed via the
+        `value` parameter.
+
+        This grows the raster by adding padding around all edges. New cells are
+        filled with the constant `value`.
+
+        If the width is not an exact multiple of the cell size, the padding may be
+        slightly larger than the specified width, i.e. the value is rounded up to
+        the nearest whole number of cells.
+
+        Args:
+            width: The width of the padding, in the same units as the raster CRS
+                   (e.g. meters). This defines how far from the edge the padding
+                   extends.
+            value: The constant value to use for padding. Default is NaN.
+        """
+        cell_size = self.raster_meta.cell_size
+
+        # Calculate number of cells to pad in each direction
+        pad_cells = int(np.ceil(width / cell_size))
+
+        # Get current bounds
+        xmin, ymin, xmax, ymax = self.bounds
+
+        # Calculate new bounds with padding
+        new_xmin = xmin - (pad_cells * cell_size)
+        new_ymin = ymin - (pad_cells * cell_size)
+        new_xmax = xmax + (pad_cells * cell_size)
+        new_ymax = ymax + (pad_cells * cell_size)
+
+        # Create padded array
+        new_height = self.arr.shape[0] + 2 * pad_cells
+        new_width = self.arr.shape[1] + 2 * pad_cells
+
+        # Create new array filled with the padding value
+        padded_arr = np.full((new_height, new_width), value, dtype=self.arr.dtype)
+
+        # Copy original array into the center of the padded array
+        padded_arr[
+            pad_cells : pad_cells + self.arr.shape[0],
+            pad_cells : pad_cells + self.arr.shape[1],
+        ] = self.arr
+
+        # Create new transform for the padded raster
+        new_transform = rasterio.transform.from_bounds(
+            west=new_xmin,
+            south=new_ymin,
+            east=new_xmax,
+            north=new_ymax,
+            width=new_width,
+            height=new_height,
+        )
+
+        # Create new raster metadata
+        new_meta = RasterMeta(
+            cell_size=cell_size,
+            crs=self.raster_meta.crs,
+            transform=new_transform,
+        )
+
+        return self.__class__(arr=padded_arr, raster_meta=new_meta)
+
     def crop(
         self,
         bounds: tuple[float, float, float, float],
@@ -899,6 +1018,141 @@ class RasterModel(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
+    def taper_border(self, width: float, *, limit: float = 0.0) -> Self:
+        """Taper values to a limiting value around the border of the raster.
+
+        By default, the borders are tapered to zero, but this can be changed via the
+        `limit` parameter.
+
+        This keeps the raster size the same, overwriting values in the border area.
+        To instead grow the raster, consider using `pad()` followed by `taper_border()`.
+
+        The tapering is linear from the cell centres around the border of the raster,
+        so the value at the edge of the raster will be equal to `limit`.
+
+        Args:
+            width: The width of the taper, in the same units as the raster CRS
+                   (e.g. meters). This defines how far from the edge the tapering
+                   starts.
+            limit: The limiting value to taper to at the edges. Default is zero.
+        """
+
+        # Determine the width in cell units (possibly fractional)
+        cell_size = self.raster_meta.cell_size
+        width_in_cells = width / cell_size
+
+        # Calculate the distance from the edge in cell units
+        arr_height, arr_width = self.arr.shape
+        y_indices, x_indices = np.indices((int(arr_height), int(arr_width)))
+        dist_from_left = x_indices
+        dist_from_right = arr_width - 1 - x_indices
+        dist_from_top = y_indices
+        dist_from_bottom = arr_height - 1 - y_indices
+        dist_from_edge = np.minimum.reduce(
+            [dist_from_left, dist_from_right, dist_from_top, dist_from_bottom]
+        )
+
+        # Mask the arrays to only the area within the width from the edge, rounding up
+        mask = dist_from_edge < np.ceil(width_in_cells)
+        masked_dist_arr = np.where(mask, dist_from_edge, np.nan)
+        masked_arr = np.where(mask, self.arr, np.nan)
+
+        # Calculate the tapering factor based on the distance from the edge
+        taper_factor = np.clip(masked_dist_arr / width_in_cells, 0.0, 1.0)
+        tapered_values = limit + (masked_arr - limit) * taper_factor
+
+        # Create the new raster array
+        new_arr = self.arr.copy()
+        new_arr[mask] = tapered_values[mask]
+        new_raster = self.model_copy()
+        new_raster.arr = new_arr
+
+        return new_raster
+
+    def clip(
+        self,
+        polygon: Polygon | MultiPolygon,
+        *,
+        strategy: Literal["centres"] = "centres",
+    ) -> Self:
+        """Clip the raster to the specified polygon, replacing cells outside with NaN.
+
+        The clipping strategy determines how to handle cells that are partially
+        within the polygon. Currently, only the 'centres' strategy is supported, which
+        retains cells whose centres fall within the polygon.
+
+        Args:
+            polygon: A shapely Polygon or MultiPolygon defining the area to clip to.
+            strategy: The clipping strategy to use. Currently only 'centres' is
+                      supported, which retains cells whose centres fall within the
+                      polygon.
+
+        Returns:
+            A new RasterModel with cells outside the polygon set to NaN.
+        """
+        if strategy != "centres":
+            msg = f"Unsupported clipping strategy: {strategy}"
+            raise NotImplementedError(msg)
+
+        raster = self.model_copy()
+
+        mask = rasterio.features.rasterize(
+            [(polygon, 1)],
+            fill=0,
+            out_shape=self.shape,
+            transform=self.meta.transform,
+            dtype=np.uint8,
+        )
+
+        raster.arr = np.where(mask, raster.arr, np.nan)
+
+        return raster
+
+    def trim_nan(self) -> Self:
+        """Crop the raster by trimming away all-NaN slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        of the non-NaN values. Note that this does not guarantee no NaN values at all
+        around the edges, only that there won't be entire edges which are all-NaN.
+
+        Consider using `.extrapolate()` for further cleanup of NaN values.
+        """
+        arr = self.arr
+
+        # Check if the entire array is NaN
+        if np.all(np.isnan(arr)):
+            msg = "Cannot crop raster: all values are NaN"
+            raise ValueError(msg)
+
+        # Find rows and columns that are not all NaN
+        nan_row_mask = np.all(np.isnan(arr), axis=1)
+        nan_col_mask = np.all(np.isnan(arr), axis=0)
+
+        # Find the bounding indices
+        (row_indices,) = np.where(~nan_row_mask)
+        (col_indices,) = np.where(~nan_col_mask)
+
+        min_row, max_row = row_indices[0], row_indices[-1]
+        min_col, max_col = col_indices[0], col_indices[-1]
+
+        # Crop the array
+        cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
+
+        # Shift the transform by the number of pixels cropped (min_col, min_row)
+        new_transform = (
+            self.raster_meta.transform
+            * rasterio.transform.Affine.translation(min_col, min_row)
+        )
+
+        # Create new metadata
+        new_meta = RasterMeta(
+            cell_size=self.raster_meta.cell_size,
+            crs=self.raster_meta.crs,
+            transform=new_transform,
+        )
+
+        return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
     ) -> Self:
@@ -945,16 +1199,6 @@ class RasterModel(BaseModel):
             )
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)
-
-    @field_validator("arr")
-    @classmethod
-    def check_2d_array(cls, v: NDArray) -> NDArray:
-        """Validator to ensure the cell array is 2D."""
-        if v.ndim != 2:
-            msg = "Cell array must be 2D"
-            raise RasterCellArrayShapeError(msg)
-        return v
-
 
 def _map_colorbar(
     *,

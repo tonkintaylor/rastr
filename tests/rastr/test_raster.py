@@ -1189,7 +1189,7 @@ class TestCrop:
             base_raster.crop(bounds, "overflow")  # type: ignore[reportCallIssue]
 
 
-class TestSoftEdges:
+class TestTaperBorder:
     def test_example(self):
         # Arrange
         raster = RasterModel(
@@ -1210,7 +1210,7 @@ class TestSoftEdges:
         w = 2.5
         s = raster.raster_meta.cell_size
         f = w / s
-        softened = raster.soft_edges(width=w)
+        softened = raster.taper_border(width=w)
 
         # Assert
         assert isinstance(softened, RasterModel)
@@ -1232,7 +1232,7 @@ class TestSoftEdges:
         raster = RasterModel.example()
 
         # Act
-        softened = raster.soft_edges(width=15.0, limit=20.0)
+        softened = raster.taper_border(width=15.0, limit=20.0)
 
         # Assert
         assert isinstance(softened, RasterModel)

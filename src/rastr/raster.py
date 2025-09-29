@@ -880,18 +880,18 @@ class RasterModel(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
-    def soft_edges(self, width: float, *, limit: float = 0.0) -> Self:
-        """Apply a soft edge by tapering values to a limiting value at the edges.
+    def taper_border(self, width: float, *, limit: float = 0.0) -> Self:
+        """Taper values to a limiting value around the border of the raster.
 
-        By default, the edges are tapered to zero, but this can be changed via the
+        By default, the borders are tapered to zero, but this can be changed via the
         `limit` parameter.
 
-        The tapering is linear from the cell centres around the edges of the raster,
+        The tapering is linear from the cell centres around the border of the raster,
         so the value at the edge of the raster will be equal to `limit`.
 
         Args:
-            width: The width of the soft edge taper, in the same units as the raster
-                   CRS (e.g. meters). This defines how far from the edge the tapering
+            width: The width of the taper, in the same units as the raster CRS
+                   (e.g. meters). This defines how far from the edge the tapering
                    starts.
             limit: The limiting value to taper to at the edges. Default is zero.
         """

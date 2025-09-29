@@ -866,7 +866,7 @@ class RasterModel(BaseModel):
             transform=new_transform,
         )
 
-        return RasterModel(arr=padded_arr, raster_meta=new_meta)
+        return self.__class__(arr=padded_arr, raster_meta=new_meta)
 
     def crop(
         self,

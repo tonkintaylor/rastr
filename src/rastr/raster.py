@@ -886,6 +886,9 @@ class RasterModel(BaseModel):
         By default, the borders are tapered to zero, but this can be changed via the
         `limit` parameter.
 
+        This keeps the raster size the same, overwriting values in the border area.
+        To instead grow the raster, consider using `pad()` followed by `taper_border()`.
+
         The tapering is linear from the cell centres around the border of the raster,
         so the value at the edge of the raster will be equal to `limit`.
 
@@ -901,12 +904,12 @@ class RasterModel(BaseModel):
         width_in_cells = width / cell_size
 
         # Calculate the distance from the edge in cell units
-        height, width = self.arr.shape
-        y_indices, x_indices = np.indices((int(height), int(width)))
+        arr_height, arr_width = self.arr.shape
+        y_indices, x_indices = np.indices((int(arr_height), int(arr_width)))
         dist_from_left = x_indices
-        dist_from_right = width - 1 - x_indices
+        dist_from_right = arr_width - 1 - x_indices
         dist_from_top = y_indices
-        dist_from_bottom = height - 1 - y_indices
+        dist_from_bottom = arr_height - 1 - y_indices
         dist_from_edge = np.minimum.reduce(
             [dist_from_left, dist_from_right, dist_from_top, dist_from_bottom]
         )

@@ -59,6 +59,15 @@ class RasterModel(BaseModel):
     arr: InstanceOf[np.ndarray]
     raster_meta: RasterMeta
 
+    @field_validator("arr")
+    @classmethod
+    def check_2d_array(cls, v: NDArray) -> NDArray:
+        """Validator to ensure the cell array is 2D."""
+        if v.ndim != 2:
+            msg = "Cell array must be 2D"
+            raise RasterCellArrayShapeError(msg)
+        return v
+
     @property
     def meta(self) -> RasterMeta:
         """Alias for raster_meta."""
@@ -926,12 +935,3 @@ class RasterModel(BaseModel):
             )
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)
-
-    @field_validator("arr")
-    @classmethod
-    def check_2d_array(cls, v: NDArray) -> NDArray:
-        """Validator to ensure the cell array is 2D."""
-        if v.ndim != 2:
-            msg = "Cell array must be 2D"
-            raise RasterCellArrayShapeError(msg)
-        return v

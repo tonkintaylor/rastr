@@ -695,7 +695,7 @@ class TestRasterFromPointCloud:
 
             # Act / Assert
             with pytest.raises(
-                ValueError, match="Length of x, y, and z must be equal."
+                ValueError, match=r"Length of x, y, and z must be equal\."
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -707,7 +707,7 @@ class TestRasterFromPointCloud:
 
             # Act / Assert
             with pytest.raises(
-                ValueError, match="Length of x, y, and z must be equal."
+                ValueError, match=r"Length of x, y, and z must be equal\."
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -768,7 +768,7 @@ class TestRasterFromPointCloud:
             # Act / Assert
             with pytest.raises(
                 ValueError,
-                match=re.escape("At least three (x, y, z) points are required"),
+                match=re.escape("At least three valid (x, y, z) points are required"),
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -781,7 +781,7 @@ class TestRasterFromPointCloud:
             # Act / Assert
             with pytest.raises(
                 ValueError,
-                match=re.escape("At least three (x, y, z) points are required"),
+                match=re.escape("At least three valid (x, y, z) points are required"),
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -797,3 +797,78 @@ class TestRasterFromPointCloud:
         # Assert
         assert isinstance(raster, RasterModel)
         assert raster.arr.shape == (2, 2)
+
+    def test_xy_are_nan_warns(self):
+        # Arrange
+        x = [0, 0, np.nan, 1, 3]
+        y = [0, 1, 0, np.nan, 2]
+        z = [10, 20, 30, 40, 50]
+
+        # Act
+        with pytest.warns(
+            UserWarning,
+            match=re.escape(
+                "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+            ),
+        ):
+            raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+
+    def test_xy_are_infinite_warns(self):
+        # Arrange
+        x = [0, 0, np.inf, 1, 3]
+        y = [0, 1, 0, -np.inf, 2]
+        z = [10, 20, 30, 40, 50]
+
+        # Act
+        with pytest.warns(
+            UserWarning,
+            match=re.escape(
+                "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+            ),
+        ):
+            raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+
+    def test_z_is_nan(self):
+        # This works fine, it just means any concave
+        # area with NaN z values will be NaN in the output
+
+        # Arrange
+        x = [0, 0, 1, 1]
+        y = [0, 1, 0, 1]
+        z = [10, np.nan, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+
+    def test_less_than_three_valid_points_due_to_nan(self):
+        # We want a good error message if there are
+
+        # Arrange
+        x = [0, np.nan, 1]
+        y = [0, 1, np.nan]
+        z = [10, 20, 30]
+
+        # Act / Assert
+        with (
+            pytest.raises(
+                ValueError,
+                match=re.escape("At least three valid (x, y, z) points are required"),
+            ),
+            pytest.warns(
+                UserWarning,
+                match=re.escape(
+                    "Some (x,y) points are NaN-valued or non-finite. "
+                    "These will be ignored."
+                ),
+            ),
+        ):
+            raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")

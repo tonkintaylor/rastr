@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import warnings
+from collections.abc import Collection
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, overload
+from typing import TYPE_CHECKING, Literal, overload
 
 import numpy as np
 import numpy.ma
@@ -44,6 +45,8 @@ except ImportError:
 FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
 BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
+
+CONTOUR_PERTURB_EPS = 1e-10
 
 
 class RasterCellArrayShapeError(ValueError):
@@ -248,12 +251,30 @@ class RasterModel(BaseModel):
         finally:
             memfile.close()
 
+    @overload
     def sample(
         self,
-        xy: list[tuple[float, float]] | list[Point] | ArrayLike,
+        xy: Collection[tuple[float, float]] | Collection[Point] | ArrayLike,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
-    ) -> NDArray[np.float64]:
+    ) -> NDArray: ...
+    @overload
+    def sample(
+        self,
+        xy: tuple[float, float] | Point,
+        *,
+        na_action: Literal["raise", "ignore"] = "raise",
+    ) -> float: ...
+    def sample(
+        self,
+        xy: Collection[tuple[float, float]]
+        | Collection[Point]
+        | ArrayLike
+        | tuple[float, float]
+        | Point,
+        *,
+        na_action: Literal["raise", "ignore"] = "raise",
+    ) -> NDArray | float:
         """Sample raster values at GeoSeries locations and return sampled values.
 
         Args:
@@ -270,13 +291,30 @@ class RasterModel(BaseModel):
         # https://rdrn.me/optimising-sampling/
 
         # Convert shapely Points to coordinate tuples if needed
-        if isinstance(xy, (list, tuple)):
-            xy = [_get_xy_tuple(point) for point in xy]
+        if isinstance(xy, Point):
+            xy = [(xy.x, xy.y)]
+            singleton = True
+        elif (
+            isinstance(xy, Collection)
+            and len(xy) > 0
+            and isinstance(next(iter(xy)), Point)
+        ):
+            xy = [(point.x, point.y) for point in xy]  # pyright: ignore[reportAttributeAccessIssue]
+            singleton = False
+        elif (
+            isinstance(xy, tuple)
+            and len(xy) == 2
+            and isinstance(next(iter(xy)), (float, int))
+        ):
+            xy = [xy]  # pyright: ignore[reportAssignmentType]
+            singleton = True
+        else:
+            singleton = False
 
         xy = np.asarray(xy, dtype=float)
 
-        # Short-circuit
         if len(xy) == 0:
+            # Short-circuit
             return np.array([], dtype=float)
 
         # Create in-memory rasterio dataset from the incumbent Raster object
@@ -325,6 +363,10 @@ class RasterModel(BaseModel):
                     np.nan,
                     axis=0,
                 )
+
+        if singleton:
+            (raster_value,) = raster_values
+            return raster_value
 
         return raster_values
 
@@ -457,8 +499,19 @@ class RasterModel(BaseModel):
         basemap: bool = False,
         cmap: str = "viridis",
         suppressed: Collection[float] | float = tuple(),
+        **kwargs: Any,
     ) -> Axes:
-        """Plot the raster on a matplotlib axis."""
+        """Plot the raster on a matplotlib axis.
+
+        Args:
+            ax: A matplotlib axes object to plot on. If None, a new figure will be
+                created.
+            cbar_label: Label for the colorbar. If None, no label is added.
+            basemap: Whether to add a basemap. Currently not implemented.
+            cmap: Colormap to use for the plot.
+            **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
+                      This includes parameters like `alpha` for transparency.
+        """
         if not MATPLOTLIB_INSTALLED:
             msg = "The 'matplotlib' package is required for 'plot()'."
             raise ImportError(msg)
@@ -506,7 +559,7 @@ class RasterModel(BaseModel):
 
         with model.to_rasterio_dataset() as dataset:
             img, *_ = rasterio.plot.show(
-                dataset, with_bounds=True, ax=ax, cmap=cmap
+                dataset, with_bounds=True, ax=ax, cmap=cmap, **kwargs
             ).get_images()
 
         ax.set_xlim(xmin, xmax)
@@ -682,10 +735,20 @@ class RasterModel(BaseModel):
 
         all_levels = []
         all_geoms = []
+        arr_max = np.nanmax(self.arr)
+        arr_min = np.nanmin(self.arr)
         for level in levels:
+            # If this is the maximum or minimum level, perturb it ever-so-slightly to
+            # ensure we get contours at the edges of the raster
+            perturbed_level = level
+            if level == arr_max:
+                perturbed_level -= CONTOUR_PERTURB_EPS
+            elif level == arr_min:
+                perturbed_level += CONTOUR_PERTURB_EPS
+
             contours = skimage.measure.find_contours(
                 self.arr,
-                level=level,
+                level=perturbed_level,
             )
 
             # Construct shapely LineString objects
@@ -890,18 +953,3 @@ class RasterModel(BaseModel):
             msg = "Cell array must be 2D"
             raise RasterCellArrayShapeError(msg)
         return v
-
-
-def _get_xy_tuple(xy: Any) -> tuple[float, float]:
-    """Convert Point or coordinate tuple to coordinate tuple.
-
-    Args:
-        xy: Either a coordinate tuple or a shapely Point object.
-
-    Returns:
-        A coordinate tuple (x, y).
-    """
-    if isinstance(xy, Point):
-        return (xy.x, xy.y)
-    x, y = xy
-    return (float(x), float(y))

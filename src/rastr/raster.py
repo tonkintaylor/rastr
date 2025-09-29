@@ -1200,6 +1200,7 @@ class RasterModel(BaseModel):
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)
 
+
 def _map_colorbar(
     *,
     colormap: Callable[[float], tuple[float, float, float, float]],

@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     import geopandas as gpd
     from folium import Map
     from matplotlib.axes import Axes
+    from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from typing_extensions import Self
@@ -559,10 +560,7 @@ class RasterModel(BaseModel):
 
         model.arr[suppressed_mask] = np.nan
 
-        with model.to_rasterio_dataset() as dataset:
-            img, *_ = rasterio.plot.show(
-                dataset, with_bounds=True, ax=ax, cmap=cmap, **kwargs
-            ).get_images()
+        img, *_ = model.rio_show(ax=ax, cmap=cmap, with_bounds=True, **kwargs)
 
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
@@ -577,6 +575,20 @@ class RasterModel(BaseModel):
         if fig is not None:
             fig.colorbar(img, label=cbar_label, cax=cax)
         return ax
+
+    def rio_show(self, **kwargs: Any) -> list[AxesImage]:
+        """Plot the raster using rasterio's built-in plotting function.
+
+        This is useful for lower-level access to rasterio's plotting capabilities.
+        Generally, the `plot()` method is preferred for most use cases.
+
+        Args:
+            **kwargs: Keyword arguments to pass to `rasterio.plot.show()`. This includes
+            parameters like `alpha` for transparency, and `with_bounds` to control
+            whether to plot in spatial coordinates or array index coordinates.
+        """
+        with self.to_rasterio_dataset() as dataset:
+            return rasterio.plot.show(dataset, **kwargs).get_images()
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""

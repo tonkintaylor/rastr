@@ -733,6 +733,7 @@ class TestRasterModel:
             raster = RasterModel.example()
             raster.arr[raster.arr < 0.1] = 0
 
+            # Act, Assert - just checking it runs without error
             raster.plot(suppressed=0)
 
         def test_suppress_multiple(self):
@@ -741,7 +742,44 @@ class TestRasterModel:
             raster.arr[raster.arr < 0.1] = 0
             raster.arr[raster.arr > 0.2] = 0.2
 
+            # Act, Assert - just checking it runs without error
             raster.plot(suppressed=[0, 0.2])
+
+        def test_suppress_mocked(self):
+            """Check suppressed values don't get passed to rasterio.plot.show"""
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            with patch("rastr.raster.RasterModel.rio_show", autospec=True) as mock_show:
+                mock_show.return_value = [None]
+
+                # Act
+                raster.plot(suppressed=[0.0, 0.2])
+
+                # Assert
+                args, _kwargs = mock_show.call_args
+                model = args[0]
+                assert np.all(~np.isin(model.arr, [0.0, 0.2]))
+
+        def test_no_suppress_mocked(self):
+            """Check non-suppressed values do get passed to rasterio.plot.show"""
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0.0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            with patch("rastr.raster.RasterModel.rio_show", autospec=True) as mock_show:
+                mock_show.return_value = [None]
+
+                # Act
+                raster.plot()
+
+                # Assert
+                args, _kwargs = mock_show.call_args
+                model = args[0]
+                assert not np.all(~np.isin(model.arr, [0.0, 0.2]))
 
         def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: RasterModel):
             # Arrange

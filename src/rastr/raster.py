@@ -812,6 +812,10 @@ class RasterModel(BaseModel):
         This grows the raster by adding padding around all edges. New cells are
         filled with the constant `value`.
 
+        If the width is not an exact multiple of the cell size, the padding may be
+        slightly larger than the specified width, i.e. the value is rounded up to
+        the nearest whole number of cells.
+
         Args:
             width: The width of the padding, in the same units as the raster CRS
                    (e.g. meters). This defines how far from the edge the padding

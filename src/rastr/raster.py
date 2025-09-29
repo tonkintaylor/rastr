@@ -491,8 +491,7 @@ class RasterModel(BaseModel):
             arr = np.clip(arr, 0, 1)
         else:
             arr = np.zeros_like(arr)
-        self.arr = arr
-        return self
+        return self.__class__(arr=arr, raster_meta=self.raster_meta)
 
     def to_clipboard(self) -> None:
         """Copy the raster cell array to the clipboard."""

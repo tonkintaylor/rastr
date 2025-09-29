@@ -779,7 +779,7 @@ class TestRasterModel:
                 # Assert
                 args, _kwargs = mock_show.call_args
                 model = args[0]
-                assert not np.all(~np.isin(model.arr, [0.0, 0.2]))
+                assert np.any(np.isin(model.arr, [0.0, 0.2]))
 
         def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: RasterModel):
             # Arrange

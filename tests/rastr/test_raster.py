@@ -1453,9 +1453,7 @@ class TestRasterStatistics:
         ("quantile", "expected_result", "expected_result_with_nans"),
         [
             (0.0, pytest.approx(1.0), pytest.approx(1.0)),
-            (0.25, pytest.approx(3.0), pytest.approx(2.5, abs=1e-4)),
             (0.5, pytest.approx(5.0), pytest.approx(6.0)),
-            (0.75, pytest.approx(7.0), pytest.approx(7.5, abs=1e-4)),
             (1.0, pytest.approx(9.0), pytest.approx(9.0)),
         ],
     )

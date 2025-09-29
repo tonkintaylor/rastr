@@ -727,6 +727,8 @@ class TestRasterModel:
                 raster.plot()
 
         def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: RasterModel):
+            import matplotlib.pyplot as plt
+
             # Arrange
             fig, ax = plt.subplots()
 
@@ -740,6 +742,8 @@ class TestRasterModel:
         def test_plot_with_additional_kwargs(
             self, example_raster_with_zeros: RasterModel
         ):
+            import matplotlib.pyplot as plt
+
             # Arrange
             fig, ax = plt.subplots()
 

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal, overload
 
 import numpy as np
 import numpy.ma
+import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
+    from shapely import MultiPolygon
     from typing_extensions import Self
 
 try:
@@ -879,6 +881,42 @@ class RasterModel(BaseModel):
             cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
+
+    def clip(
+        self,
+        polygon: Polygon | MultiPolygon,
+        *,
+        strategy: Literal["centres"] = "centres",
+    ) -> Self:
+        """Clip the raster to the specified polygon, replacing cells outside with NaN.
+
+        The clipping strategy determines how to handle cells that are partially
+        within the polygon. Currently, only the 'centres' strategy is supported, which
+        retains cells whose centres fall within the polygon.
+
+        Args:
+            polygon: A shapely Polygon or MultiPolygon defining the area to clip to.
+            strategy: The clipping strategy to use. Currently only 'centres' is
+                      supported, which retains cells whose centres fall within the
+                      polygon.
+        """
+        if strategy != "centres":
+            msg = f"Unsupported clipping strategy: {strategy}"
+            raise NotImplementedError(msg)
+
+        raster = self.model_copy()
+
+        mask = rasterio.features.rasterize(
+            [(polygon, 1)],
+            fill=0,
+            out_shape=self.shape,
+            transform=self.meta.transform,
+            dtype=np.uint8,
+        )
+
+        raster.arr = np.where(mask, raster.arr, np.nan)
+
+        return raster
 
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"

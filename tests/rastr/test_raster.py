@@ -115,6 +115,68 @@ class TestRasterModel:
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
 
+    class TestIsLike:
+        def test_identical_rasters_are_like(self, example_raster: RasterModel):
+            """Test that a raster is like itself."""
+            # Act & Assert
+            assert example_raster.is_like(example_raster)
+
+        def test_same_meta_and_shape_are_like(self, example_raster: RasterModel):
+            """Test rasters with same meta and shape but different data are like."""
+            # Arrange
+            different_arr = np.array([[5, 6], [7, 8]], dtype=float)
+            other_raster = RasterModel(
+                arr=different_arr, raster_meta=example_raster.raster_meta
+            )
+
+            # Act & Assert
+            assert example_raster.is_like(other_raster)
+            assert other_raster.is_like(example_raster)
+
+        def test_different_meta_not_like(self, example_raster: RasterModel):
+            """Test that rasters with different meta are not like."""
+            # Arrange
+            different_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
+            )
+            other_raster = RasterModel(
+                arr=example_raster.arr, raster_meta=different_meta
+            )
+
+            # Act & Assert
+            assert not example_raster.is_like(other_raster)
+            assert not other_raster.is_like(example_raster)
+
+        def test_different_shape_not_like(self, example_raster: RasterModel):
+            """Test that rasters with different shapes are not like."""
+            # Arrange
+            # 2x3 instead of 2x2
+            different_arr = np.array([[1, 2, 3], [4, 5, 6]], dtype=float)
+            other_raster = RasterModel(
+                arr=different_arr, raster_meta=example_raster.raster_meta
+            )
+
+            # Act & Assert
+            assert not example_raster.is_like(other_raster)
+            assert not other_raster.is_like(example_raster)
+
+        def test_different_meta_and_shape_not_like(self, example_raster: RasterModel):
+            """Test rasters with both different meta and shape are not like."""
+            # Arrange
+            different_meta = RasterMeta(
+                cell_size=3.0,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(2.0, 0.0, 10.0, 0.0, 2.0, 20.0),
+            )
+            different_arr = np.array([[1]], dtype=float)  # 1x1 instead of 2x2
+            other_raster = RasterModel(arr=different_arr, raster_meta=different_meta)
+
+            # Act & Assert
+            assert not example_raster.is_like(other_raster)
+            assert not other_raster.is_like(example_raster)
+
     class TestShape:
         def test_shape_property(self, example_raster: RasterModel):
             # Act
@@ -1419,6 +1481,60 @@ class TestPad:
         # Assert - should be unchanged when width is 0
         assert padded.arr.shape == raster.arr.shape
         np.testing.assert_array_equal(padded.arr, raster.arr)
+
+
+class TestTaperBorder:
+    def test_example(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array(
+                [
+                    [1, 2, 3, 4, 5],
+                    [6, 7, 8, 9, 10],
+                    [11, 12, 13, 14, 15],
+                    [16, 17, 18, 19, 20],
+                    [21, 22, 23, 24, 25],
+                ],
+                dtype=float,
+            ),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        w = 2.5
+        s = raster.raster_meta.cell_size
+        f = w / s
+        softened = raster.taper_border(width=w)
+
+        # Assert
+        assert isinstance(softened, RasterModel)
+        np.testing.assert_allclose(
+            softened.arr,
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 7 / f, 8 / f, 9 / f, 0],
+                    [0, 12 / f, 13, 14 / f, 0],
+                    [0, 17 / f, 18 / f, 19 / f, 0],
+                    [0, 0, 0, 0, 0],
+                ],
+            ),
+        )
+
+    def test_nonzero_limits(self):
+        # Arrange
+        raster = RasterModel.example()
+
+        # Act
+        softened = raster.taper_border(width=15.0, limit=20.0)
+
+        # Assert
+        assert isinstance(softened, RasterModel)
+        # Check that values around the edges equal the limit
+        assert np.all(softened.arr[0, :] == 20.0)
+        assert np.all(softened.arr[-1, :] == 20.0)
+        assert np.all(softened.arr[:, 0] == 20.0)
+        assert np.all(softened.arr[:, -1] == 20.0)
 
 
 class TestClip:

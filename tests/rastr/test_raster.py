@@ -2332,6 +2332,7 @@ class TestExplore:
         with pytest.raises(ValueError, match=r"'vmin' must be less than 'vmax'"):
             small_raster.explore(vmin=3.0, vmax=2.0)
 
+
 class TestRasterStatistics:
     """Test the statistical methods of the RasterModel class."""
 
@@ -2393,6 +2394,7 @@ class TestRasterStatistics:
         assert stats_test_raster.quantile(quantile) == expected_result
         assert stats_test_raster_with_nans.quantile(quantile) == (
             expected_result_with_nans
+        )
 
 
 class TestNormalize:

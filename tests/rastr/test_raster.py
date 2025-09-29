@@ -2279,3 +2279,61 @@ class TestExplore:
 
         # Assert flip called exactly twice (both axes)
         assert mock_flip.call_count == 2
+
+    def test_vmin_vmax_parameters(self, small_raster: RasterModel):
+        import folium
+        from branca.colormap import LinearColormap
+
+        # Act
+        map_ = small_raster.explore(vmin=2.0, vmax=3.0)
+
+        # Assert
+        assert isinstance(map_, folium.Map)
+        assert len(map_._children) > 0  # Check that something was added to the map
+
+        # Check that the legend reflects the specified vmin/vmax
+        legends = [
+            child
+            for child in map_._children.values()
+            if isinstance(child, LinearColormap)
+        ]
+        assert len(legends) >= 1, "Expected a LinearColormap legend to be added"
+        legend = legends[-1]
+
+        assert pytest.approx(legend.vmin) == 2.0
+        assert pytest.approx(legend.vmax) == 3.0
+
+    def test_vmin_greater_than_vmax_raises(self, small_raster: RasterModel):
+        # Act / Assert
+        with pytest.raises(ValueError, match=r"'vmin' must be less than 'vmax'"):
+            small_raster.explore(vmin=3.0, vmax=2.0)
+
+
+class TestNormalize:
+    def test_example(self, example_raster: RasterModel):
+        # Act
+        normalized_raster = example_raster.normalize()
+
+        # Assert
+        assert isinstance(normalized_raster, RasterModel)
+        np.testing.assert_array_equal(
+            np.nanmin(normalized_raster.arr), 0.0
+        )  # Min should be 0
+        np.testing.assert_array_equal(
+            np.nanmax(normalized_raster.arr), 1.0
+        )  # Max should be 1
+        np.testing.assert_allclose(
+            normalized_raster.arr,
+            np.array([[0.0, 1 / 3], [2 / 3, 1.0]]),
+        )
+
+    def test_vmin_vmax(self, example_raster: RasterModel):
+        # Act
+        normalized_raster = example_raster.normalize(vmin=2.0, vmax=4.0)
+
+        # Assert
+        assert isinstance(normalized_raster, RasterModel)
+        np.testing.assert_allclose(
+            normalized_raster.arr,
+            np.array([[0.0, 0.0], [0.5, 1.0]]),
+        )

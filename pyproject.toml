@@ -63,7 +63,7 @@ dev = [
   "pre-commit-update>=0.8.0",
   "pyinstrument>=5.1.1",
   "pyright[nodejs]>=1.1.403",
-  "ruff>=0.12.5",
+  "ruff>=0.13.2",
   "tqdm>=4.67.1",
   "usethis>=0.15.2",
 ]

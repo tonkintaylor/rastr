@@ -1258,7 +1258,7 @@ class TestResample:
 
     def test_invalid_resampling_method(self, small_raster: RasterModel):
         with pytest.raises(NotImplementedError, match="Unsupported resampling method"):
-            small_raster.resample(new_cell_size=2.0, method="nearest")
+            small_raster.resample(new_cell_size=2.0, method="nearest")  # pyright: ignore[reportArgumentType]
 
     def test_negative_cell_size_fails(self, small_raster: RasterModel):
         # This should fail during the internal calculations

@@ -134,6 +134,17 @@ class RasterModel(BaseModel):
             and self.raster_meta == other.raster_meta
         )
 
+    def is_like(self, other: RasterModel) -> bool:
+        """Check if two RasterModel objects have the same metadata and shape.
+
+        Args:
+            other: Another RasterModel to compare with.
+
+        Returns:
+            True if both rasters have the same meta and shape attributes.
+        """
+        return self.meta == other.meta and self.shape == other.shape
+
     __hash__ = BaseModel.__hash__
 
     def __add__(self, other: float | Self) -> Self:

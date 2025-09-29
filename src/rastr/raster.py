@@ -850,6 +850,71 @@ class RasterModel(BaseModel):
 
         return raster
 
+    def pad(self, width: float, *, value: float = np.nan) -> Self:
+        """Extend the raster by adding a constant fill value around the edges.
+
+        By default, the padding value is NaN, but this can be changed via the
+        `value` parameter.
+
+        This grows the raster by adding padding around all edges. New cells are
+        filled with the constant `value`.
+
+        If the width is not an exact multiple of the cell size, the padding may be
+        slightly larger than the specified width, i.e. the value is rounded up to
+        the nearest whole number of cells.
+
+        Args:
+            width: The width of the padding, in the same units as the raster CRS
+                   (e.g. meters). This defines how far from the edge the padding
+                   extends.
+            value: The constant value to use for padding. Default is NaN.
+        """
+        cell_size = self.raster_meta.cell_size
+
+        # Calculate number of cells to pad in each direction
+        pad_cells = int(np.ceil(width / cell_size))
+
+        # Get current bounds
+        xmin, ymin, xmax, ymax = self.bounds
+
+        # Calculate new bounds with padding
+        new_xmin = xmin - (pad_cells * cell_size)
+        new_ymin = ymin - (pad_cells * cell_size)
+        new_xmax = xmax + (pad_cells * cell_size)
+        new_ymax = ymax + (pad_cells * cell_size)
+
+        # Create padded array
+        new_height = self.arr.shape[0] + 2 * pad_cells
+        new_width = self.arr.shape[1] + 2 * pad_cells
+
+        # Create new array filled with the padding value
+        padded_arr = np.full((new_height, new_width), value, dtype=self.arr.dtype)
+
+        # Copy original array into the center of the padded array
+        padded_arr[
+            pad_cells : pad_cells + self.arr.shape[0],
+            pad_cells : pad_cells + self.arr.shape[1],
+        ] = self.arr
+
+        # Create new transform for the padded raster
+        new_transform = rasterio.transform.from_bounds(
+            west=new_xmin,
+            south=new_ymin,
+            east=new_xmax,
+            north=new_ymax,
+            width=new_width,
+            height=new_height,
+        )
+
+        # Create new raster metadata
+        new_meta = RasterMeta(
+            cell_size=cell_size,
+            crs=self.raster_meta.crs,
+            transform=new_transform,
+        )
+
+        return self.__class__(arr=padded_arr, raster_meta=new_meta)
+
     def crop(
         self,
         bounds: tuple[float, float, float, float],

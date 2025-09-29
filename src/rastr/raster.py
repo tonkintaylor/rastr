@@ -886,7 +886,7 @@ class RasterModel(BaseModel):
         This effectively trims the raster to the smallest bounding box that contains all
         of the non-NaN values. Note that this does not guarantee no NaN values at all
         around the edges, only that there won't be entire edges which are all-NaN.
-        
+
         Consider using `.extrapolate()` for further cleanup of NaN values.
         """
         arr = self.arr

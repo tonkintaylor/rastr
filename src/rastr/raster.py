@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
     import geopandas as gpd
     from affine import Affine
+    from branca.colormap import LinearColormap as BrancaLinearColormap
     from folium import Map
     from matplotlib.axes import Axes
     from matplotlib.image import AxesImage
@@ -415,7 +416,8 @@ class RasterModel(BaseModel):
         *,
         m: Map | None = None,
         opacity: float = 1.0,
-        colormap: str = "viridis",
+        colormap: str
+        | Callable[[float], tuple[float, float, float, float]] = "viridis",
         cbar_label: str | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
@@ -430,16 +432,14 @@ class RasterModel(BaseModel):
         if m is None:
             m = folium.Map()
 
-        rgba_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
-            colormap
-        ]
+        if isinstance(colormap, str):
+            colormap = mpl.colormaps[colormap]
 
         # Cast to GDF to facilitate converting bounds to WGS84
         wgs84_crs = CRS.from_epsg(4326)
         gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
             wgs84_crs
         )
-        xmin, ymin, xmax, ymax = gdf.total_bounds
 
         arr = np.array(self.arr)
 
@@ -450,11 +450,11 @@ class RasterModel(BaseModel):
                 message="All-NaN slice encountered",
                 category=RuntimeWarning,
             )
-            min_val = np.nanmin(arr)
-            max_val = np.nanmax(arr)
+            vmin = np.nanmin(arr)
+            vmax = np.nanmax(arr)
 
-        if max_val > min_val:  # Prevent division by zero
-            arr = (arr - min_val) / (max_val - min_val)
+        if vmax > vmin:  # Prevent division by zero
+            arr = (arr - vmin) / (vmax - vmin)
         else:
             arr = np.zeros_like(arr)  # In case all values are the same
 
@@ -467,11 +467,13 @@ class RasterModel(BaseModel):
         if flip_y:
             arr = np.flip(arr, axis=0)
 
+        xmin, ymin, xmax, ymax = gdf.total_bounds
+        bounds = [[ymin, xmin], [ymax, xmax]]
         img = folium.raster_layers.ImageOverlay(
             image=arr,
-            bounds=[[ymin, xmin], [ymax, xmax]],
+            bounds=bounds,
             opacity=opacity,
-            colormap=rgba_map,
+            colormap=colormap,
             mercator_project=True,
         )
 
@@ -479,23 +481,12 @@ class RasterModel(BaseModel):
 
         # Add a colorbar legend
         if BRANCA_INSTALLED:
-            from branca.colormap import LinearColormap as BrancaLinearColormap
-            from matplotlib.colors import to_hex
-
-            # Determine legend data range in original units
-            vmin = float(min_val) if np.isfinite(min_val) else 0.0
-            vmax = float(max_val) if np.isfinite(max_val) else 1.0
-            if vmax <= vmin:
-                vmax = vmin + 1.0
-
-            sample_points = np.linspace(0, 1, rgba_map.N)
-            colors = [to_hex(rgba_map(x)) for x in sample_points]
-            legend = BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+            cbar = _map_colorbar(colormap=colormap, vmin=vmin, vmax=vmax)
             if cbar_label:
-                legend.caption = cbar_label
-            legend.add_to(m)
+                cbar.caption = cbar_label
+            cbar.add_to(m)
 
-        m.fit_bounds([[ymin, xmin], [ymax, xmax]])
+        m.fit_bounds(bounds)
 
         return m
 
@@ -1064,3 +1055,28 @@ class RasterModel(BaseModel):
             msg = "Cell array must be 2D"
             raise RasterCellArrayShapeError(msg)
         return v
+
+
+def _map_colorbar(
+    *,
+    colormap: Callable[[float], tuple[float, float, float, float]],
+    vmin: float,
+    vmax: float,
+) -> BrancaLinearColormap:
+    from branca.colormap import LinearColormap as BrancaLinearColormap
+    from matplotlib.colors import ListedColormap, to_hex
+
+    # Determine legend data range in original units
+    vmin = float(vmin) if np.isfinite(vmin) else 0.0
+    vmax = float(vmax) if np.isfinite(vmax) else 1.0
+    if vmax <= vmin:
+        vmax = vmin + 1.0
+
+    if isinstance(colormap, ListedColormap):
+        n = colormap.N
+    else:
+        n = 256
+
+    sample_points = np.linspace(0, 1, n)
+    colors = [to_hex(colormap(x)) for x in sample_points]
+    return BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)

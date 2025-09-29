@@ -1569,3 +1569,33 @@ class TestExplore:
         # Act / Assert
         with pytest.raises(ValueError, match=r"'vmin' must be less than 'vmax'"):
             small_raster.explore(vmin=3.0, vmax=2.0)
+
+
+class TestNormalize:
+    def test_example(self, example_raster: RasterModel):
+        # Act
+        normalized_raster = example_raster.normalize()
+
+        # Assert
+        assert isinstance(normalized_raster, RasterModel)
+        np.testing.assert_array_equal(
+            np.nanmin(normalized_raster.arr), 0.0
+        )  # Min should be 0
+        np.testing.assert_array_equal(
+            np.nanmax(normalized_raster.arr), 1.0
+        )  # Max should be 1
+        np.testing.assert_allclose(
+            normalized_raster.arr,
+            np.array([[0.0, 1 / 3], [2 / 3, 1.0]]),
+        )
+
+    def test_vmin_vmax(self, example_raster: RasterModel):
+        # Act
+        normalized_raster = example_raster.normalize(vmin=2.0, vmax=4.0)
+
+        # Assert
+        assert isinstance(normalized_raster, RasterModel)
+        np.testing.assert_allclose(
+            normalized_raster.arr,
+            np.array([[0.0, 0.0], [0.5, 1.0]]),
+        )

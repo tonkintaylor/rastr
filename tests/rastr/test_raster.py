@@ -8,6 +8,7 @@ import pytest
 from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
+from shapely import MultiPolygon, box
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
 
 from rastr.meta import RasterMeta
@@ -1306,6 +1307,67 @@ class TestCrop:
         # Act & Assert
         with pytest.raises(TypeError):
             base_raster.crop(bounds, "overflow")  # type: ignore[reportCallIssue]
+
+
+class TestClip:
+    def test_example(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+            raster_meta=RasterMeta.example(),
+        )
+        polygon = raster.bbox.buffer(-2.5)
+
+        # Act
+        clipped = raster.clip(polygon)
+
+        # Assert
+        assert isinstance(clipped, RasterModel)
+        assert clipped.raster_meta == raster.raster_meta
+        np.testing.assert_array_equal(
+            clipped.arr,
+            np.array(
+                [
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, 5, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ]
+            ),
+        )
+
+    def test_own_bbox(self, base_raster: RasterModel):
+        # Arrange
+        polygon = base_raster.bbox
+
+        # Act
+        clipped = base_raster.clip(polygon)
+
+        # Assert
+        assert clipped == base_raster
+
+    def test_multipolygon(self, base_raster: RasterModel):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        poly1 = box(
+            minx + cell_size, miny + cell_size, maxx - cell_size, maxy - cell_size
+        )
+        poly2 = box(minx, miny, minx + 2 * cell_size, miny + 2 * cell_size)
+        multipoly = MultiPolygon([poly1, poly2])
+
+        # Act
+        clipped = base_raster.clip(multipoly)
+
+        # Assert
+        expected_array = np.array(
+            [
+                [np.nan, np.nan, np.nan, np.nan],
+                [np.nan, 6, 7, np.nan],
+                [9, 10, 11, np.nan],
+                [13, 14, np.nan, np.nan],
+            ]
+        )
+        np.testing.assert_array_equal(clipped.arr, expected_array)
 
 
 class TestTrimNaN:

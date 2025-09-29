@@ -899,6 +899,9 @@ class RasterModel(BaseModel):
             strategy: The clipping strategy to use. Currently only 'centres' is
                       supported, which retains cells whose centres fall within the
                       polygon.
+
+        Returns:
+            A new RasterModel with cells outside the polygon set to NaN.
         """
         if strategy != "centres":
             msg = f"Unsupported clipping strategy: {strategy}"

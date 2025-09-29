@@ -426,7 +426,6 @@ class RasterModel(BaseModel):
         gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
             wgs84_crs
         )
-        xmin, ymin, vmax, ymax = gdf.total_bounds
 
         arr = np.array(self.arr)
 
@@ -454,9 +453,11 @@ class RasterModel(BaseModel):
         if flip_y:
             arr = np.flip(arr, axis=0)
 
+        xmin, ymin, xmax, ymax = gdf.total_bounds
+        bounds = [[ymin, xmin], [ymax, xmax]]
         img = folium.raster_layers.ImageOverlay(
             image=arr,
-            bounds=[[ymin, xmin], [ymax, vmax]],
+            bounds=bounds,
             opacity=opacity,
             colormap=colormap,
             mercator_project=True,
@@ -471,7 +472,7 @@ class RasterModel(BaseModel):
                 cbar.caption = cbar_label
             cbar.add_to(m)
 
-        m.fit_bounds([[ymin, xmin], [ymax, vmax]])
+        m.fit_bounds(bounds)
 
         return m
 

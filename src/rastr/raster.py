@@ -4,25 +4,22 @@ from __future__ import annotations
 
 import importlib.util
 import warnings
+from collections.abc import Collection
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, overload
 
-import geopandas as gpd
 import numpy as np
 import numpy.ma
-import pandas as pd
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
 import skimage.measure
-import xyzservices.providers as xyz
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from scipy.ndimage import gaussian_filter
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet
@@ -32,15 +29,12 @@ from rastr.meta import RasterMeta
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    import geopandas as gpd
     from folium import Map
     from matplotlib.axes import Axes
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from typing_extensions import Self
-
-FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
-BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
-MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 try:
     from rasterio._err import CPLE_BaseError
@@ -48,7 +42,11 @@ except ImportError:
     CPLE_BaseError = Exception  # Fallback if private module import fails
 
 
-CTX_BASEMAP_SOURCE = xyz.Esri.WorldImagery  # pyright: ignore[reportAttributeAccessIssue]
+FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
+BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
+MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
+
+CONTOUR_PERTURB_EPS = 1e-10
 
 
 class RasterCellArrayShapeError(ValueError):
@@ -60,6 +58,57 @@ class RasterModel(BaseModel):
 
     arr: InstanceOf[np.ndarray]
     raster_meta: RasterMeta
+
+    @property
+    def meta(self) -> RasterMeta:
+        """Alias for raster_meta."""
+        return self.raster_meta
+
+    @meta.setter
+    def meta(self, value: RasterMeta) -> None:
+        self.raster_meta = value
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the raster array."""
+        return self.arr.shape
+
+    @property
+    def crs(self) -> CRS:
+        """Convenience property to access the CRS via meta."""
+        return self.meta.crs
+
+    @crs.setter
+    def crs(self, value: CRS) -> None:
+        """Set the CRS via meta."""
+        self.meta.crs = value
+
+    def __init__(
+        self,
+        *,
+        arr: ArrayLike,
+        meta: RasterMeta | None = None,
+        raster_meta: RasterMeta | None = None,
+    ) -> None:
+        arr = np.asarray(arr)
+
+        # Set the meta
+        if meta is not None and raster_meta is not None:
+            msg = (
+                "Only one of 'meta' or 'raster_meta' should be provided, they are "
+                "aliases."
+            )
+            raise ValueError(msg)
+        elif meta is not None and raster_meta is None:
+            raster_meta = meta
+        elif meta is None and raster_meta is not None:
+            pass
+        else:
+            # Don't need to mention `'meta'` to simplify the messaging.
+            msg = "The attribute 'raster_meta' is required."
+            raise ValueError(msg)
+
+        super().__init__(arr=arr, raster_meta=raster_meta)
 
     def __eq__(self, other: object) -> bool:
         """Check equality of two RasterModel objects."""
@@ -162,12 +211,12 @@ class RasterModel(BaseModel):
     @property
     def cell_x_coords(self) -> NDArray[np.float64]:
         """Get the x coordinates of the cell centres in the raster."""
-        return self.raster_meta.get_cell_x_coords(self.arr.shape[0])
+        return self.raster_meta.get_cell_x_coords(self.arr.shape[1])
 
     @property
     def cell_y_coords(self) -> NDArray[np.float64]:
         """Get the y coordinates of the cell centres in the raster."""
-        return self.raster_meta.get_cell_y_coords(self.arr.shape[1])
+        return self.raster_meta.get_cell_y_coords(self.arr.shape[0])
 
     @contextmanager
     def to_rasterio_dataset(
@@ -202,16 +251,35 @@ class RasterModel(BaseModel):
         finally:
             memfile.close()
 
+    @overload
     def sample(
         self,
-        xy: list[tuple[float, float]] | ArrayLike,
+        xy: Collection[tuple[float, float]] | Collection[Point] | ArrayLike,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
-    ) -> NDArray[np.float64]:
+    ) -> NDArray: ...
+    @overload
+    def sample(
+        self,
+        xy: tuple[float, float] | Point,
+        *,
+        na_action: Literal["raise", "ignore"] = "raise",
+    ) -> float: ...
+    def sample(
+        self,
+        xy: Collection[tuple[float, float]]
+        | Collection[Point]
+        | ArrayLike
+        | tuple[float, float]
+        | Point,
+        *,
+        na_action: Literal["raise", "ignore"] = "raise",
+    ) -> NDArray | float:
         """Sample raster values at GeoSeries locations and return sampled values.
 
         Args:
-            xy: A list of (x, y) coordinates to sample the raster at.
+            xy: A list of (x, y) coordinates or shapely Point objects to sample the
+                raster at.
             na_action: Action to take when a NaN value is encountered in the input xy.
                        Options are "raise" (raise an error) or "ignore" (replace with
                        NaN).
@@ -222,10 +290,31 @@ class RasterModel(BaseModel):
         # If this function is too slow, consider the optimizations detailed here:
         # https://rdrn.me/optimising-sampling/
 
+        # Convert shapely Points to coordinate tuples if needed
+        if isinstance(xy, Point):
+            xy = [(xy.x, xy.y)]
+            singleton = True
+        elif (
+            isinstance(xy, Collection)
+            and len(xy) > 0
+            and isinstance(next(iter(xy)), Point)
+        ):
+            xy = [(point.x, point.y) for point in xy]  # pyright: ignore[reportAttributeAccessIssue]
+            singleton = False
+        elif (
+            isinstance(xy, tuple)
+            and len(xy) == 2
+            and isinstance(next(iter(xy)), (float, int))
+        ):
+            xy = [xy]  # pyright: ignore[reportAssignmentType]
+            singleton = True
+        else:
+            singleton = False
+
         xy = np.asarray(xy, dtype=float)
 
-        # Short-circuit
         if len(xy) == 0:
+            # Short-circuit
             return np.array([], dtype=float)
 
         # Create in-memory rasterio dataset from the incumbent Raster object
@@ -275,6 +364,10 @@ class RasterModel(BaseModel):
                     axis=0,
                 )
 
+        if singleton:
+            (raster_value,) = raster_values
+            return raster_value
+
         return raster_values
 
     @property
@@ -317,6 +410,7 @@ class RasterModel(BaseModel):
             raise ImportError(msg)
 
         import folium.raster_layers
+        import geopandas as gpd
         import matplotlib as mpl
 
         if m is None:
@@ -393,6 +487,8 @@ class RasterModel(BaseModel):
 
     def to_clipboard(self) -> None:
         """Copy the raster cell array to the clipboard."""
+        import pandas as pd
+
         pd.DataFrame(self.arr).to_clipboard(index=False, header=False)
 
     def plot(
@@ -464,6 +560,8 @@ class RasterModel(BaseModel):
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""
+        import geopandas as gpd
+
         polygons = create_fishnet(bounds=self.bounds, res=self.raster_meta.cell_size)
         point_tuples = [polygon.centroid.coords[0] for polygon in polygons]
         raster_gdf = gpd.GeoDataFrame(
@@ -532,6 +630,43 @@ class RasterModel(BaseModel):
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
 
+    @overload
+    def apply(
+        self,
+        func: Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[True],
+    ) -> Self: ...
+    @overload
+    def apply(
+        self,
+        func: Callable[[float], float] | Callable[[np.ndarray], np.ndarray],
+        *,
+        raw: Literal[False] = False,
+    ) -> Self: ...
+    def apply(self, func, *, raw=False) -> Self:
+        """Apply a function element-wise to the raster array.
+
+        Creates a new raster instance with the same metadata (CRS, transform, etc.)
+        but with the data array transformed by the provided function. The original
+        raster is not modified.
+
+        Args:
+            func: The function to apply to the raster array. If `raw` is True, this
+                  function should accept and return a NumPy array. If `raw` is False,
+                  this function should accept and return a single float value.
+            raw: If True, the function is applied directly to the entire array at
+                 once. If False, the function is applied element-wise to each cell
+                 in the array using `np.vectorize()`. Default is False.
+        """
+        new_raster = self.model_copy()
+        if raw:
+            new_arr = func(self.arr)
+        else:
+            new_arr = np.vectorize(func)(self.arr)
+        new_raster.arr = np.asarray(new_arr)
+        return new_raster
+
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
 
@@ -543,51 +678,62 @@ class RasterModel(BaseModel):
         return new_raster
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Get the x and y coordinates of the raster in meshgrid format."""
-        col_idx, row_idx = np.meshgrid(
-            np.arange(self.arr.shape[1]),
-            np.arange(self.arr.shape[0]),
-        )
+        """Get the x and y coordinates of the raster cell centres in meshgrid format.
 
-        col_idx = col_idx.flatten()
-        row_idx = row_idx.flatten()
+        Returns the coordinates of the cell centres as two separate 2D arrays in
+        meshgrid format, where each array has the same shape as the raster data array.
 
-        coords = np.vstack((row_idx, col_idx)).T
-
-        x, y = rasterio.transform.xy(self.raster_meta.transform, *coords.T)
-        x = np.array(x).reshape(self.arr.shape)
-        y = np.array(y).reshape(self.arr.shape)
-        return x, y
+        Returns:
+            A tuple of (x, y) coordinate arrays where:
+            - x: 2D array of x-coordinates of cell centres
+            - y: 2D array of y-coordinates of cell centres
+            Both arrays have the same shape as the raster data array.
+        """
+        coords = self.raster_meta.get_cell_centre_coords(self.arr.shape)
+        return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, *, levels: list[float], smoothing: bool = True
+        self, levels: list[float] | NDArray, *, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
-        The contour lines are returned as a GeoDataFrame with the contours as linestring
-        geometries and the contour levels as attributes in a column named 'level'.
+        The contour lines are returned as a GeoDataFrame with the contours dissolved
+        by level, resulting in one row per contour level. Each row contains a
+        (Multi)LineString geometry representing all contour lines for that level,
+        and the contour level value in a column named 'level'.
 
         Consider calling `blur()` before this method to smooth the raster data before
         contouring, to denoise the contours.
 
         Args:
-            levels: A list of contour levels to generate. The contour lines will be
-                    generated for each level in this list.
+            levels: A list or array of contour levels to generate. The contour lines
+                    will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the
                        Catmull-Rom spline algorithm. If set to False, the raw
                        contours will be returned without any smoothing.
         """
+        import geopandas as gpd
 
         all_levels = []
         all_geoms = []
+        arr_max = np.nanmax(self.arr)
+        arr_min = np.nanmin(self.arr)
         for level in levels:
+            # If this is the maximum or minimum level, perturb it ever-so-slightly to
+            # ensure we get contours at the edges of the raster
+            perturbed_level = level
+            if level == arr_max:
+                perturbed_level -= CONTOUR_PERTURB_EPS
+            elif level == arr_min:
+                perturbed_level += CONTOUR_PERTURB_EPS
+
             contours = skimage.measure.find_contours(
                 self.arr,
-                level=level,
+                level=perturbed_level,
             )
 
-            # Constructg shapely LineString objects
+            # Construct shapely LineString objects
             # Convert to CRS from array index coordinates to raster CRS
             geoms = [
                 LineString(
@@ -616,7 +762,8 @@ class RasterModel(BaseModel):
             crs=self.raster_meta.crs,
         )
 
-        return contour_gdf
+        # Dissolve contours by level to merge all contour lines of the same level
+        return contour_gdf.dissolve(by="level", as_index=False)
 
     def blur(self, sigma: float) -> Self:
         """Apply a Gaussian blur to the raster data.
@@ -626,6 +773,7 @@ class RasterModel(BaseModel):
                    coordinate distance (e.g. meters). A larger sigma results in a more
                    blurred image.
         """
+        from scipy.ndimage import gaussian_filter
 
         cell_sigma = sigma / self.raster_meta.cell_size
 
@@ -659,15 +807,17 @@ class RasterModel(BaseModel):
         self,
         bounds: tuple[float, float, float, float],
         *,
-        strategy: Literal["underflow"] = "underflow",
+        strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:
-        """Crop the raster to the specified bounds.
+        """Crop the raster to the specified bounds as (minx, miny, maxx, maxy).
 
         Args:
             bounds: A tuple of (minx, miny, maxx, maxy) defining the bounds to crop to.
             strategy:   The cropping strategy to use. 'underflow' will crop the raster
                         to be fully within the bounds, ignoring any cells that are
-                        partially outside the bounds.
+                        partially outside the bounds. 'overflow' will instead include
+                        cells that intersect the bounds, ensuring the bounds area
+                        remains covered with cells.
 
         Returns:
             A new RasterModel instance cropped to the specified bounds.
@@ -692,13 +842,19 @@ class RasterModel(BaseModel):
             y_idx = (y_coords >= miny + half_cell_size) & (
                 y_coords <= maxy - half_cell_size
             )
-
+        elif strategy == "overflow":
+            x_idx = (x_coords > minx - half_cell_size) & (
+                x_coords < maxx + half_cell_size
+            )
+            y_idx = (y_coords > miny - half_cell_size) & (
+                y_coords < maxy + half_cell_size
+            )
         else:
             msg = f"Unsupported cropping strategy: {strategy}"
             raise NotImplementedError(msg)
 
         # Crop the array
-        cropped_arr = arr[np.ix_(x_idx, y_idx)]
+        cropped_arr = arr[np.ix_(y_idx, x_idx)]
 
         # Check the shape of the cropped array
         if cropped_arr.size == 0:

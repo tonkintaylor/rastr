@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import geopandas as gpd
 import numpy as np
 from shapely import BufferCapStyle, BufferJoinStyle
 
@@ -66,6 +65,8 @@ def create_fishnet(
     Returns:
         Shapely Polygons.
     """
+    import geopandas as gpd
+
     # Use the shared helper function to create the point grid
     xx, yy = create_point_grid(bounds=bounds, cell_size=res)
 

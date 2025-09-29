@@ -47,7 +47,21 @@ PRs should ideally include tests for any new features or bug fixes.
 
 ### Fuzzing Test Leakage (a.k.a. Test Pollution)
 
-To diagnose test leakage, run `uv run detect-test-pollution --fuzz --tests ./tests`, and follow the prompts to bisect the tests.
+To diagnose test leakage, run this command:
+
+```shell
+uv run detect-test-pollution --fuzz --tests ./tests
+```
+
+and follow the prompts to bisect the tests.
+
+### Profiling Test collection speed
+
+To profile the speed of test collection (which is mostly related to import times), use `pyinstrument`:
+
+```shell
+uv run pyinstrument -m pytest --collect-only
+```
 
 ## Version Control
 

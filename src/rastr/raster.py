@@ -1225,8 +1225,9 @@ def _map_colorbar(
     colors = [to_hex(colormap(x)) for x in sample_points]
     return BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
 
+
 def _get_vmin_vmax(
-    raster: RasterModel, *, vmin: float | None = None, vmax: float | None = None
+    raster: Raster, *, vmin: float | None = None, vmax: float | None = None
 ) -> tuple[float, float]:
     """Get maximum and minimum values from a raster array, ignoring NaNs.
 
@@ -1249,5 +1250,5 @@ def _get_vmin_vmax(
 
     return _vmin, _vmax
 
- 
- RasterModel = Raster
+
+RasterModel = Raster

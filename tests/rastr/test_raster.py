@@ -59,7 +59,7 @@ def example_raster_with_zeros():
     )
 
 
-class TestRasterModel:
+class TestRaster:
     class TestInit:
         def test_meta_and_arr(self, example_raster: Raster):
             # Act, Assert
@@ -2276,7 +2276,7 @@ class TestExplore:
         # Assert flip called exactly twice (both axes)
         assert mock_flip.call_count == 2
 
-    def test_vmin_vmax_parameters(self, small_raster: RasterModel):
+    def test_vmin_vmax_parameters(self, small_raster: Raster):
         import folium
         from branca.colormap import LinearColormap
 
@@ -2299,19 +2299,19 @@ class TestExplore:
         assert pytest.approx(legend.vmin) == 2.0
         assert pytest.approx(legend.vmax) == 3.0
 
-    def test_vmin_greater_than_vmax_raises(self, small_raster: RasterModel):
+    def test_vmin_greater_than_vmax_raises(self, small_raster: Raster):
         # Act / Assert
         with pytest.raises(ValueError, match=r"'vmin' must be less than 'vmax'"):
             small_raster.explore(vmin=3.0, vmax=2.0)
 
 
 class TestNormalize:
-    def test_example(self, example_raster: RasterModel):
+    def test_example(self, example_raster: Raster):
         # Act
         normalized_raster = example_raster.normalize()
 
         # Assert
-        assert isinstance(normalized_raster, RasterModel)
+        assert isinstance(normalized_raster, Raster)
         np.testing.assert_array_equal(
             np.nanmin(normalized_raster.arr), 0.0
         )  # Min should be 0
@@ -2323,12 +2323,12 @@ class TestNormalize:
             np.array([[0.0, 1 / 3], [2 / 3, 1.0]]),
         )
 
-    def test_vmin_vmax(self, example_raster: RasterModel):
+    def test_vmin_vmax(self, example_raster: Raster):
         # Act
         normalized_raster = example_raster.normalize(vmin=2.0, vmax=4.0)
 
         # Assert
-        assert isinstance(normalized_raster, RasterModel)
+        assert isinstance(normalized_raster, Raster)
         np.testing.assert_allclose(
             normalized_raster.arr,
             np.array([[0.0, 0.0], [0.5, 1.0]]),

@@ -69,6 +69,7 @@ dev = [
 ]
 test = [
   "coverage[toml]>=7.10.1",
+  "detect-test-pollution>=1.2.0",
   "pytest>=8.4.1",
   "pytest-cov>=6.2.1",
   "pytest-emoji>=0.2.0",
@@ -185,7 +186,7 @@ lint.per-file-ignores."tests/**/*.py" = [
 ]
 lint.allowed-confusables = [ "ℹ", "–", "σ" ]
 lint.flake8-tidy-imports.banned-api."pytz".msg = "'zoneinfo' should be preferred to 'pytz' when using Python 3.9 and later, see https://tonkintaylor-sonarqube.azurewebsites.net/coding_rules?open=python%3AS6890&rule_key=python%3AS6890"
-lint.flake8-tidy-imports.banned-module-level-imports = [ "branca", "folium" ]
+lint.flake8-tidy-imports.banned-module-level-imports = [ "branca", "folium", "matplotlib", "mpl_toolkits" ]
 
 lint.flake8-type-checking.quote-annotations = true
 lint.flake8-type-checking.runtime-evaluated-base-classes = [ "pydantic.BaseModel" ]

@@ -431,7 +431,7 @@ class RasterModel(BaseModel):
             ]
         )
 
-    def explore(
+    def explore(  # noqa: PLR0913 c.f. geopandas.explore which also has many input args
         self,
         *,
         m: Map | None = None,
@@ -439,6 +439,8 @@ class RasterModel(BaseModel):
         colormap: str
         | Callable[[float], tuple[float, float, float, float]] = "viridis",
         cbar_label: str | None = None,
+        vmin: float | None = None,
+        vmax: float | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
         if not FOLIUM_INSTALLED or not MATPLOTLIB_INSTALLED:
@@ -452,6 +454,10 @@ class RasterModel(BaseModel):
         if m is None:
             m = folium.Map()
 
+        if vmin is not None and vmax is not None and vmax <= vmin:
+            msg = "'vmin' must be less than 'vmax'."
+            raise ValueError(msg)
+
         if isinstance(colormap, str):
             colormap = mpl.colormaps[colormap]
 
@@ -461,22 +467,9 @@ class RasterModel(BaseModel):
             wgs84_crs
         )
 
-        arr = np.array(self.arr)
-
-        # Normalize the data to the range [0, 1] as this is the cmap range
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="All-NaN slice encountered",
-                category=RuntimeWarning,
-            )
-            vmin = np.nanmin(arr)
-            vmax = np.nanmax(arr)
-
-        if vmax > vmin:  # Prevent division by zero
-            arr = (arr - vmin) / (vmax - vmin)
-        else:
-            arr = np.zeros_like(arr)  # In case all values are the same
+        # Normalize the array to [0, 1] for colormap mapping
+        _vmin, _vmax = _get_vmin_vmax(self, vmin=vmin, vmax=vmax)
+        arr = self.normalize(vmin=_vmin, vmax=_vmax).arr
 
         # Finally, need to determine whether to flip the image based on negative Affine
         # coefficients
@@ -501,7 +494,7 @@ class RasterModel(BaseModel):
 
         # Add a colorbar legend
         if BRANCA_INSTALLED:
-            cbar = _map_colorbar(colormap=colormap, vmin=vmin, vmax=vmax)
+            cbar = _map_colorbar(colormap=colormap, vmin=_vmin, vmax=_vmax)
             if cbar_label:
                 cbar.caption = cbar_label
             cbar.add_to(m)
@@ -509,6 +502,30 @@ class RasterModel(BaseModel):
         m.fit_bounds(bounds)
 
         return m
+
+    def normalize(
+        self, *, vmin: float | None = None, vmax: float | None = None
+    ) -> Self:
+        """Normalize the raster values to the range [0, 1].
+
+        If custom vmin and vmax values are provided, values below vmin will be set to 0,
+        and values above vmax will be set to 1.
+
+        Args:
+            vmin: Minimum value for normalization. Values below this will be set to 0.
+                  If None, the minimum value in the array is used.
+            vmax: Maximum value for normalization. Values above this will be set to 1.
+                  If None, the maximum value in the array is used.
+        """
+        _vmin, _vmax = _get_vmin_vmax(self, vmin=vmin, vmax=vmax)
+
+        arr = self.arr.copy()
+        if _vmax > _vmin:
+            arr = (arr - _vmin) / (_vmax - _vmin)
+            arr = np.clip(arr, 0, 1)
+        else:
+            arr = np.zeros_like(arr)
+        return self.__class__(arr=arr, raster_meta=self.raster_meta)
 
     def to_clipboard(self) -> None:
         """Copy the raster cell array to the clipboard."""
@@ -1260,3 +1277,28 @@ def _map_colorbar(
     sample_points = np.linspace(0, 1, n)
     colors = [to_hex(colormap(x)) for x in sample_points]
     return BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+
+
+def _get_vmin_vmax(
+    raster: RasterModel, *, vmin: float | None = None, vmax: float | None = None
+) -> tuple[float, float]:
+    """Get maximum and minimum values from a raster array, ignoring NaNs.
+
+    Allows for custom over-ride vmin and vmax values to be provided.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="All-NaN slice encountered",
+            category=RuntimeWarning,
+        )
+        if vmin is None:
+            _vmin = np.nanmin(raster.arr)
+        else:
+            _vmin = vmin
+        if vmax is None:
+            _vmax = np.nanmax(raster.arr)
+        else:
+            _vmax = vmax
+
+    return _vmin, _vmax

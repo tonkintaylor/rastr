@@ -804,14 +804,13 @@ class RasterModel(BaseModel):
         return raster
 
     def pad(self, width: float, *, value: float = np.nan) -> Self:
-        """Add a constant fill value around the edges of the raster.
+        """Extend the raster by adding a constant fill value around the edges.
 
         By default, the padding value is NaN, but this can be changed via the
         `value` parameter.
 
-        This grows the raster by adding padding around all edges. The padding
-        is linear from the edge of the raster, so new cells are filled with
-        the constant `value`.
+        This grows the raster by adding padding around all edges. New cells are
+        filled with the constant `value`.
 
         Args:
             width: The width of the padding, in the same units as the raster CRS

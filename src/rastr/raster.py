@@ -880,6 +880,54 @@ class RasterModel(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
+    def soft_edges(self, width: float, *, limit: float = 0.0) -> Self:
+        """Apply a soft edge by tapering values to a limiting value at the edges.
+
+        By default, the edges are tapered to zero, but this can be changed via the
+        `limit` parameter.
+
+        The tapering is linear from the cell centres around the edges of the raster,
+        so the value at the edge of the raster will be equal to `limit`.
+
+        Args:
+            width: The width of the soft edge taper, in the same units as the raster
+                   CRS (e.g. meters). This defines how far from the edge the tapering
+                   starts.
+            limit: The limiting value to taper to at the edges. Default is zero.
+        """
+
+        # Determine the width in cell units (possibly fractional)
+        cell_size = self.raster_meta.cell_size
+        width_in_cells = width / cell_size
+
+        # Calculate the distance from the edge in cell units
+        height, width = self.arr.shape
+        y_indices, x_indices = np.indices((int(height), int(width)))
+        dist_from_left = x_indices
+        dist_from_right = width - 1 - x_indices
+        dist_from_top = y_indices
+        dist_from_bottom = height - 1 - y_indices
+        dist_from_edge = np.minimum.reduce(
+            [dist_from_left, dist_from_right, dist_from_top, dist_from_bottom]
+        )
+
+        # Mask the arrays to only the area within the width from the edge, rounding up
+        mask = dist_from_edge < np.ceil(width_in_cells)
+        masked_dist_arr = np.where(mask, dist_from_edge, np.nan)
+        masked_arr = np.where(mask, self.arr, np.nan)
+
+        # Calculate the tapering factor based on the distance from the edge
+        taper_factor = np.clip(masked_dist_arr / width_in_cells, 0.0, 1.0)
+        tapered_values = limit + (masked_arr - limit) * taper_factor
+
+        # Create the new raster array
+        new_arr = self.arr.copy()
+        new_arr[mask] = tapered_values[mask]
+        new_raster = self.model_copy()
+        new_raster.arr = new_arr
+
+        return new_raster
+
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
     ) -> Self:

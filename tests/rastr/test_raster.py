@@ -1189,6 +1189,60 @@ class TestCrop:
             base_raster.crop(bounds, "overflow")  # type: ignore[reportCallIssue]
 
 
+class TestSoftEdges:
+    def test_example(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array(
+                [
+                    [1, 2, 3, 4, 5],
+                    [6, 7, 8, 9, 10],
+                    [11, 12, 13, 14, 15],
+                    [16, 17, 18, 19, 20],
+                    [21, 22, 23, 24, 25],
+                ],
+                dtype=float,
+            ),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        w = 2.5
+        s = raster.raster_meta.cell_size
+        f = w / s
+        softened = raster.soft_edges(width=w)
+
+        # Assert
+        assert isinstance(softened, RasterModel)
+        np.testing.assert_allclose(
+            softened.arr,
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 7 / f, 8 / f, 9 / f, 0],
+                    [0, 12 / f, 13, 14 / f, 0],
+                    [0, 17 / f, 18 / f, 19 / f, 0],
+                    [0, 0, 0, 0, 0],
+                ],
+            ),
+        )
+
+    def test_nonzero_limits(self):
+        # Arrange
+        raster = RasterModel.example()
+
+        # Act
+        softened = raster.soft_edges(width=15.0, limit=20.0)
+
+        # Assert
+        assert isinstance(softened, RasterModel)
+        # Check that values around the edges equal the limit
+        assert np.all(softened.arr[0, :] == 20.0)
+        assert np.all(softened.arr[-1, :] == 20.0)
+        assert np.all(softened.arr[:, 0] == 20.0)
+        assert np.all(softened.arr[:, -1] == 20.0)
+
+
 class TestResample:
     def test_upsampling_doubles_resolution(self, base_raster: RasterModel):
         # Arrange

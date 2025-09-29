@@ -15,7 +15,6 @@ import rasterio.plot
 import rasterio.sample
 import rasterio.transform
 import skimage.measure
-from affine import Affine
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
     import geopandas as gpd
+    from affine import Affine
     from folium import Map
     from matplotlib.axes import Axes
     from numpy.typing import ArrayLike, NDArray

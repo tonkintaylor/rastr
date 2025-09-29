@@ -6,6 +6,7 @@ from unittest.mock import patch
 import folium
 import folium.raster_layers
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from affine import Affine
@@ -84,7 +85,7 @@ class TestRasterModel:
         def test_missing_meta(self, example_raster: RasterModel):
             # Act, Assert
             with pytest.raises(
-                ValueError, match="The attribute 'raster_meta' is required."
+                ValueError, match=r"The attribute 'raster_meta' is required\."
             ):
                 RasterModel(arr=example_raster.arr)
 
@@ -723,8 +724,34 @@ class TestRasterModel:
             )
 
             # Act / Assert
-            with pytest.raises(ImportError, match="matplotlib.*required"):
+            with pytest.raises(ImportError, match=r"matplotlib.*required"):
                 raster.plot()
+
+        def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: RasterModel):
+            # Arrange
+            fig, ax = plt.subplots()
+
+            # Act
+            ax = example_raster_with_zeros.plot(alpha=0.5, ax=ax)
+
+            # Assert
+            assert ax is not None
+            plt.close(fig)
+
+        def test_plot_with_additional_kwargs(
+            self, example_raster_with_zeros: RasterModel
+        ):
+            # Arrange
+            fig, ax = plt.subplots()
+
+            # Act - passing a rasterio.plot.show parameter that should be accepted
+            ax = example_raster_with_zeros.plot(
+                alpha=0.7, interpolation="bilinear", ax=ax
+            )
+
+            # Assert
+            assert ax is not None
+            plt.close(fig)
 
     class TestExample:
         def test_example(self):
@@ -1126,7 +1153,7 @@ class TestCrop:
         # Arrange, Act & Assert
         with pytest.raises(
             ValueError,
-            match="Cropped array is empty; no cells within the specified bounds.",
+            match=r"Cropped array is empty; no cells within the specified bounds\.",
         ):
             base_raster.crop(bounds)
 
@@ -1569,7 +1596,7 @@ class TestExplore:
         monkeypatch.setattr("rastr.raster.FOLIUM_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match="folium.*required"):
+        with pytest.raises(ImportError, match=r"folium.*required"):
             raster.explore()
 
     def test_explore_without_matplotlib_raises(self, monkeypatch: pytest.MonkeyPatch):
@@ -1586,7 +1613,7 @@ class TestExplore:
         monkeypatch.setattr("rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match="matplotlib.*required"):
+        with pytest.raises(ImportError, match=r"matplotlib.*required"):
             raster.explore()
 
     def test_homogenous_raster(self):

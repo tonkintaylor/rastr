@@ -15,6 +15,7 @@ import rasterio.plot
 import rasterio.sample
 import rasterio.transform
 import skimage.measure
+from affine import Affine
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
@@ -82,6 +83,16 @@ class RasterModel(BaseModel):
     def crs(self, value: CRS) -> None:
         """Set the CRS via meta."""
         self.meta.crs = value
+
+    @property
+    def transform(self) -> Affine:
+        """Convenience property to access the transform via meta."""
+        return self.meta.transform
+
+    @transform.setter
+    def transform(self, value: Affine) -> None:
+        """Set the transform via meta."""
+        self.meta.transform = value
 
     def __init__(
         self,

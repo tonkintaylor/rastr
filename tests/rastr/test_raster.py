@@ -153,6 +153,34 @@ class TestRasterModel:
             assert example_raster.raster_meta.crs is new_crs
             assert example_raster.crs != original_crs
 
+    class TestTransform:
+        def test_transform_getter(self, example_raster: RasterModel):
+            # Act
+            transform_via_property = example_raster.transform
+            transform_via_meta = example_raster.meta.transform
+            transform_via_raster_meta = example_raster.raster_meta.transform
+
+            # Assert
+            assert transform_via_property is transform_via_meta
+            assert transform_via_property is transform_via_raster_meta
+            assert transform_via_property == transform_via_meta
+            assert transform_via_property == transform_via_raster_meta
+            assert isinstance(transform_via_property, Affine)
+
+        def test_transform_setter(self, example_raster: RasterModel):
+            # Arrange
+            new_transform = Affine.scale(3.0, 3.0) * Affine.translation(10.0, 20.0)
+            original_transform = example_raster.transform
+
+            # Act
+            example_raster.transform = new_transform
+
+            # Assert
+            assert example_raster.transform is new_transform
+            assert example_raster.meta.transform is new_transform
+            assert example_raster.raster_meta.transform is new_transform
+            assert example_raster.transform != original_transform
+
     class TestSample:
         def test_sample_nan_raise(self, example_raster: RasterModel):
             with pytest.raises(

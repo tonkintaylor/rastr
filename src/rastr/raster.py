@@ -884,7 +884,10 @@ class RasterModel(BaseModel):
         """Crop the raster by trimming away all-NaN slices at the edges.
 
         This effectively trims the raster to the smallest bounding box that contains all
-        non-NaN values.
+        of the non-NaN values. Note that this does not guarantee no NaN values at all
+        around the edges, only that there won't be entire edges which are all-NaN.
+        
+        Consider using `.extrapolate()` for further cleanup of NaN values.
         """
         arr = self.arr
 

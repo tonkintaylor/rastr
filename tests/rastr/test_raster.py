@@ -1590,6 +1590,9 @@ class TestExplore:
         assert mock_flip.call_count == 2
 
     def test_vmin_vmax_parameters(self, small_raster: RasterModel):
+        import folium
+        from branca.colormap import LinearColormap
+
         # Act
         map_ = small_raster.explore(vmin=2.0, vmax=3.0)
 

@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
     import geopandas as gpd
+    from affine import Affine
     from folium import Map
     from matplotlib.axes import Axes
     from numpy.typing import ArrayLike, NDArray
@@ -82,6 +83,16 @@ class RasterModel(BaseModel):
     def crs(self, value: CRS) -> None:
         """Set the CRS via meta."""
         self.meta.crs = value
+
+    @property
+    def transform(self) -> Affine:
+        """Convenience property to access the transform via meta."""
+        return self.meta.transform
+
+    @transform.setter
+    def transform(self, value: Affine) -> None:
+        """Set the transform via meta."""
+        self.meta.transform = value
 
     def __init__(
         self,

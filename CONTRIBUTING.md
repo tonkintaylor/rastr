@@ -55,9 +55,21 @@ uv run detect-test-pollution --fuzz --tests ./tests
 
 and follow the prompts to bisect the tests.
 
-### Profiling Test collection speed
+### Profiling the Test Suite
 
-To profile the speed of test collection (which is mostly related to import times), use `pyinstrument`:
+To profile the test suite, use `pyinstrument`:
+
+```shell
+uv run pyinstrument -m pytest
+```
+
+For more in-depth exploration, try the `-r html` option to generate an HTML report:
+
+```shell
+uv run pyinstrument -r html -m pytest
+```
+
+To profile the speed of test _collection_ (which is mostly related to import times), you can also use `pyinstrument`:
 
 ```shell
 uv run pyinstrument -m pytest --collect-only

@@ -3,13 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 from unittest.mock import patch
 
-import folium
-import folium.raster_layers
-import geopandas as gpd
 import numpy as np
 import pytest
 from affine import Affine
-from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
@@ -19,6 +15,8 @@ from rastr.raster import RasterModel
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import folium
 
 
 @pytest.fixture
@@ -247,6 +245,8 @@ class TestRasterModel:
 
     class TestAsGeoDataFrame:
         def test_as_geodataframe(self, example_raster: RasterModel):
+            import geopandas as gpd
+
             raster_gdf = example_raster.as_geodataframe(name="ben")
 
             expected_polygons = {
@@ -843,6 +843,8 @@ class TestRasterModel:
 
     class TestContour:
         def test_contour_with_list_levels(self):
+            import geopandas as gpd
+
             # Arrange
             raster = RasterModel.example()
             levels = [0.0, 0.5]
@@ -856,6 +858,8 @@ class TestRasterModel:
             assert len(contour_gdf) >= 0  # Should return some contours or empty GDF
 
         def test_contour_with_ndarray_levels(self):
+            import geopandas as gpd
+
             # Arrange
             raster = RasterModel.example()
             levels = np.array([0.0, 0.5])
@@ -892,6 +896,8 @@ class TestRasterModel:
             contour_gdf = raster.contour(levels)  # noqa: F841
 
         def test_contour_returns_gdf_with_correct_columns(self):
+            import geopandas as gpd
+
             raster = RasterModel.example()
             gdf = raster.contour(levels=[0.0, 0.5])
 
@@ -1417,6 +1423,8 @@ class TestExplore:
         return raster.explore(cbar_label="My Legend")
 
     def test_overlay(self, explore_map: folium.Map):
+        import folium.raster_layers
+
         m = explore_map
         # Assert: an ImageOverlay is present
         has_image_overlay = any(
@@ -1426,6 +1434,8 @@ class TestExplore:
         assert has_image_overlay, "Expected an ImageOverlay to be added to the map"
 
     def test_cbar(self, explore_map: folium.Map):
+        from branca.colormap import LinearColormap
+
         m = explore_map
         expected_min = 1.0
         expected_max = 4.0
@@ -1478,6 +1488,8 @@ class TestExplore:
             raster.explore()
 
     def test_homogenous_raster(self):
+        import folium
+
         # Arrange a homogeneous raster
         arr = np.array([[1.0, 1.0], [1.0, 1.0]])
         meta = RasterMeta(
@@ -1495,6 +1507,8 @@ class TestExplore:
         assert len(map_._children) > 0  # Check that something was added to the map
 
     def test_negative_x_scaling(self):
+        import folium
+
         # Arrange a raster with negative x scaling
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(

@@ -7,7 +7,7 @@ import warnings
 from collections.abc import Collection
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import numpy.ma
@@ -27,7 +27,7 @@ from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Generator
+    from collections.abc import Callable, Generator
 
     import geopandas as gpd
     from folium import Map
@@ -509,6 +509,8 @@ class RasterModel(BaseModel):
             cbar_label: Label for the colorbar. If None, no label is added.
             basemap: Whether to add a basemap. Currently not implemented.
             cmap: Colormap to use for the plot.
+            suppressed: Values to suppress from the plot (i.e. not display). This can be
+                        useful for zeroes especially.
             **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
                       This includes parameters like `alpha` for transparency.
         """

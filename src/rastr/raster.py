@@ -506,8 +506,19 @@ class RasterModel(BaseModel):
         cbar_label: str | None = None,
         basemap: bool = False,
         cmap: str = "viridis",
+        **kwargs: Any,
     ) -> Axes:
-        """Plot the raster on a matplotlib axis."""
+        """Plot the raster on a matplotlib axis.
+
+        Args:
+            ax: A matplotlib axes object to plot on. If None, a new figure will be
+                created.
+            cbar_label: Label for the colorbar. If None, no label is added.
+            basemap: Whether to add a basemap. Currently not implemented.
+            cmap: Colormap to use for the plot.
+            **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
+                      This includes parameters like `alpha` for transparency.
+        """
         if not MATPLOTLIB_INSTALLED:
             msg = "The 'matplotlib' package is required for 'plot()'."
             raise ImportError(msg)
@@ -549,7 +560,7 @@ class RasterModel(BaseModel):
 
         with self.to_rasterio_dataset() as dataset:
             img, *_ = rasterio.plot.show(
-                dataset, with_bounds=True, ax=ax, cmap=cmap
+                dataset, with_bounds=True, ax=ax, cmap=cmap, **kwargs
             ).get_images()
 
         ax.set_xlim(xmin, xmax)

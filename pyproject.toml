@@ -63,7 +63,7 @@ dev = [
   "pre-commit-update>=0.8.0",
   "pyinstrument>=5.1.1",
   "pyright[nodejs]>=1.1.403",
-  "ruff>=0.12.5",
+  "ruff>=0.13.2",
   "tqdm>=4.67.1",
   "usethis>=0.15.2",
 ]
@@ -123,7 +123,6 @@ lint.ignore = [
   # In some cases where your code is poorly-performing you might want to enable them again.
   # ##############################
   "PD101",   # Harms readability for a performance optimization.
-  "PD901",   # We often call variables "df" in functions dealing with pandas DataFrames.
   "PERF203", # Too many false positives.
   "PERF401", # This can hurt readability; the performance is not always worth it.
   "PIE804",  # This is controversial, some pandas APIs work better with dict approach.

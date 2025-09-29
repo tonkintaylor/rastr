@@ -724,7 +724,7 @@ class RasterModel(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
-    def crop_nan(self) -> Self:
+    def trim_nan(self) -> Self:
         """Crop the raster by trimming away all-NaN slices at the edges.
 
         This effectively trims the raster to the smallest bounding box that contains all

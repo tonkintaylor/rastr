@@ -835,12 +835,12 @@ class TestCrop:
             base_raster.crop(bounds, strategy="invalid_strategy")  # type: ignore[reportArgumentType]
 
 
-class TestCropNaN:
+class TestTrimNaN:
     def test_no_nan_values_unchanged(self, base_raster: RasterModel):
         # Arrange - base_raster has no NaN values
 
         # Act
-        cropped = base_raster.crop_nan()
+        cropped = base_raster.trim_nan()
 
         # Assert
         assert cropped == base_raster
@@ -861,7 +861,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         expected_arr = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
@@ -891,7 +891,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         expected_arr = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -920,7 +920,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         expected_arr = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
@@ -945,7 +945,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         expected_arr = np.array([[1.0, 2.0], [3.0, 4.0]])
@@ -969,7 +969,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         expected_arr = np.array([[42.0]])
@@ -992,7 +992,7 @@ class TestCropNaN:
 
         # Act & Assert
         with pytest.raises(ValueError, match="Cannot crop raster: all values are NaN"):
-            raster.crop_nan()
+            raster.trim_nan()
 
     def test_mixed_nan_and_finite_values(self):
         # Arrange
@@ -1012,7 +1012,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         expected_arr = np.array([[1.0, np.inf], [-np.inf, 2.0]])
@@ -1032,7 +1032,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         assert cropped.raster_meta.crs == original_crs
@@ -1060,7 +1060,7 @@ class TestCropNaN:
         raster = MyRaster(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         assert isinstance(cropped, MyRaster)
@@ -1082,7 +1082,7 @@ class TestCropNaN:
         raster = RasterModel(arr=original_arr.copy(), raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         np.testing.assert_array_equal(raster.arr, original_arr)
@@ -1103,7 +1103,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         # The a, b, d, e components should be preserved
@@ -1138,7 +1138,7 @@ class TestCropNaN:
         raster = RasterModel(arr=arr, raster_meta=meta)
 
         # Act
-        cropped = raster.crop_nan()
+        cropped = raster.trim_nan()
 
         # Assert
         # Should crop to the bounding box that contains both data points

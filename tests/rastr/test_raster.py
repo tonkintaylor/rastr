@@ -1189,6 +1189,122 @@ class TestCrop:
             base_raster.crop(bounds, "overflow")  # type: ignore[reportCallIssue]
 
 
+class TestPad:
+    def test_example(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array(
+                [
+                    [1, 2, 3, 4, 5],
+                    [6, 7, 8, 9, 10],
+                    [11, 12, 13, 14, 15],
+                    [16, 17, 18, 19, 20],
+                    [21, 22, 23, 24, 25],
+                ],
+                dtype=float,
+            ),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        width = 2.0  # 2 units in CRS coordinates
+        padded = raster.pad(width=width)
+
+        # Assert
+        assert isinstance(padded, RasterModel)
+        # Should pad by 1 cell on each side (2.0 / 2.0 = 1.0, ceil(1.0) = 1)
+        assert padded.arr.shape == (7, 7)  # 5x5 + 2 padding on each side
+
+        # Check that original data is in the center
+        np.testing.assert_array_equal(
+            padded.arr[1:6, 1:6], raster.arr
+        )
+
+        # Check that padding is NaN by default
+        assert np.isnan(padded.arr[0, :]).all()  # Top row
+        assert np.isnan(padded.arr[-1, :]).all()  # Bottom row
+        assert np.isnan(padded.arr[:, 0]).all()  # Left column
+        assert np.isnan(padded.arr[:, -1]).all()  # Right column
+
+    def test_pad_with_custom_value(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        width = 2.0  # Same as cell size, so 1 cell padding
+        fill_value = -999.0
+        padded = raster.pad(width=width, value=fill_value)
+
+        # Assert
+        assert padded.arr.shape == (4, 4)  # 2x2 + 2 padding on each side
+
+        # Check that padding uses custom value
+        assert (padded.arr[0, :] == fill_value).all()  # Top row
+        assert (padded.arr[-1, :] == fill_value).all()  # Bottom row
+        assert (padded.arr[:, 0] == fill_value).all()  # Left column
+        assert (padded.arr[:, -1] == fill_value).all()  # Right column
+
+        # Check original data is preserved
+        np.testing.assert_array_equal(
+            padded.arr[1:3, 1:3], raster.arr
+        )
+
+    def test_pad_fractional_width(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act - use fractional width that should still result in 1 cell padding
+        width = 1.5  # Less than cell size (2.0), but ceil(1.5/2.0) = ceil(0.75) = 1
+        padded = raster.pad(width=width)
+
+        # Assert
+        assert padded.arr.shape == (4, 4)  # Still 1 cell padding on each side
+
+    def test_pad_preserves_metadata(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        padded = raster.pad(width=4.0)  # 2 cells padding
+
+        # Assert
+        assert padded.raster_meta.cell_size == raster.raster_meta.cell_size
+        assert padded.raster_meta.crs == raster.raster_meta.crs
+
+        # Check bounds are expanded correctly
+        orig_xmin, orig_ymin, orig_xmax, orig_ymax = raster.bounds
+        new_xmin, new_ymin, new_xmax, new_ymax = padded.bounds
+
+        expected_padding = 4.0  # 2 cells * 2.0 cell_size
+        assert new_xmin == pytest.approx(orig_xmin - expected_padding)
+        assert new_ymin == pytest.approx(orig_ymin - expected_padding)
+        assert new_xmax == pytest.approx(orig_xmax + expected_padding)
+        assert new_ymax == pytest.approx(orig_ymax + expected_padding)
+
+    def test_pad_zero_width(self):
+        # Arrange
+        raster = RasterModel(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        padded = raster.pad(width=0.0)
+
+        # Assert - should be unchanged when width is 0
+        assert padded.arr.shape == raster.arr.shape
+        np.testing.assert_array_equal(padded.arr, raster.arr)
+
+
 class TestResample:
     def test_upsampling_doubles_resolution(self, base_raster: RasterModel):
         # Arrange

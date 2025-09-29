@@ -1216,9 +1216,7 @@ class TestPad:
         assert padded.arr.shape == (7, 7)  # 5x5 + 2 padding on each side
 
         # Check that original data is in the center
-        np.testing.assert_array_equal(
-            padded.arr[1:6, 1:6], raster.arr
-        )
+        np.testing.assert_array_equal(padded.arr[1:6, 1:6], raster.arr)
 
         # Check that padding is NaN by default
         assert np.isnan(padded.arr[0, :]).all()  # Top row
@@ -1248,9 +1246,7 @@ class TestPad:
         assert (padded.arr[:, -1] == fill_value).all()  # Right column
 
         # Check original data is preserved
-        np.testing.assert_array_equal(
-            padded.arr[1:3, 1:3], raster.arr
-        )
+        np.testing.assert_array_equal(padded.arr[1:3, 1:3], raster.arr)
 
     def test_pad_fractional_width(self):
         # Arrange

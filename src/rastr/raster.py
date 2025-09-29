@@ -841,8 +841,10 @@ class RasterModel(BaseModel):
         padded_arr = np.full((new_height, new_width), value, dtype=self.arr.dtype)
 
         # Copy original array into the center of the padded array
-        padded_arr[pad_cells:pad_cells + self.arr.shape[0],
-                   pad_cells:pad_cells + self.arr.shape[1]] = self.arr
+        padded_arr[
+            pad_cells : pad_cells + self.arr.shape[0],
+            pad_cells : pad_cells + self.arr.shape[1],
+        ] = self.arr
 
         # Create new transform for the padded raster
         new_transform = rasterio.transform.from_bounds(

@@ -730,7 +730,8 @@ class TestRasterModel:
             original_array = example_raster_with_zeros.arr.copy()
 
             # Act
-            example_raster_with_zeros.plot()
+            # Suppression will modify a raster copy internally, but not the original
+            example_raster_with_zeros.plot(suppressed=0)
 
             # Assert
             np.testing.assert_array_equal(example_raster_with_zeros.arr, original_array)
@@ -753,6 +754,59 @@ class TestRasterModel:
             # Act / Assert
             with pytest.raises(ImportError, match=r"matplotlib.*required"):
                 raster.plot()
+
+        def test_suppress_zeros(self):
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0
+
+            # Act, Assert - just checking it runs without error
+            raster.plot(suppressed=0)
+
+        def test_suppress_multiple(self):
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            # Act, Assert - just checking it runs without error
+            raster.plot(suppressed=[0, 0.2])
+
+        def test_suppress_mocked(self):
+            """Check suppressed values don't get passed to rasterio.plot.show"""
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            with patch("rastr.raster.RasterModel.rio_show", autospec=True) as mock_show:
+                mock_show.return_value = [None]
+
+                # Act
+                raster.plot(suppressed=[0.0, 0.2])
+
+                # Assert
+                args, _kwargs = mock_show.call_args
+                model = args[0]
+                assert np.all(~np.isin(model.arr, [0.0, 0.2]))
+
+        def test_no_suppress_mocked(self):
+            """Check non-suppressed values do get passed to rasterio.plot.show"""
+            # Arrange
+            raster = RasterModel.example()
+            raster.arr[raster.arr < 0.1] = 0.0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            with patch("rastr.raster.RasterModel.rio_show", autospec=True) as mock_show:
+                mock_show.return_value = [None]
+
+                # Act
+                raster.plot()
+
+                # Assert
+                args, _kwargs = mock_show.call_args
+                model = args[0]
+                assert np.any(np.isin(model.arr, [0.0, 0.2]))
 
         def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: RasterModel):
             import matplotlib.pyplot as plt

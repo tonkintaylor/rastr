@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from affine import Affine
     from folium import Map
     from matplotlib.axes import Axes
+    from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from typing_extensions import Self
@@ -509,6 +510,7 @@ class RasterModel(BaseModel):
         cbar_label: str | None = None,
         basemap: bool = False,
         cmap: str = "viridis",
+        suppressed: Collection[float] | float = tuple(),
         **kwargs: Any,
     ) -> Axes:
         """Plot the raster on a matplotlib axis.
@@ -519,6 +521,8 @@ class RasterModel(BaseModel):
             cbar_label: Label for the colorbar. If None, no label is added.
             basemap: Whether to add a basemap. Currently not implemented.
             cmap: Colormap to use for the plot.
+            suppressed: Values to suppress from the plot (i.e. not display). This can be
+                        useful for zeroes especially.
             **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
                       This includes parameters like `alpha` for transparency.
         """
@@ -529,6 +533,8 @@ class RasterModel(BaseModel):
         from matplotlib import pyplot as plt
         from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+        suppressed = np.array(suppressed)
+
         if ax is None:
             _, _ax = plt.subplots()
             _ax: Axes
@@ -538,33 +544,34 @@ class RasterModel(BaseModel):
             msg = "Basemap plotting is not yet implemented."
             raise NotImplementedError(msg)
 
-        arr = self.arr.copy()
+        model = self.model_copy()
+        model.arr = model.arr.copy()
 
-        # Get extent of the non-zero values in array index coordinates
-        (x_nonzero,) = np.nonzero(arr.any(axis=0))
-        (y_nonzero,) = np.nonzero(arr.any(axis=1))
+        # Get extent of the unsuppressed values in array index coordinates
+        suppressed_mask = np.isin(model.arr, suppressed)
+        (x_unsuppressed,) = np.nonzero((~suppressed_mask).any(axis=0))
+        (y_unsuppressed,) = np.nonzero((~suppressed_mask).any(axis=1))
 
-        if len(x_nonzero) == 0 or len(y_nonzero) == 0:
-            msg = "Raster contains no non-zero values; cannot plot."
+        if len(x_unsuppressed) == 0 or len(y_unsuppressed) == 0:
+            msg = "Raster contains no unsuppressed values; cannot plot."
             raise ValueError(msg)
 
-        min_x_nonzero = np.min(x_nonzero)
-        max_x_nonzero = np.max(x_nonzero)
-        min_y_nonzero = np.min(y_nonzero)
-        max_y_nonzero = np.max(y_nonzero)
+        # N.B. these are array index coordinates, so np.min and np.max are safe since
+        # they cannot encounter NaN values.
+        min_x_unsuppressed = np.min(x_unsuppressed)
+        max_x_unsuppressed = np.max(x_unsuppressed)
+        min_y_unsuppressed = np.min(y_unsuppressed)
+        max_y_unsuppressed = np.max(y_unsuppressed)
 
         # Transform to raster CRS
-        x1, y1 = self.raster_meta.transform * (min_x_nonzero, min_y_nonzero)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
-        x2, y2 = self.raster_meta.transform * (max_x_nonzero, max_y_nonzero)  # type: ignore[reportAssignmentType]
+        x1, y1 = self.raster_meta.transform * (min_x_unsuppressed, min_y_unsuppressed)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        x2, y2 = self.raster_meta.transform * (max_x_unsuppressed, max_y_unsuppressed)  # type: ignore[reportAssignmentType]
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
 
-        arr[arr == 0] = np.nan
+        model.arr[suppressed_mask] = np.nan
 
-        with self.to_rasterio_dataset() as dataset:
-            img, *_ = rasterio.plot.show(
-                dataset, with_bounds=True, ax=ax, cmap=cmap, **kwargs
-            ).get_images()
+        img, *_ = model.rio_show(ax=ax, cmap=cmap, with_bounds=True, **kwargs)
 
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
@@ -579,6 +586,20 @@ class RasterModel(BaseModel):
         if fig is not None:
             fig.colorbar(img, label=cbar_label, cax=cax)
         return ax
+
+    def rio_show(self, **kwargs: Any) -> list[AxesImage]:
+        """Plot the raster using rasterio's built-in plotting function.
+
+        This is useful for lower-level access to rasterio's plotting capabilities.
+        Generally, the `plot()` method is preferred for most use cases.
+
+        Args:
+            **kwargs: Keyword arguments to pass to `rasterio.plot.show()`. This includes
+            parameters like `alpha` for transparency, and `with_bounds` to control
+            whether to plot in spatial coordinates or array index coordinates.
+        """
+        with self.to_rasterio_dataset() as dataset:
+            return rasterio.plot.show(dataset, **kwargs).get_images()
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""

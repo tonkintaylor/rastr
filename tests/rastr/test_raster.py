@@ -1544,3 +1544,28 @@ class TestExplore:
 
         # Assert flip called exactly twice (both axes)
         assert mock_flip.call_count == 2
+
+    def test_vmin_vmax_parameters(self, small_raster: RasterModel):
+        # Act
+        map_ = small_raster.explore(vmin=2.0, vmax=3.0)
+
+        # Assert
+        assert isinstance(map_, folium.Map)
+        assert len(map_._children) > 0  # Check that something was added to the map
+
+        # Check that the legend reflects the specified vmin/vmax
+        legends = [
+            child
+            for child in map_._children.values()
+            if isinstance(child, LinearColormap)
+        ]
+        assert len(legends) >= 1, "Expected a LinearColormap legend to be added"
+        legend = legends[-1]
+
+        assert pytest.approx(legend.vmin) == 2.0
+        assert pytest.approx(legend.vmax) == 3.0
+
+    def test_vmin_greater_than_vmax_raises(self, small_raster: RasterModel):
+        # Act / Assert
+        with pytest.raises(ValueError, match=r"'vmin' must be less than 'vmax'"):
+            small_raster.explore(vmin=3.0, vmax=2.0)

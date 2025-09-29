@@ -396,13 +396,15 @@ class RasterModel(BaseModel):
             ]
         )
 
-    def explore(
+    def explore(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         *,
         m: Map | None = None,
         opacity: float = 1.0,
         colormap: str = "viridis",
         cbar_label: str | None = None,
+        vmin: float | None = None,
+        vmax: float | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
         if not FOLIUM_INSTALLED or not MATPLOTLIB_INSTALLED:
@@ -415,6 +417,10 @@ class RasterModel(BaseModel):
 
         if m is None:
             m = folium.Map()
+
+        if vmin is not None and vmax is not None and vmax <= vmin:
+            msg = "'vmin' must be less than 'vmax'."
+            raise ValueError(msg)
 
         rgba_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
             colormap
@@ -436,8 +442,14 @@ class RasterModel(BaseModel):
                 message="All-NaN slice encountered",
                 category=RuntimeWarning,
             )
-            min_val = np.nanmin(arr)
-            max_val = np.nanmax(arr)
+            if vmin is not None:
+                min_val = vmin
+            else:
+                min_val = np.nanmin(arr)
+            if vmax is not None:
+                max_val = vmax
+            else:
+                max_val = np.nanmax(arr)
 
         if max_val > min_val:  # Prevent division by zero
             arr = (arr - min_val) / (max_val - min_val)

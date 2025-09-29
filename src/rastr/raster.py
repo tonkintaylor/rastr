@@ -410,8 +410,8 @@ class RasterModel(BaseModel):
             raise ImportError(msg)
 
         import folium.raster_layers
-        import geopandas as gpd
         import matplotlib as mpl
+        from pyproj import Transformer
 
         if m is None:
             m = folium.Map()
@@ -420,12 +420,26 @@ class RasterModel(BaseModel):
             colormap
         ]
 
-        # Cast to GDF to facilitate converting bounds to WGS84
+        # Transform bounds to WGS84 using pyproj directly
         wgs84_crs = CRS.from_epsg(4326)
-        gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
-            wgs84_crs
-        )
-        xmin, ymin, xmax, ymax = gdf.total_bounds
+        transformer = Transformer.from_crs(self.raster_meta.crs, wgs84_crs, always_xy=True)
+        
+        # Get the corner points of the bounding box
+        raster_xmin, raster_ymin, raster_xmax, raster_ymax = self.bounds
+        corner_points = [
+            (raster_xmin, raster_ymin),
+            (raster_xmin, raster_ymax),
+            (raster_xmax, raster_ymax),
+            (raster_xmax, raster_ymin),
+        ]
+        
+        # Transform all corner points to WGS84
+        transformed_points = [transformer.transform(x, y) for x, y in corner_points]
+        
+        # Find the bounding box of the transformed points
+        transformed_xs, transformed_ys = zip(*transformed_points)
+        xmin, xmax = min(transformed_xs), max(transformed_xs)
+        ymin, ymax = min(transformed_ys), max(transformed_ys)
 
         arr = np.array(self.arr)
 

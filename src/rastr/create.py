@@ -320,8 +320,18 @@ def raster_from_point_cloud(
     if len(x) != len(y) or len(x) != len(z):
         msg = "Length of x, y, and z must be equal."
         raise ValueError(msg)
+    xy_finite_mask = np.isfinite(x) & np.isfinite(y)
+    if np.any(~xy_finite_mask):
+        msg = "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+        warnings.warn(msg, stacklevel=2)
+        x = x[xy_finite_mask]
+        y = y[xy_finite_mask]
+        z = z[xy_finite_mask]
     if len(x) < 3:
-        msg = "At least three (x, y, z) points are required to triangulate a surface."
+        msg = (
+            "At least three valid (x, y, z) points are required to triangulate a "
+            "surface."
+        )
         raise ValueError(msg)
     # Check for duplicate (x, y) points
     xy_points = np.column_stack((x, y))
@@ -332,8 +342,8 @@ def raster_from_point_cloud(
     # Heuristic for cell size if not provided
     if cell_size is None:
         # Half the 5th percentile of nearest neighbor distances between the (x,y) points
-        tree = KDTree(np.column_stack((x, y)))
-        distances, _ = tree.query(np.column_stack((x, y)), k=2)
+        tree = KDTree(xy_points)
+        distances, _ = tree.query(xy_points, k=2)
         distances: np.ndarray
         cell_size = float(np.percentile(distances[distances > 0], 5)) / 2
 

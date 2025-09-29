@@ -1,6 +1,5 @@
 import re
 
-import geopandas as gpd
 import numpy as np
 import pytest
 from affine import Affine
@@ -212,6 +211,8 @@ class TestRasterizeGdf:
 
     def test_basic_rasterization_single_column(self):
         """Test basic rasterization with a single numeric column."""
+        import geopandas as gpd
+
         # Create test polygons
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
@@ -240,6 +241,8 @@ class TestRasterizeGdf:
 
     def test_multiple_columns(self):
         """Test rasterization with multiple numeric columns."""
+        import geopandas as gpd
+
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
             Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
@@ -267,6 +270,8 @@ class TestRasterizeGdf:
 
     def test_empty_geodataframe(self):
         """Test with empty GeoDataFrame."""
+        import geopandas as gpd
+
         gdf = gpd.GeoDataFrame({"value": []}, geometry=[], crs=_PROJECTED_CRS)
         raster_meta = RasterMeta(
             cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
@@ -278,6 +283,8 @@ class TestRasterizeGdf:
 
     def test_missing_target_columns(self):
         """Test error handling when target columns are missing."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -291,6 +298,8 @@ class TestRasterizeGdf:
 
     def test_non_numeric_columns(self):
         """Test error handling when target columns contain non-numeric data."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"text_col": ["abc"], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -304,6 +313,8 @@ class TestRasterizeGdf:
 
     def test_validation_helper_functions(self):
         """Test the validation helper functions directly."""
+        import geopandas as gpd
+
         # Test column existence validation
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
@@ -331,6 +342,8 @@ class TestRasterizeGdf:
 
     def test_nan_handling(self):
         """Test handling of NaN values in numeric columns."""
+        import geopandas as gpd
+
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
             Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
@@ -354,6 +367,8 @@ class TestRasterizeGdf:
         The function should detect overlapping geometries and raise an error
         to prevent potential data loss during rasterization.
         """
+        import geopandas as gpd
+
         # Create overlapping polygons with distinct values
         polygons = [
             Polygon([(0, 0), (0, 2), (2, 2), (2, 0)]),  # Large polygon with value 10
@@ -374,6 +389,8 @@ class TestRasterizeGdf:
 
     def test_touching_but_not_overlapping_polygons(self):
         """Test that touching (but not overlapping) polygons do not raise errors."""
+        import geopandas as gpd
+
         # Create adjacent polygons that share a boundary but don't overlap
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),  # Left square
@@ -393,6 +410,8 @@ class TestRasterizeGdf:
 
     def test_gaps_become_nan(self):
         """Test that areas without polygons become NaN in the raster."""
+        import geopandas as gpd
+
         # Create polygons that don't cover the entire extent
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),  # Only covers part of the area
@@ -411,6 +430,8 @@ class TestRasterizeGdf:
 
     def test_complex_polygon_shapes(self):
         """Test with non-rectangular polygon shapes."""
+        import geopandas as gpd
+
         # Create a triangular polygon
         triangle = Polygon([(0, 0), (2, 0), (1, 2)])
         gdf = gpd.GeoDataFrame(
@@ -428,6 +449,8 @@ class TestRasterizeGdf:
 
     def test_different_data_types(self):
         """Test with different numeric data types."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
 
         gdf = gpd.GeoDataFrame(
@@ -453,6 +476,8 @@ class TestRasterizeGdf:
 
     def test_raster_metadata_preservation(self):
         """Test that raster metadata is correctly preserved."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -471,6 +496,8 @@ class TestRasterizeGdf:
 
     def test_large_cell_size(self):
         """Test with large cell size relative to polygon size."""
+        import geopandas as gpd
+
         # Small polygon with large cell size
         polygons = [Polygon([(0, 0), (0, 0.1), (0.1, 0.1), (0.1, 0)])]
         gdf = gpd.GeoDataFrame(
@@ -487,6 +514,8 @@ class TestRasterizeGdf:
 
     def test_very_small_cell_size(self):
         """Test with very small cell size creating high resolution raster."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -505,6 +534,8 @@ class TestRasterizeGdf:
 
     def test_point_geometries(self):
         """Test rasterization with point geometries."""
+        import geopandas as gpd
+
         points = [Point(0.5, 0.5), Point(1.5, 1.5), Point(2.5, 0.5)]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0, 20.0, 30.0], "geometry": points}, crs=_PROJECTED_CRS
@@ -531,6 +562,8 @@ class TestRasterizeGdf:
 
     def test_linestring_geometries(self):
         """Test rasterization with LineString geometries."""
+        import geopandas as gpd
+
         lines = [
             LineString([(0, 0), (2, 2)]),  # Diagonal line
             LineString([(0, 1), (3, 1)]),  # Horizontal line
@@ -560,6 +593,8 @@ class TestRasterizeGdf:
 
     def test_mixed_geometry_types(self):
         """Test rasterization with mixed geometry types in the same GeoDataFrame."""
+        import geopandas as gpd
+
         geometries = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),  # Polygon
             Point(2, 0.5),  # Point
@@ -590,6 +625,8 @@ class TestRasterizeGdf:
 
     def test_point_on_cell_boundary(self):
         """Test point that falls exactly on cell boundaries."""
+        import geopandas as gpd
+
         # Point exactly on grid boundary
         points = [Point(1.0, 1.0)]
         gdf = gpd.GeoDataFrame(
@@ -695,7 +732,7 @@ class TestRasterFromPointCloud:
 
             # Act / Assert
             with pytest.raises(
-                ValueError, match="Length of x, y, and z must be equal."
+                ValueError, match=r"Length of x, y, and z must be equal\."
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -707,7 +744,7 @@ class TestRasterFromPointCloud:
 
             # Act / Assert
             with pytest.raises(
-                ValueError, match="Length of x, y, and z must be equal."
+                ValueError, match=r"Length of x, y, and z must be equal\."
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -768,7 +805,7 @@ class TestRasterFromPointCloud:
             # Act / Assert
             with pytest.raises(
                 ValueError,
-                match=re.escape("At least three (x, y, z) points are required"),
+                match=re.escape("At least three valid (x, y, z) points are required"),
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -781,7 +818,7 @@ class TestRasterFromPointCloud:
             # Act / Assert
             with pytest.raises(
                 ValueError,
-                match=re.escape("At least three (x, y, z) points are required"),
+                match=re.escape("At least three valid (x, y, z) points are required"),
             ):
                 raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
@@ -797,3 +834,78 @@ class TestRasterFromPointCloud:
         # Assert
         assert isinstance(raster, RasterModel)
         assert raster.arr.shape == (2, 2)
+
+    def test_xy_are_nan_warns(self):
+        # Arrange
+        x = [0, 0, np.nan, 1, 3]
+        y = [0, 1, 0, np.nan, 2]
+        z = [10, 20, 30, 40, 50]
+
+        # Act
+        with pytest.warns(
+            UserWarning,
+            match=re.escape(
+                "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+            ),
+        ):
+            raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+
+    def test_xy_are_infinite_warns(self):
+        # Arrange
+        x = [0, 0, np.inf, 1, 3]
+        y = [0, 1, 0, -np.inf, 2]
+        z = [10, 20, 30, 40, 50]
+
+        # Act
+        with pytest.warns(
+            UserWarning,
+            match=re.escape(
+                "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+            ),
+        ):
+            raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+
+    def test_z_is_nan(self):
+        # This works fine, it just means any concave
+        # area with NaN z values will be NaN in the output
+
+        # Arrange
+        x = [0, 0, 1, 1]
+        y = [0, 1, 0, 1]
+        z = [10, np.nan, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, RasterModel)
+
+    def test_less_than_three_valid_points_due_to_nan(self):
+        # We want a good error message if there are
+
+        # Arrange
+        x = [0, np.nan, 1]
+        y = [0, 1, np.nan]
+        z = [10, 20, 30]
+
+        # Act / Assert
+        with (
+            pytest.raises(
+                ValueError,
+                match=re.escape("At least three valid (x, y, z) points are required"),
+            ),
+            pytest.warns(
+                UserWarning,
+                match=re.escape(
+                    "Some (x,y) points are NaN-valued or non-finite. "
+                    "These will be ignored."
+                ),
+            ),
+        ):
+            raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import numpy.ma
+import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
@@ -30,10 +31,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
     import geopandas as gpd
+    from affine import Affine
+    from branca.colormap import LinearColormap as BrancaLinearColormap
     from folium import Map
     from matplotlib.axes import Axes
+    from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
+    from shapely import MultiPolygon
     from typing_extensions import Self
 
 try:
@@ -92,6 +97,16 @@ class RasterModel(BaseModel):
         """Set the CRS via meta."""
         self.meta.crs = value
 
+    @property
+    def transform(self) -> Affine:
+        """Convenience property to access the transform via meta."""
+        return self.meta.transform
+
+    @transform.setter
+    def transform(self, value: Affine) -> None:
+        """Set the transform via meta."""
+        self.meta.transform = value
+
     def __init__(
         self,
         *,
@@ -127,6 +142,17 @@ class RasterModel(BaseModel):
             np.array_equal(self.arr, other.arr)
             and self.raster_meta == other.raster_meta
         )
+
+    def is_like(self, other: RasterModel) -> bool:
+        """Check if two RasterModel objects have the same metadata and shape.
+
+        Args:
+            other: Another RasterModel to compare with.
+
+        Returns:
+            True if both rasters have the same meta and shape attributes.
+        """
+        return self.meta == other.meta and self.shape == other.shape
 
     __hash__ = BaseModel.__hash__
 
@@ -410,7 +436,8 @@ class RasterModel(BaseModel):
         *,
         m: Map | None = None,
         opacity: float = 1.0,
-        colormap: str = "viridis",
+        colormap: str
+        | Callable[[float], tuple[float, float, float, float]] = "viridis",
         cbar_label: str | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
@@ -425,16 +452,14 @@ class RasterModel(BaseModel):
         if m is None:
             m = folium.Map()
 
-        rgba_map: Callable[[float], tuple[float, float, float, float]] = mpl.colormaps[
-            colormap
-        ]
+        if isinstance(colormap, str):
+            colormap = mpl.colormaps[colormap]
 
         # Cast to GDF to facilitate converting bounds to WGS84
         wgs84_crs = CRS.from_epsg(4326)
         gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
             wgs84_crs
         )
-        xmin, ymin, xmax, ymax = gdf.total_bounds
 
         arr = np.array(self.arr)
 
@@ -445,11 +470,11 @@ class RasterModel(BaseModel):
                 message="All-NaN slice encountered",
                 category=RuntimeWarning,
             )
-            min_val = np.nanmin(arr)
-            max_val = np.nanmax(arr)
+            vmin = np.nanmin(arr)
+            vmax = np.nanmax(arr)
 
-        if max_val > min_val:  # Prevent division by zero
-            arr = (arr - min_val) / (max_val - min_val)
+        if vmax > vmin:  # Prevent division by zero
+            arr = (arr - vmin) / (vmax - vmin)
         else:
             arr = np.zeros_like(arr)  # In case all values are the same
 
@@ -462,11 +487,13 @@ class RasterModel(BaseModel):
         if flip_y:
             arr = np.flip(arr, axis=0)
 
+        xmin, ymin, xmax, ymax = gdf.total_bounds
+        bounds = [[ymin, xmin], [ymax, xmax]]
         img = folium.raster_layers.ImageOverlay(
             image=arr,
-            bounds=[[ymin, xmin], [ymax, xmax]],
+            bounds=bounds,
             opacity=opacity,
-            colormap=rgba_map,
+            colormap=colormap,
             mercator_project=True,
         )
 
@@ -474,23 +501,12 @@ class RasterModel(BaseModel):
 
         # Add a colorbar legend
         if BRANCA_INSTALLED:
-            from branca.colormap import LinearColormap as BrancaLinearColormap
-            from matplotlib.colors import to_hex
-
-            # Determine legend data range in original units
-            vmin = float(min_val) if np.isfinite(min_val) else 0.0
-            vmax = float(max_val) if np.isfinite(max_val) else 1.0
-            if vmax <= vmin:
-                vmax = vmin + 1.0
-
-            sample_points = np.linspace(0, 1, rgba_map.N)
-            colors = [to_hex(rgba_map(x)) for x in sample_points]
-            legend = BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+            cbar = _map_colorbar(colormap=colormap, vmin=vmin, vmax=vmax)
             if cbar_label:
-                legend.caption = cbar_label
-            legend.add_to(m)
+                cbar.caption = cbar_label
+            cbar.add_to(m)
 
-        m.fit_bounds([[ymin, xmin], [ymax, xmax]])
+        m.fit_bounds(bounds)
 
         return m
 
@@ -507,6 +523,7 @@ class RasterModel(BaseModel):
         cbar_label: str | None = None,
         basemap: bool = False,
         cmap: str = "viridis",
+        suppressed: Collection[float] | float = tuple(),
         **kwargs: Any,
     ) -> Axes:
         """Plot the raster on a matplotlib axis.
@@ -517,6 +534,8 @@ class RasterModel(BaseModel):
             cbar_label: Label for the colorbar. If None, no label is added.
             basemap: Whether to add a basemap. Currently not implemented.
             cmap: Colormap to use for the plot.
+            suppressed: Values to suppress from the plot (i.e. not display). This can be
+                        useful for zeroes especially.
             **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
                       This includes parameters like `alpha` for transparency.
         """
@@ -527,6 +546,8 @@ class RasterModel(BaseModel):
         from matplotlib import pyplot as plt
         from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+        suppressed = np.array(suppressed)
+
         if ax is None:
             _, _ax = plt.subplots()
             _ax: Axes
@@ -536,33 +557,34 @@ class RasterModel(BaseModel):
             msg = "Basemap plotting is not yet implemented."
             raise NotImplementedError(msg)
 
-        arr = self.arr.copy()
+        model = self.model_copy()
+        model.arr = model.arr.copy()
 
-        # Get extent of the non-zero values in array index coordinates
-        (x_nonzero,) = np.nonzero(arr.any(axis=0))
-        (y_nonzero,) = np.nonzero(arr.any(axis=1))
+        # Get extent of the unsuppressed values in array index coordinates
+        suppressed_mask = np.isin(model.arr, suppressed)
+        (x_unsuppressed,) = np.nonzero((~suppressed_mask).any(axis=0))
+        (y_unsuppressed,) = np.nonzero((~suppressed_mask).any(axis=1))
 
-        if len(x_nonzero) == 0 or len(y_nonzero) == 0:
-            msg = "Raster contains no non-zero values; cannot plot."
+        if len(x_unsuppressed) == 0 or len(y_unsuppressed) == 0:
+            msg = "Raster contains no unsuppressed values; cannot plot."
             raise ValueError(msg)
 
-        min_x_nonzero = np.min(x_nonzero)
-        max_x_nonzero = np.max(x_nonzero)
-        min_y_nonzero = np.min(y_nonzero)
-        max_y_nonzero = np.max(y_nonzero)
+        # N.B. these are array index coordinates, so np.min and np.max are safe since
+        # they cannot encounter NaN values.
+        min_x_unsuppressed = np.min(x_unsuppressed)
+        max_x_unsuppressed = np.max(x_unsuppressed)
+        min_y_unsuppressed = np.min(y_unsuppressed)
+        max_y_unsuppressed = np.max(y_unsuppressed)
 
         # Transform to raster CRS
-        x1, y1 = self.raster_meta.transform * (min_x_nonzero, min_y_nonzero)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
-        x2, y2 = self.raster_meta.transform * (max_x_nonzero, max_y_nonzero)  # type: ignore[reportAssignmentType]
+        x1, y1 = self.raster_meta.transform * (min_x_unsuppressed, min_y_unsuppressed)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        x2, y2 = self.raster_meta.transform * (max_x_unsuppressed, max_y_unsuppressed)  # type: ignore[reportAssignmentType]
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
 
-        arr[arr == 0] = np.nan
+        model.arr[suppressed_mask] = np.nan
 
-        with self.to_rasterio_dataset() as dataset:
-            img, *_ = rasterio.plot.show(
-                dataset, with_bounds=True, ax=ax, cmap=cmap, **kwargs
-            ).get_images()
+        img, *_ = model.rio_show(ax=ax, cmap=cmap, with_bounds=True, **kwargs)
 
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
@@ -577,6 +599,20 @@ class RasterModel(BaseModel):
         if fig is not None:
             fig.colorbar(img, label=cbar_label, cax=cax)
         return ax
+
+    def rio_show(self, **kwargs: Any) -> list[AxesImage]:
+        """Plot the raster using rasterio's built-in plotting function.
+
+        This is useful for lower-level access to rasterio's plotting capabilities.
+        Generally, the `plot()` method is preferred for most use cases.
+
+        Args:
+            **kwargs: Keyword arguments to pass to `rasterio.plot.show()`. This includes
+            parameters like `alpha` for transparency, and `with_bounds` to control
+            whether to plot in spatial coordinates or array index coordinates.
+        """
+        with self.to_rasterio_dataset() as dataset:
+            return rasterio.plot.show(dataset, **kwargs).get_images()
 
     def as_geodataframe(self, name: str = "value") -> gpd.GeoDataFrame:
         """Create a GeoDataFrame representation of the raster."""
@@ -900,6 +936,90 @@ class RasterModel(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
+    def clip(
+        self,
+        polygon: Polygon | MultiPolygon,
+        *,
+        strategy: Literal["centres"] = "centres",
+    ) -> Self:
+        """Clip the raster to the specified polygon, replacing cells outside with NaN.
+
+        The clipping strategy determines how to handle cells that are partially
+        within the polygon. Currently, only the 'centres' strategy is supported, which
+        retains cells whose centres fall within the polygon.
+
+        Args:
+            polygon: A shapely Polygon or MultiPolygon defining the area to clip to.
+            strategy: The clipping strategy to use. Currently only 'centres' is
+                      supported, which retains cells whose centres fall within the
+                      polygon.
+
+        Returns:
+            A new RasterModel with cells outside the polygon set to NaN.
+        """
+        if strategy != "centres":
+            msg = f"Unsupported clipping strategy: {strategy}"
+            raise NotImplementedError(msg)
+
+        raster = self.model_copy()
+
+        mask = rasterio.features.rasterize(
+            [(polygon, 1)],
+            fill=0,
+            out_shape=self.shape,
+            transform=self.meta.transform,
+            dtype=np.uint8,
+        )
+
+        raster.arr = np.where(mask, raster.arr, np.nan)
+
+        return raster
+
+    def trim_nan(self) -> Self:
+        """Crop the raster by trimming away all-NaN slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        of the non-NaN values. Note that this does not guarantee no NaN values at all
+        around the edges, only that there won't be entire edges which are all-NaN.
+
+        Consider using `.extrapolate()` for further cleanup of NaN values.
+        """
+        arr = self.arr
+
+        # Check if the entire array is NaN
+        if np.all(np.isnan(arr)):
+            msg = "Cannot crop raster: all values are NaN"
+            raise ValueError(msg)
+
+        # Find rows and columns that are not all NaN
+        nan_row_mask = np.all(np.isnan(arr), axis=1)
+        nan_col_mask = np.all(np.isnan(arr), axis=0)
+
+        # Find the bounding indices
+        (row_indices,) = np.where(~nan_row_mask)
+        (col_indices,) = np.where(~nan_col_mask)
+
+        min_row, max_row = row_indices[0], row_indices[-1]
+        min_col, max_col = col_indices[0], col_indices[-1]
+
+        # Crop the array
+        cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
+
+        # Shift the transform by the number of pixels cropped (min_col, min_row)
+        new_transform = (
+            self.raster_meta.transform
+            * rasterio.transform.Affine.translation(min_col, min_row)
+        )
+
+        # Create new metadata
+        new_meta = RasterMeta(
+            cell_size=self.raster_meta.cell_size,
+            crs=self.raster_meta.crs,
+            transform=new_transform,
+        )
+
+        return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
     ) -> Self:
@@ -946,3 +1066,28 @@ class RasterModel(BaseModel):
             )
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)
+
+
+def _map_colorbar(
+    *,
+    colormap: Callable[[float], tuple[float, float, float, float]],
+    vmin: float,
+    vmax: float,
+) -> BrancaLinearColormap:
+    from branca.colormap import LinearColormap as BrancaLinearColormap
+    from matplotlib.colors import ListedColormap, to_hex
+
+    # Determine legend data range in original units
+    vmin = float(vmin) if np.isfinite(vmin) else 0.0
+    vmax = float(vmax) if np.isfinite(vmax) else 1.0
+    if vmax <= vmin:
+        vmax = vmin + 1.0
+
+    if isinstance(colormap, ListedColormap):
+        n = colormap.N
+    else:
+        n = 256
+
+    sample_points = np.linspace(0, 1, n)
+    colors = [to_hex(colormap(x)) for x in sample_points]
+    return BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)

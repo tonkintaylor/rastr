@@ -7,7 +7,7 @@ import warnings
 from collections.abc import Collection
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import numpy.ma

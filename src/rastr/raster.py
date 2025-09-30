@@ -17,6 +17,7 @@ import rasterio.sample
 import rasterio.transform
 import skimage.measure
 from pydantic import BaseModel, InstanceOf, field_validator
+from pyproj import Transformer
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
@@ -448,7 +449,6 @@ class Raster(BaseModel):
             raise ImportError(msg)
 
         import folium.raster_layers
-        import geopandas as gpd
         import matplotlib as mpl
 
         if m is None:
@@ -461,11 +461,28 @@ class Raster(BaseModel):
         if isinstance(colormap, str):
             colormap = mpl.colormaps[colormap]
 
-        # Cast to GDF to facilitate converting bounds to WGS84
+        # Transform bounds to WGS84 using pyproj directly
         wgs84_crs = CRS.from_epsg(4326)
-        gdf = gpd.GeoDataFrame(geometry=[self.bbox], crs=self.raster_meta.crs).to_crs(
-            wgs84_crs
+        transformer = Transformer.from_crs(
+            self.raster_meta.crs, wgs84_crs, always_xy=True
         )
+
+        # Get the corner points of the bounding box
+        raster_xmin, raster_ymin, raster_xmax, raster_ymax = self.bounds
+        corner_points = [
+            (raster_xmin, raster_ymin),
+            (raster_xmin, raster_ymax),
+            (raster_xmax, raster_ymax),
+            (raster_xmax, raster_ymin),
+        ]
+
+        # Transform all corner points to WGS84
+        transformed_points = [transformer.transform(x, y) for x, y in corner_points]
+
+        # Find the bounding box of the transformed points
+        transformed_xs, transformed_ys = zip(*transformed_points, strict=True)
+        xmin, xmax = min(transformed_xs), max(transformed_xs)
+        ymin, ymax = min(transformed_ys), max(transformed_ys)
 
         # Normalize the array to [0, 1] for colormap mapping
         _vmin, _vmax = _get_vmin_vmax(self, vmin=vmin, vmax=vmax)
@@ -480,7 +497,6 @@ class Raster(BaseModel):
         if flip_y:
             arr = np.flip(arr, axis=0)
 
-        xmin, ymin, xmax, ymax = gdf.total_bounds
         bounds = [[ymin, xmin], [ymax, xmax]]
         img = folium.raster_layers.ImageOverlay(
             image=arr,

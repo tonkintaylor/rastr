@@ -1,4 +1,4 @@
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
-soft = RasterModel.example().taper_border(width=50, limit=1)
+soft = Raster.example().taper_border(width=50, limit=1)
 soft.plot()

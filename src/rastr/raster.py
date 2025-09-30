@@ -58,7 +58,7 @@ class RasterCellArrayShapeError(ValueError):
     """Custom error for invalid raster cell array shapes."""
 
 
-class RasterModel(BaseModel):
+class Raster(BaseModel):
     """2-dimensional raster and metadata."""
 
     arr: InstanceOf[np.ndarray]
@@ -135,19 +135,19 @@ class RasterModel(BaseModel):
         super().__init__(arr=arr, raster_meta=raster_meta)
 
     def __eq__(self, other: object) -> bool:
-        """Check equality of two RasterModel objects."""
-        if not isinstance(other, RasterModel):
+        """Check equality of two Raster objects."""
+        if not isinstance(other, Raster):
             return NotImplemented
         return (
             np.array_equal(self.arr, other.arr)
             and self.raster_meta == other.raster_meta
         )
 
-    def is_like(self, other: RasterModel) -> bool:
-        """Check if two RasterModel objects have the same metadata and shape.
+    def is_like(self, other: Raster) -> bool:
+        """Check if two Raster objects have the same metadata and shape.
 
         Args:
-            other: Another RasterModel to compare with.
+            other: Another Raster to compare with.
 
         Returns:
             True if both rasters have the same meta and shape attributes.
@@ -161,7 +161,7 @@ class RasterModel(BaseModel):
         if isinstance(other, float | int):
             new_arr = self.arr + other
             return cls(arr=new_arr, raster_meta=self.raster_meta)
-        elif isinstance(other, RasterModel):
+        elif isinstance(other, Raster):
             if self.raster_meta != other.raster_meta:
                 msg = (
                     "Rasters must have the same metadata (e.g. CRS, cell size, etc.) "
@@ -187,7 +187,7 @@ class RasterModel(BaseModel):
         if isinstance(other, float | int):
             new_arr = self.arr * other
             return cls(arr=new_arr, raster_meta=self.raster_meta)
-        elif isinstance(other, RasterModel):
+        elif isinstance(other, Raster):
             if self.raster_meta != other.raster_meta:
                 msg = (
                     "Rasters must have the same metadata (e.g. CRS, cell size, etc.) "
@@ -210,7 +210,7 @@ class RasterModel(BaseModel):
         if isinstance(other, float | int):
             new_arr = self.arr / other
             return cls(arr=new_arr, raster_meta=self.raster_meta)
-        elif isinstance(other, RasterModel):
+        elif isinstance(other, Raster):
             if self.raster_meta != other.raster_meta:
                 msg = (
                     "Rasters must have the same metadata (e.g. CRS, cell size, etc.) "
@@ -260,7 +260,7 @@ class RasterModel(BaseModel):
         """Create a rasterio in-memory dataset from the Raster object.
 
         Example:
-            >>> raster = RasterModel.example()
+            >>> raster = Raster.example()
             >>> with raster.to_rasterio_dataset() as dataset:
             >>>     ...
         """
@@ -691,7 +691,7 @@ class RasterModel(BaseModel):
 
     @classmethod
     def example(cls) -> Self:
-        """Create an example RasterModel."""
+        """Create an example Raster."""
         # Peaks dataset style example
         n = 256
         x = np.linspace(-3, 3, n)
@@ -1011,7 +1011,7 @@ class RasterModel(BaseModel):
                         remains covered with cells.
 
         Returns:
-            A new RasterModel instance cropped to the specified bounds.
+            A new Raster instance cropped to the specified bounds.
         """
 
         minx, miny, maxx, maxy = bounds
@@ -1141,7 +1141,7 @@ class RasterModel(BaseModel):
                       polygon.
 
         Returns:
-            A new RasterModel with cells outside the polygon set to NaN.
+            A new Raster with cells outside the polygon set to NaN.
         """
         if strategy != "centres":
             msg = f"Unsupported clipping strategy: {strategy}"
@@ -1280,7 +1280,7 @@ def _map_colorbar(
 
 
 def _get_vmin_vmax(
-    raster: RasterModel, *, vmin: float | None = None, vmax: float | None = None
+    raster: Raster, *, vmin: float | None = None, vmax: float | None = None
 ) -> tuple[float, float]:
     """Get maximum and minimum values from a raster array, ignoring NaNs.
 
@@ -1302,3 +1302,6 @@ def _get_vmin_vmax(
             _vmax = vmax
 
     return _vmin, _vmax
+
+
+RasterModel = Raster

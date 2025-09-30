@@ -13,7 +13,7 @@ from shapely.geometry import Point
 
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -49,9 +49,9 @@ def raster_distance_from_polygon(
     *,
     raster_meta: RasterMeta,
     extent_polygon: Polygon | None = None,
-    snap_raster: RasterModel | None = None,
+    snap_raster: Raster | None = None,
     show_pbar: bool = False,
-) -> RasterModel:
+) -> Raster:
     """Make a raster where each cell's value is its centre's distance to a polygon.
 
     The raster should use a projected coordinate system.
@@ -116,7 +116,7 @@ def raster_distance_from_polygon(
     distances = np.where(mask, np.array([polygon.distance(pt) for pt in _pts]), np.nan)
     distance_raster = distances.reshape(x.shape)
 
-    return RasterModel(arr=distance_raster, raster_meta=raster_meta)
+    return Raster(arr=distance_raster, raster_meta=raster_meta)
 
 
 def _pbar(iterable: Iterable[_T], *, desc: str | None = None) -> Iterable[_T]:
@@ -130,11 +130,11 @@ def full_raster(
     *,
     bounds: tuple[float, float, float, float],
     fill_value: float = np.nan,
-) -> RasterModel:
+) -> Raster:
     """Create a raster with a specified fill value for all cells."""
     shape = get_point_grid_shape(bounds=bounds, cell_size=raster_meta.cell_size)
     arr = np.full(shape, fill_value, dtype=np.float32)
-    return RasterModel(arr=arr, raster_meta=raster_meta)
+    return Raster(arr=arr, raster_meta=raster_meta)
 
 
 def rasterize_gdf(
@@ -142,7 +142,7 @@ def rasterize_gdf(
     *,
     raster_meta: RasterMeta,
     target_cols: list[str],
-) -> list[RasterModel]:
+) -> list[Raster]:
     """Rasterize geometries from a GeoDataFrame.
 
     Supports polygons, points, linestrings, and other geometry types.
@@ -205,8 +205,8 @@ def rasterize_gdf(
             dtype=np.float32,
         )
 
-        # Create RasterModel
-        raster = RasterModel(arr=raster_array, raster_meta=raster_meta)
+        # Create Raster
+        raster = Raster(arr=raster_array, raster_meta=raster_meta)
         rasters.append(raster)
 
     return rasters
@@ -286,7 +286,7 @@ def raster_from_point_cloud(
     *,
     crs: CRS | str,
     cell_size: float | None = None,
-) -> RasterModel:
+) -> Raster:
     """Create a raster from a point cloud via interpolation.
 
     Interpolation is only possible within the convex hull of the points. Outside of
@@ -388,4 +388,4 @@ def raster_from_point_cloud(
         crs=crs,
         transform=transform,
     )
-    return RasterModel(arr=arr, raster_meta=raster_meta)
+    return Raster(arr=arr, raster_meta=raster_meta)

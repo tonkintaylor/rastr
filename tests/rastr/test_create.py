@@ -18,7 +18,7 @@ from rastr.create import (
     rasterize_gdf,
 )
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
 _PROJECTED_CRS = CRS.from_epsg(3857)
 _GEOGRAPHIC_CRS = CRS.from_epsg(4326)
@@ -143,7 +143,7 @@ class TestRasterDistanceFromPolygon:
             cell_size=1, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
         )
         # Non-none snap_raster for testing
-        snap_raster = RasterModel.example()
+        snap_raster = Raster.example()
         err_msg = re.escape(
             "Only one of 'extent_polygon' or 'snap_raster' can be provided."
         )
@@ -167,7 +167,7 @@ class TestRasterDistanceFromPolygon:
             raster_meta=raster_config,
             show_pbar=True,
         )
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
 
     def test_show_pbar_without_tqdm_warns(self, monkeypatch: pytest.MonkeyPatch):
         # Arrange
@@ -191,7 +191,7 @@ class TestRasterDistanceFromPolygon:
                 show_pbar=True,
             )
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
 
 
 class TestFullRaster:
@@ -201,7 +201,7 @@ class TestFullRaster:
         )
         bounds = (0, 0, 3, 3)
         result = full_raster(raster_meta, bounds=bounds)
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         assert result.raster_meta == raster_meta
         assert result.arr.shape == (3, 3)  # 3x3 grid for bounds (0,0) to (3,3)
 
@@ -231,7 +231,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         assert result[0].raster_meta == raster_meta
 
         # Check that values are correctly assigned
@@ -265,7 +265,7 @@ class TestRasterizeGdf:
         )
 
         assert len(result) == 2
-        assert all(isinstance(r, RasterModel) for r in result)
+        assert all(isinstance(r, Raster) for r in result)
         assert all(r.raster_meta == raster_meta for r in result)
 
     def test_empty_geodataframe(self):
@@ -406,7 +406,7 @@ class TestRasterizeGdf:
         # Should not raise an error since polygons only touch, don't overlap
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
 
     def test_gaps_become_nan(self):
         """Test that areas without polygons become NaN in the raster."""
@@ -547,7 +547,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         raster_array = result[0].arr
 
         # Points should be rasterized to their containing cells
@@ -579,7 +579,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         raster_array = result[0].arr
 
         # Lines should be rasterized across multiple cells
@@ -610,7 +610,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         raster_array = result[0].arr
 
         # All geometry types should be rasterized
@@ -699,7 +699,7 @@ class TestRasterFromPointCloud:
         raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
 
         # Assert
-        assert isinstance(raster, RasterModel)
+        assert isinstance(raster, Raster)
         assert raster.arr.shape == (2, 2)
         expected_array = np.array(
             [
@@ -720,7 +720,7 @@ class TestRasterFromPointCloud:
         raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
         # Assert
-        assert isinstance(raster, RasterModel)
+        assert isinstance(raster, Raster)
         assert raster.arr.shape == (2, 2)
 
     class TestLengthMismatch:
@@ -761,7 +761,7 @@ class TestRasterFromPointCloud:
         ).extrapolate()  # Fill NaNs at the edges
 
         # Assert
-        assert isinstance(raster, RasterModel)
+        assert isinstance(raster, Raster)
         assert raster.arr.shape == (20, 20)
         assert np.all(raster.arr >= 0)  # All values should be non-negative
         assert np.all(raster.arr <= 1000)  # All values should be within z range
@@ -832,7 +832,7 @@ class TestRasterFromPointCloud:
         raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
 
         # Assert
-        assert isinstance(raster, RasterModel)
+        assert isinstance(raster, Raster)
         assert raster.arr.shape == (2, 2)
 
     def test_xy_are_nan_warns(self):
@@ -851,7 +851,7 @@ class TestRasterFromPointCloud:
             raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
         # Assert
-        assert isinstance(raster, RasterModel)
+        assert isinstance(raster, Raster)
 
     def test_xy_are_infinite_warns(self):
         # Arrange
@@ -869,7 +869,7 @@ class TestRasterFromPointCloud:
             raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
         # Assert
-        assert isinstance(raster, RasterModel)
+        assert isinstance(raster, Raster)
 
     def test_z_is_nan(self):
         # This works fine, it just means any concave
@@ -884,7 +884,7 @@ class TestRasterFromPointCloud:
         raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
 
         # Assert
-        assert isinstance(raster, RasterModel)
+        assert isinstance(raster, Raster)
 
     def test_less_than_three_valid_points_due_to_nan(self):
         # We want a good error message if there are

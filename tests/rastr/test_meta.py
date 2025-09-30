@@ -4,7 +4,7 @@ from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 
-from rastr.raster import RasterMeta, RasterModel
+from rastr.raster import Raster, RasterMeta
 
 _NZTM_CRS = CRS.from_epsg(2193)
 
@@ -14,8 +14,8 @@ class TestRaster:
         """Test that Raster can be instantiated."""
         arr = np.array([[1, 2], [3, 4]])
         meta = RasterMeta(cell_size=1, crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
-        raster = RasterModel(arr=arr, raster_meta=meta)
-        assert isinstance(raster, RasterModel)
+        raster = Raster(arr=arr, raster_meta=meta)
+        assert isinstance(raster, Raster)
 
     def test_3d_fails(self):
         """Test that Raster cannot be instantiated with a 3D array."""
@@ -23,13 +23,13 @@ class TestRaster:
         meta = RasterMeta(cell_size=1, crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
 
         with pytest.raises(ValidationError):
-            RasterModel(arr=arr, raster_meta=meta)
+            Raster(arr=arr, raster_meta=meta)
 
     def test_2x2x1_fails(self):
         arr = np.array([[[0.23465047], [0.77642868]], [[0.92393235], [0.55804058]]])
         meta = RasterMeta(cell_size=1, crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
         with pytest.raises(ValidationError):
-            RasterModel(arr=arr, raster_meta=meta)
+            Raster(arr=arr, raster_meta=meta)
 
     class TestExample:
         def test_example(self):
@@ -42,13 +42,13 @@ class TestRaster:
             )
 
             # Act
-            example_meta = RasterModel(
+            example_meta = Raster(
                 arr=arr,
                 raster_meta=meta,
             )
 
             # Assert
-            assert isinstance(example_meta, RasterModel)
+            assert isinstance(example_meta, Raster)
 
     def test_get_cell_centre_coords(self):
         # Arrange

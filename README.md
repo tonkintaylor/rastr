@@ -41,10 +41,10 @@ from pyproj.crs.crs import CRS
 from rasterio.transform import from_origin
 from rastr.create import full_raster
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
 # Create an example raster
-raster = RasterModel.example()
+raster = Raster.example()
 
 # Basic arithmetic operations
 doubled = raster * 2

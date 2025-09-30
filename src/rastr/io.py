@@ -9,7 +9,7 @@ import rasterio.merge
 from pyproj.crs.crs import CRS
 
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 def read_raster_inmem(
     raster_path: Path | str, *, crs: CRS | str | None = None
-) -> RasterModel:
+) -> Raster:
     """Read raster data from a file and return an in-memory Raster object."""
     crs = CRS.from_user_input(crs) if crs is not None else None
 
@@ -35,13 +35,13 @@ def read_raster_inmem(
             arr[arr == nodata] = np.nan
 
     raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
-    raster_obj = RasterModel(arr=arr, raster_meta=raster_meta)
+    raster_obj = Raster(arr=arr, raster_meta=raster_meta)
     return raster_obj
 
 
 def read_raster_mosaic_inmem(
     mosaic_dir: Path | str, *, glob: str = "*.tif", crs: CRS | None = None
-) -> RasterModel:
+) -> Raster:
     """Read a raster mosaic from a directory and return an in-memory Raster object.
 
     This assumes that all rasters have the same metadata, e.g. coordinate system,
@@ -87,7 +87,7 @@ def read_raster_mosaic_inmem(
         arr = arr.squeeze().astype(np.float64)
 
         raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
-        raster_obj = RasterModel(arr=arr, raster_meta=raster_meta)
+        raster_obj = Raster(arr=arr, raster_meta=raster_meta)
         return raster_obj
     finally:
         for src in sources:

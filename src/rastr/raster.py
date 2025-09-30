@@ -859,15 +859,13 @@ class Raster(BaseModel):
 
         all_levels = []
         all_geoms = []
-        arr_max = np.nanmax(self.arr)
-        arr_min = np.nanmin(self.arr)
         for level in levels:
             # If this is the maximum or minimum level, perturb it ever-so-slightly to
             # ensure we get contours at the edges of the raster
             perturbed_level = level
-            if level == arr_max:
+            if level == self.max():
                 perturbed_level -= CONTOUR_PERTURB_EPS
-            elif level == arr_min:
+            elif level == self.min():
                 perturbed_level += CONTOUR_PERTURB_EPS
 
             contours = skimage.measure.find_contours(
@@ -1309,11 +1307,11 @@ def _get_vmin_vmax(
             category=RuntimeWarning,
         )
         if vmin is None:
-            _vmin = np.nanmin(raster.arr)
+            _vmin = raster.min()
         else:
             _vmin = vmin
         if vmax is None:
-            _vmax = np.nanmax(raster.arr)
+            _vmax = raster.max()
         else:
             _vmax = vmax
 

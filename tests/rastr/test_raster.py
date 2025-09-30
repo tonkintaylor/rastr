@@ -2029,10 +2029,10 @@ class TestResample:
         # Assert
         # With bilinear interpolation, we shouldn't have any extreme values
         # that are outside the range of the original data
-        original_min = np.min(small_raster.arr)
-        original_max = np.max(small_raster.arr)
-        resampled_min = np.nanmin(resampled.arr)
-        resampled_max = np.nanmax(resampled.arr)
+        original_min = small_raster.min()
+        original_max = small_raster.max()
+        resampled_min = resampled.min()
+        resampled_max = resampled.max()
 
         # Values should generally be within the original range
         # (allowing small numerical tolerances)
@@ -2400,12 +2400,8 @@ class TestNormalize:
 
         # Assert
         assert isinstance(normalized_raster, Raster)
-        np.testing.assert_array_equal(
-            np.nanmin(normalized_raster.arr), 0.0
-        )  # Min should be 0
-        np.testing.assert_array_equal(
-            np.nanmax(normalized_raster.arr), 1.0
-        )  # Max should be 1
+        np.testing.assert_array_equal(normalized_raster.min(), 0.0)  # Min should be 0
+        np.testing.assert_array_equal(normalized_raster.max(), 1.0)  # Max should be 1
         np.testing.assert_allclose(
             normalized_raster.arr,
             np.array([[0.0, 1 / 3], [2 / 3, 1.0]]),

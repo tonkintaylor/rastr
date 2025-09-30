@@ -60,7 +60,7 @@ def example_raster_with_zeros():
 
 
 @pytest.fixture
-def stats_test_raster() -> RasterModel:
+def stats_test_raster() -> Raster:
     meta = RasterMeta(
         cell_size=1.0,
         crs=CRS.from_epsg(2193),
@@ -68,11 +68,11 @@ def stats_test_raster() -> RasterModel:
     )
     # Create an array with known statistics
     arr = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
-    return RasterModel(arr=arr, raster_meta=meta)
+    return Raster(arr=arr, raster_meta=meta)
 
 
 @pytest.fixture
-def stats_test_raster_with_nans() -> RasterModel:
+def stats_test_raster_with_nans() -> Raster:
     meta = RasterMeta(
         cell_size=1.0,
         crs=CRS.from_epsg(2193),
@@ -80,7 +80,7 @@ def stats_test_raster_with_nans() -> RasterModel:
     )
     # Create an array with NaNs to test nan-aware functions
     arr = np.array([[1.0, 2.0, np.nan], [4.0, np.nan, 6.0], [7.0, 8.0, 9.0]])
-    return RasterModel(arr=arr, raster_meta=meta)
+    return Raster(arr=arr, raster_meta=meta)
 
 
 class TestRaster:
@@ -2330,7 +2330,7 @@ class TestExplore:
 
 
 class TestRasterStatistics:
-    """Test the statistical methods of the RasterModel class."""
+    """Test the statistical methods of the Raster class."""
 
     @pytest.mark.parametrize(
         ("method_name", "expected_result", "expected_result_with_nans"),
@@ -2354,8 +2354,8 @@ class TestRasterStatistics:
     )
     def test_basic_statistics(
         self,
-        stats_test_raster: RasterModel,
-        stats_test_raster_with_nans: RasterModel,
+        stats_test_raster: Raster,
+        stats_test_raster_with_nans: Raster,
         method_name: str,
         expected_result: float,
         expected_result_with_nans: float,
@@ -2380,8 +2380,8 @@ class TestRasterStatistics:
     )
     def test_quantile(
         self,
-        stats_test_raster: RasterModel,
-        stats_test_raster_with_nans: RasterModel,
+        stats_test_raster: Raster,
+        stats_test_raster_with_nans: Raster,
         quantile: float,
         expected_result: float,
         expected_result_with_nans: float,

@@ -3,22 +3,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 from unittest.mock import patch
 
-import folium
-import folium.raster_layers
-import geopandas as gpd
 import numpy as np
 import pytest
 from affine import Affine
-from branca.colormap import LinearColormap
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
+from shapely import MultiPolygon, box
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
 
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import folium
 
 
 @pytest.fixture
@@ -30,7 +29,7 @@ def example_raster():
     )
     arr = np.array([[1, 2], [3, 4]], dtype=float)
 
-    return RasterModel(arr=arr, raster_meta=meta)
+    return Raster(arr=arr, raster_meta=meta)
 
 
 @pytest.fixture
@@ -42,7 +41,7 @@ def example_neg_scaled_raster():
     )
     arr = np.array([[1, 2], [3, 4]])
 
-    return RasterModel(arr=arr, raster_meta=meta)
+    return Raster(arr=arr, raster_meta=meta)
 
 
 @pytest.fixture
@@ -54,42 +53,66 @@ def example_raster_with_zeros():
     )
     arr = np.array([[1, 0], [0, 4]], dtype=float)
 
-    return RasterModel(
+    return Raster(
         arr=arr,
         raster_meta=meta,
     )
 
 
-class TestRasterModel:
+@pytest.fixture
+def stats_test_raster() -> Raster:
+    meta = RasterMeta(
+        cell_size=1.0,
+        crs=CRS.from_epsg(2193),
+        transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+    )
+    # Create an array with known statistics
+    arr = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+    return Raster(arr=arr, raster_meta=meta)
+
+
+@pytest.fixture
+def stats_test_raster_with_nans() -> Raster:
+    meta = RasterMeta(
+        cell_size=1.0,
+        crs=CRS.from_epsg(2193),
+        transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+    )
+    # Create an array with NaNs to test nan-aware functions
+    arr = np.array([[1.0, 2.0, np.nan], [4.0, np.nan, 6.0], [7.0, 8.0, 9.0]])
+    return Raster(arr=arr, raster_meta=meta)
+
+
+class TestRaster:
     class TestInit:
-        def test_meta_and_arr(self, example_raster: RasterModel):
+        def test_meta_and_arr(self, example_raster: Raster):
             # Act, Assert
-            RasterModel(
+            Raster(
                 arr=example_raster.arr,
                 meta=example_raster.raster_meta,
             )
 
-        def test_both_meta_and_raster_meta(self, example_raster: RasterModel):
+        def test_both_meta_and_raster_meta(self, example_raster: Raster):
             # Act, Assert
             with pytest.raises(
                 ValueError,
                 match="Only one of 'meta' or 'raster_meta' should be provided",
             ):
-                RasterModel(
+                Raster(
                     arr=example_raster.arr,
                     meta=example_raster.raster_meta,
                     raster_meta=example_raster.raster_meta,
                 )
 
-        def test_missing_meta(self, example_raster: RasterModel):
+        def test_missing_meta(self, example_raster: Raster):
             # Act, Assert
             with pytest.raises(
-                ValueError, match="The attribute 'raster_meta' is required."
+                ValueError, match=r"The attribute 'raster_meta' is required\."
             ):
-                RasterModel(arr=example_raster.arr)
+                Raster(arr=example_raster.arr)
 
     class TestMetaAlias:
-        def test_meta_getter(self, example_raster: RasterModel):
+        def test_meta_getter(self, example_raster: Raster):
             # Act
             meta_via_alias = example_raster.meta
             meta_direct = example_raster.raster_meta
@@ -98,7 +121,7 @@ class TestRasterModel:
             assert meta_via_alias is meta_direct
             assert meta_via_alias == meta_direct
 
-        def test_meta_setter(self, example_raster: RasterModel):
+        def test_meta_setter(self, example_raster: Raster):
             # Arrange
             example_raster = example_raster.model_copy(deep=True)
             new_meta = RasterMeta(
@@ -116,8 +139,68 @@ class TestRasterModel:
             assert example_raster.meta is new_meta
             assert example_raster.raster_meta != original_meta
 
+    class TestIsLike:
+        def test_identical_rasters_are_like(self, example_raster: Raster):
+            """Test that a raster is like itself."""
+            # Act & Assert
+            assert example_raster.is_like(example_raster)
+
+        def test_same_meta_and_shape_are_like(self, example_raster: Raster):
+            """Test rasters with same meta and shape but different data are like."""
+            # Arrange
+            different_arr = np.array([[5, 6], [7, 8]], dtype=float)
+            other_raster = Raster(
+                arr=different_arr, raster_meta=example_raster.raster_meta
+            )
+
+            # Act & Assert
+            assert example_raster.is_like(other_raster)
+            assert other_raster.is_like(example_raster)
+
+        def test_different_meta_not_like(self, example_raster: Raster):
+            """Test that rasters with different meta are not like."""
+            # Arrange
+            different_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
+            )
+            other_raster = Raster(arr=example_raster.arr, raster_meta=different_meta)
+
+            # Act & Assert
+            assert not example_raster.is_like(other_raster)
+            assert not other_raster.is_like(example_raster)
+
+        def test_different_shape_not_like(self, example_raster: Raster):
+            """Test that rasters with different shapes are not like."""
+            # Arrange
+            # 2x3 instead of 2x2
+            different_arr = np.array([[1, 2, 3], [4, 5, 6]], dtype=float)
+            other_raster = Raster(
+                arr=different_arr, raster_meta=example_raster.raster_meta
+            )
+
+            # Act & Assert
+            assert not example_raster.is_like(other_raster)
+            assert not other_raster.is_like(example_raster)
+
+        def test_different_meta_and_shape_not_like(self, example_raster: Raster):
+            """Test rasters with both different meta and shape are not like."""
+            # Arrange
+            different_meta = RasterMeta(
+                cell_size=3.0,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(2.0, 0.0, 10.0, 0.0, 2.0, 20.0),
+            )
+            different_arr = np.array([[1]], dtype=float)  # 1x1 instead of 2x2
+            other_raster = Raster(arr=different_arr, raster_meta=different_meta)
+
+            # Act & Assert
+            assert not example_raster.is_like(other_raster)
+            assert not other_raster.is_like(example_raster)
+
     class TestShape:
-        def test_shape_property(self, example_raster: RasterModel):
+        def test_shape_property(self, example_raster: Raster):
             # Act
             shape = example_raster.shape
 
@@ -126,7 +209,7 @@ class TestRasterModel:
             assert shape == example_raster.arr.shape
 
     class TestCRS:
-        def test_crs_getter(self, example_raster: RasterModel):
+        def test_crs_getter(self, example_raster: Raster):
             # Act
             crs_via_property = example_raster.crs
             crs_via_meta = example_raster.meta.crs
@@ -139,7 +222,7 @@ class TestRasterModel:
             assert crs_via_property == crs_via_raster_meta
             assert isinstance(crs_via_property, CRS)
 
-        def test_crs_setter(self, example_raster: RasterModel):
+        def test_crs_setter(self, example_raster: Raster):
             # Arrange
             new_crs = CRS.from_epsg(4326)
             original_crs = example_raster.crs
@@ -153,14 +236,42 @@ class TestRasterModel:
             assert example_raster.raster_meta.crs is new_crs
             assert example_raster.crs != original_crs
 
+    class TestTransform:
+        def test_transform_getter(self, example_raster: Raster):
+            # Act
+            transform_via_property = example_raster.transform
+            transform_via_meta = example_raster.meta.transform
+            transform_via_raster_meta = example_raster.raster_meta.transform
+
+            # Assert
+            assert transform_via_property is transform_via_meta
+            assert transform_via_property is transform_via_raster_meta
+            assert transform_via_property == transform_via_meta
+            assert transform_via_property == transform_via_raster_meta
+            assert isinstance(transform_via_property, Affine)
+
+        def test_transform_setter(self, example_raster: Raster):
+            # Arrange
+            new_transform = Affine.scale(3.0, 3.0) * Affine.translation(10.0, 20.0)
+            original_transform = example_raster.transform
+
+            # Act
+            example_raster.transform = new_transform
+
+            # Assert
+            assert example_raster.transform is new_transform
+            assert example_raster.meta.transform is new_transform
+            assert example_raster.raster_meta.transform is new_transform
+            assert example_raster.transform != original_transform
+
     class TestSample:
-        def test_sample_nan_raise(self, example_raster: RasterModel):
+        def test_sample_nan_raise(self, example_raster: Raster):
             with pytest.raises(
                 ValueError, match="NaN value found in input coordinates"
             ):
                 example_raster.sample([(0, 0), (1, np.nan)], na_action="raise")
 
-        def test_sample_nan_ignore(self, example_raster: RasterModel):
+        def test_sample_nan_ignore(self, example_raster: Raster):
             np.testing.assert_array_equal(
                 example_raster.sample(
                     [(0, 0), (2, 2), (2, np.nan)], na_action="ignore"
@@ -168,7 +279,7 @@ class TestRasterModel:
                 [1.0, 4, np.nan],
             )
 
-        def test_oob_query(self, example_raster: RasterModel):
+        def test_oob_query(self, example_raster: Raster):
             result = example_raster.sample([(-99.0, 92640.20)], na_action="raise")
             np.testing.assert_array_equal(result, np.array([np.nan]))
 
@@ -183,7 +294,7 @@ class TestRasterModel:
 
         def test_short_circuit(self):
             # Arrange
-            raster = RasterModel(
+            raster = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=RasterMeta(
                     cell_size=1.0,
@@ -198,7 +309,7 @@ class TestRasterModel:
             # Assert
             assert len(result) == 0
 
-        def test_ndarray_input(self, example_raster: RasterModel):
+        def test_ndarray_input(self, example_raster: Raster):
             # Arrange
             coords = np.array([[0, 0], [1, 1]])
 
@@ -208,7 +319,7 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(result, np.array([1.0, 1.0]))
 
-        def test_shapely_points_input(self, example_raster: RasterModel):
+        def test_shapely_points_input(self, example_raster: Raster):
             # Arrange
             points = [Point(0, 0), Point(2, 2)]
 
@@ -218,15 +329,37 @@ class TestRasterModel:
             # Assert
             np.testing.assert_array_equal(result, np.array([1.0, 4.0]))
 
+        def test_single_shapely_point_input(self, example_raster: Raster):
+            # Arrange
+            point = Point(0, 0)
+
+            # Act
+            result = example_raster.sample(point, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array(1.0), strict=True)
+
+        def test_single_tuple_input(self, example_raster: Raster):
+            # Arrange
+            coord = (0, 0)
+
+            # Act
+            result = example_raster.sample(coord, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array(1.0), strict=True)
+
     class TestBounds:
-        def test_bounds(self, example_raster: RasterModel):
+        def test_bounds(self, example_raster: Raster):
             assert example_raster.bounds == (0.0, 0.0, 4.0, 4.0)
 
-        def test_bounds_neg_scaled(self, example_neg_scaled_raster: RasterModel):
+        def test_bounds_neg_scaled(self, example_neg_scaled_raster: Raster):
             assert example_neg_scaled_raster.bounds == (0.0, -4.0, 4.0, 0.0)
 
     class TestAsGeoDataFrame:
-        def test_as_geodataframe(self, example_raster: RasterModel):
+        def test_as_geodataframe(self, example_raster: Raster):
+            import geopandas as gpd
+
             raster_gdf = example_raster.as_geodataframe(name="ben")
 
             expected_polygons = {
@@ -261,12 +394,12 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
 
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6], [7, 8]]),
                 raster_meta=raster_meta,
             )
@@ -279,7 +412,7 @@ class TestRasterModel:
 
         def test_add_subclass_return_type(self):
             # Arrange
-            class MyRaster(RasterModel):
+            class MyRaster(Raster):
                 pass
 
             raster_meta = RasterMeta(
@@ -309,7 +442,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta1,
             )
@@ -319,7 +452,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6], [7, 8]]),
                 raster_meta=raster_meta2,
             )
@@ -335,7 +468,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
@@ -353,12 +486,12 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
 
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6]]),
                 raster_meta=raster_meta,
             )
@@ -374,7 +507,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster = RasterModel(
+            raster = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
@@ -391,12 +524,12 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
 
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6], [7, 8]]),
                 raster_meta=raster_meta,
             )
@@ -414,7 +547,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta1,
             )
@@ -424,7 +557,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6], [7, 8]]),
                 raster_meta=raster_meta2,
             )
@@ -440,7 +573,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
@@ -458,12 +591,12 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
 
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6]]),
                 raster_meta=raster_meta,
             )
@@ -479,7 +612,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster = RasterModel(
+            raster = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
@@ -496,12 +629,12 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
 
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6], [7, 8]]),
                 raster_meta=raster_meta,
             )
@@ -521,7 +654,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta1,
             )
@@ -531,7 +664,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6], [7, 8]]),
                 raster_meta=raster_meta2,
             )
@@ -547,7 +680,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
@@ -565,12 +698,12 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
 
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6]]),
                 raster_meta=raster_meta,
             )
@@ -586,7 +719,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster = RasterModel(
+            raster = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
@@ -603,12 +736,12 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
 
-            raster2 = RasterModel(
+            raster2 = Raster(
                 arr=np.array([[5, 6], [7, 8]]),
                 raster_meta=raster_meta,
             )
@@ -626,7 +759,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
-            raster1 = RasterModel(
+            raster1 = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=raster_meta,
             )
@@ -638,7 +771,7 @@ class TestRasterModel:
             np.testing.assert_array_equal(result.arr, np.array([[0, -1], [-2, -3]]))
 
     class TestApply:
-        def test_sine(self, example_raster: RasterModel):
+        def test_sine(self, example_raster: Raster):
             # Act
             result = example_raster.apply(np.sin)
 
@@ -646,7 +779,7 @@ class TestRasterModel:
             np.testing.assert_array_equal(result.arr, np.sin(example_raster.arr))
 
     class TestToFile:
-        def test_saving_gtiff(self, tmp_path: Path, example_raster: RasterModel):
+        def test_saving_gtiff(self, tmp_path: Path, example_raster: Raster):
             # Arrange
             filename = tmp_path / "test_raster.tif"
 
@@ -656,7 +789,7 @@ class TestRasterModel:
             # Assert
             assert filename.exists()
 
-        def test_saving_grd_file(self, tmp_path: Path, example_raster: RasterModel):
+        def test_saving_grd_file(self, tmp_path: Path, example_raster: Raster):
             # Arrange
             filename = tmp_path / "test_raster.grd"
 
@@ -666,7 +799,7 @@ class TestRasterModel:
             # Assert
             assert filename.exists()
 
-        def test_string_as_path(self, tmp_path: Path, example_raster: RasterModel):
+        def test_string_as_path(self, tmp_path: Path, example_raster: Raster):
             # Arrange
             filename = tmp_path / "test_raster.tif"
 
@@ -677,12 +810,13 @@ class TestRasterModel:
             assert filename.exists()
 
     class TestPlot:
-        def test_cell_array_unchanged(self, example_raster_with_zeros: RasterModel):
+        def test_cell_array_unchanged(self, example_raster_with_zeros: Raster):
             # Arrange
             original_array = example_raster_with_zeros.arr.copy()
 
             # Act
-            example_raster_with_zeros.plot()
+            # Suppression will modify a raster copy internally, but not the original
+            example_raster_with_zeros.plot(suppressed=0)
 
             # Assert
             np.testing.assert_array_equal(example_raster_with_zeros.arr, original_array)
@@ -695,7 +829,7 @@ class TestRasterModel:
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
             )
-            raster = RasterModel(arr=arr, raster_meta=meta)
+            raster = Raster(arr=arr, raster_meta=meta)
 
             # Simulate matplotlib not installed
             monkeypatch.setattr(
@@ -703,21 +837,102 @@ class TestRasterModel:
             )
 
             # Act / Assert
-            with pytest.raises(ImportError, match="matplotlib.*required"):
+            with pytest.raises(ImportError, match=r"matplotlib.*required"):
                 raster.plot()
+
+        def test_suppress_zeros(self):
+            # Arrange
+            raster = Raster.example()
+            raster.arr[raster.arr < 0.1] = 0
+
+            # Act, Assert - just checking it runs without error
+            raster.plot(suppressed=0)
+
+        def test_suppress_multiple(self):
+            # Arrange
+            raster = Raster.example()
+            raster.arr[raster.arr < 0.1] = 0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            # Act, Assert - just checking it runs without error
+            raster.plot(suppressed=[0, 0.2])
+
+        def test_suppress_mocked(self):
+            """Check suppressed values don't get passed to rasterio.plot.show"""
+            # Arrange
+            raster = Raster.example()
+            raster.arr[raster.arr < 0.1] = 0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            with patch("rastr.raster.Raster.rio_show", autospec=True) as mock_show:
+                mock_show.return_value = [None]
+
+                # Act
+                raster.plot(suppressed=[0.0, 0.2])
+
+                # Assert
+                args, _kwargs = mock_show.call_args
+                model = args[0]
+                assert np.all(~np.isin(model.arr, [0.0, 0.2]))
+
+        def test_no_suppress_mocked(self):
+            """Check non-suppressed values do get passed to rasterio.plot.show"""
+            # Arrange
+            raster = Raster.example()
+            raster.arr[raster.arr < 0.1] = 0.0
+            raster.arr[raster.arr > 0.2] = 0.2
+
+            with patch("rastr.raster.Raster.rio_show", autospec=True) as mock_show:
+                mock_show.return_value = [None]
+
+                # Act
+                raster.plot()
+
+                # Assert
+                args, _kwargs = mock_show.call_args
+                model = args[0]
+                assert np.any(np.isin(model.arr, [0.0, 0.2]))
+
+        def test_plot_with_alpha_kwargs(self, example_raster_with_zeros: Raster):
+            import matplotlib.pyplot as plt
+
+            # Arrange
+            fig, ax = plt.subplots()
+
+            # Act
+            ax = example_raster_with_zeros.plot(alpha=0.5, ax=ax)
+
+            # Assert
+            assert ax is not None
+            plt.close(fig)
+
+        def test_plot_with_additional_kwargs(self, example_raster_with_zeros: Raster):
+            import matplotlib.pyplot as plt
+
+            # Arrange
+            fig, ax = plt.subplots()
+
+            # Act - passing a rasterio.plot.show parameter that should be accepted
+            ax = example_raster_with_zeros.plot(
+                alpha=0.7, interpolation="bilinear", ax=ax
+            )
+
+            # Assert
+            assert ax is not None
+            plt.close(fig)
 
     class TestExample:
         def test_example(self):
             # Act
-            raster = RasterModel.example()
+            raster = Raster.example()
 
             # Assert
-            assert isinstance(raster, RasterModel)
+            assert isinstance(raster, Raster)
 
     class TestFillNA:
         def test_2by2_example(self):
             # Arrange
-            raster = RasterModel(
+            raster = Raster(
                 arr=np.array([[1, float("nan")], [np.nan, 4]]),
                 raster_meta=RasterMeta(
                     cell_size=1.0,
@@ -733,7 +948,7 @@ class TestRasterModel:
             np.testing.assert_array_equal(filled_raster.arr, np.array([[1, 0], [0, 4]]))
 
     class TestGetXY:
-        def test_get_xy(self, example_raster: RasterModel):
+        def test_get_xy(self, example_raster: Raster):
             # Act
             x, y = example_raster.get_xy()
 
@@ -745,12 +960,12 @@ class TestRasterModel:
             np.testing.assert_array_equal(y, expected_y)
 
     class TestBlur:
-        def test_numeric_propertoes(self, example_raster: RasterModel):
+        def test_numeric_propertoes(self, example_raster: Raster):
             # Act
             blurred_raster = example_raster.blur(sigma=1.0)
 
             # Assert
-            assert isinstance(blurred_raster, RasterModel)
+            assert isinstance(blurred_raster, Raster)
 
             # Standard deviation
             original_std = np.std(example_raster.arr)
@@ -771,17 +986,17 @@ class TestRasterModel:
 
     class TestExtrapolate:
         class TestNearest:
-            def test_no_nas_stays_the_same(self, example_raster: RasterModel):
+            def test_no_nas_stays_the_same(self, example_raster: Raster):
                 # Act
                 extrapolated_raster = example_raster.extrapolate(method="nearest")
 
                 # Assert
-                assert isinstance(extrapolated_raster, RasterModel)
+                assert isinstance(extrapolated_raster, Raster)
                 np.testing.assert_array_equal(
                     extrapolated_raster.arr, example_raster.arr
                 )
 
-            def test_fillna(self, example_raster: RasterModel):
+            def test_fillna(self, example_raster: Raster):
                 # Arrange
                 raster_with_nas = example_raster
                 raster_with_nas.arr[0, 0] = np.nan
@@ -790,7 +1005,7 @@ class TestRasterModel:
                 extrapolated_raster = raster_with_nas.extrapolate(method="nearest")
 
                 # Assert
-                assert isinstance(extrapolated_raster, RasterModel)
+                assert isinstance(extrapolated_raster, Raster)
                 np.testing.assert_array_equal(
                     extrapolated_raster.arr,
                     np.array(
@@ -800,7 +1015,7 @@ class TestRasterModel:
 
             def test_start_with_all_na(self):
                 # Arrange
-                raster = RasterModel(
+                raster = Raster(
                     arr=np.array([[np.nan, np.nan], [np.nan, np.nan]]),
                     raster_meta=RasterMeta(
                         cell_size=1.0,
@@ -813,7 +1028,7 @@ class TestRasterModel:
                 extrapolated_raster = raster.extrapolate(method="nearest")
 
                 # Assert
-                assert isinstance(extrapolated_raster, RasterModel)
+                assert isinstance(extrapolated_raster, Raster)
                 np.testing.assert_array_equal(
                     extrapolated_raster.arr,
                     np.array(
@@ -823,8 +1038,10 @@ class TestRasterModel:
 
     class TestContour:
         def test_contour_with_list_levels(self):
+            import geopandas as gpd
+
             # Arrange
-            raster = RasterModel.example()
+            raster = Raster.example()
             levels = [0.0, 0.5]
 
             # Act
@@ -836,8 +1053,10 @@ class TestRasterModel:
             assert len(contour_gdf) >= 0  # Should return some contours or empty GDF
 
         def test_contour_with_ndarray_levels(self):
+            import geopandas as gpd
+
             # Arrange
-            raster = RasterModel.example()
+            raster = Raster.example()
             levels = np.array([0.0, 0.5])
 
             # Act
@@ -850,7 +1069,7 @@ class TestRasterModel:
 
         def test_contour_list_and_ndarray_equivalent(self):
             # Arrange
-            raster = RasterModel.example()
+            raster = Raster.example()
             levels_list = [0.0, 0.5]
             levels_array = np.array([0.0, 0.5])
 
@@ -865,14 +1084,16 @@ class TestRasterModel:
 
         def test_contour_positional_levels(self):
             # Arrange
-            raster = RasterModel.example()
+            raster = Raster.example()
             levels = [0.0, 0.5]
 
             # Act - should pass without error when using positional levels arg
             contour_gdf = raster.contour(levels)  # noqa: F841
 
         def test_contour_returns_gdf_with_correct_columns(self):
-            raster = RasterModel.example()
+            import geopandas as gpd
+
+            raster = Raster.example()
             gdf = raster.contour(levels=[0.0, 0.5])
 
             assert isinstance(gdf, gpd.GeoDataFrame)
@@ -881,7 +1102,7 @@ class TestRasterModel:
             assert "geometry" in gdf.columns
 
         def test_contour_levels_in_result(self):
-            raster = RasterModel.example()
+            raster = Raster.example()
             levels = [0.0, 0.5]
             gdf = raster.contour(levels=levels)
 
@@ -890,7 +1111,7 @@ class TestRasterModel:
             assert result_levels == expected_levels
 
         def test_contour_dissolve_behavior_one_row_per_level(self):
-            raster = RasterModel.example()
+            raster = Raster.example()
             levels = [0.0, 0.5]
             gdf = raster.contour(levels=levels)
 
@@ -905,18 +1126,48 @@ class TestRasterModel:
                 )  # Can be either depending on dissolve result
 
         def test_contour_with_smoothing(self):
-            raster = RasterModel.example()
+            raster = Raster.example()
             gdf = raster.contour(levels=[0.0], smoothing=True)
 
             assert len(gdf) > 0
             assert all(gdf["level"] == 0.0)
 
         def test_contour_without_smoothing(self):
-            raster = RasterModel.example()
+            raster = Raster.example()
             gdf = raster.contour(levels=[0.0], smoothing=False)
 
             assert len(gdf) > 0
             assert all(gdf["level"] == 0.0)
+
+        def test_level_at_max(self):
+            # https://github.com/tonkintaylor/rastr/issues/154
+
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 4, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2]]),
+                meta=RasterMeta.example(),
+            )
+
+            # Act
+            gdf = raster.contour(levels=[4])
+
+            # Assert
+            assert len(gdf) > 0
+            assert set(gdf["level"]) == {4.0}
+
+        def test_level_at_min(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 4, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2], [1, 2, 4, 2]]),
+                meta=RasterMeta.example(),
+            )
+
+            # Act
+            gdf = raster.contour(levels=[1])
+
+            # Assert
+            assert len(gdf) > 0
+            assert set(gdf["level"]) == {1.0}
 
 
 @pytest.fixture
@@ -928,7 +1179,7 @@ def base_raster():
     )
     # Create a 4x4 raster with values 1-16
     arr = np.arange(1, 17, dtype=float).reshape(4, 4)
-    return RasterModel(arr=arr, raster_meta=meta)
+    return Raster(arr=arr, raster_meta=meta)
 
 
 @pytest.fixture
@@ -939,11 +1190,11 @@ def small_raster():
         transform=Affine(5.0, 0.0, 0.0, 0.0, -5.0, 10.0),
     )
     arr = np.array([[1.0, 2.0], [3.0, 4.0]])
-    return RasterModel(arr=arr, raster_meta=meta)
+    return Raster(arr=arr, raster_meta=meta)
 
 
 class TestCrop:
-    def test_fully_within_bbox_base(self, base_raster: RasterModel):
+    def test_fully_within_bbox_base(self, base_raster: Raster):
         # Arrange
         bounds = base_raster.bounds
 
@@ -953,7 +1204,7 @@ class TestCrop:
         # Assert
         assert cropped == base_raster
 
-    def test_fully_within_bbox_small(self, small_raster: RasterModel):
+    def test_fully_within_bbox_small(self, small_raster: Raster):
         # Arrange
         bounds = small_raster.bounds
 
@@ -963,7 +1214,7 @@ class TestCrop:
         # Assert
         assert cropped == small_raster
 
-    def test_crop_y_only(self, base_raster: RasterModel):
+    def test_crop_y_only(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -980,7 +1231,7 @@ class TestCrop:
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
 
-    def test_crop_x_only(self, base_raster: RasterModel):
+    def test_crop_x_only(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -997,7 +1248,7 @@ class TestCrop:
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
 
-    def test_underflow_crops_border_cells(self, base_raster: RasterModel):
+    def test_underflow_crops_border_cells(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -1016,7 +1267,7 @@ class TestCrop:
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
 
-    def test_overflow_doesnt_crop(self, base_raster: RasterModel):
+    def test_overflow_doesnt_crop(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         shift = base_raster.raster_meta.cell_size / 10  # Some cells overlap bounds
@@ -1030,7 +1281,7 @@ class TestCrop:
 
     @pytest.mark.parametrize("strategy", ["overflow", "underflow"])
     def test_boundary_case(
-        self, base_raster: RasterModel, strategy: Literal["overflow", "underflow"]
+        self, base_raster: Raster, strategy: Literal["overflow", "underflow"]
     ):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
@@ -1049,7 +1300,7 @@ class TestCrop:
         assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
 
-    def test_overflow_crops(self, base_raster: RasterModel):
+    def test_overflow_crops(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         bounds = (minx + 11, miny + 11, maxx - 11, maxy - 11)
@@ -1071,12 +1322,12 @@ class TestCrop:
         ids=["out_of_bounds", "fully_clipped_x"],
     )
     def test_no_contained_data_raises(
-        self, base_raster: RasterModel, bounds: tuple[float, float, float, float]
+        self, base_raster: Raster, bounds: tuple[float, float, float, float]
     ):
         # Arrange, Act & Assert
         with pytest.raises(
             ValueError,
-            match="Cropped array is empty; no cells within the specified bounds.",
+            match=r"Cropped array is empty; no cells within the specified bounds\.",
         ):
             base_raster.crop(bounds)
 
@@ -1100,7 +1351,7 @@ class TestCrop:
             ],
             dtype=float,
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
 
         # Act: Crop to select middle 3 columns (keeping all rows)
         bounds = (1.0, 0.0, 4.0, 3.0)  # Should select columns at x=1.5, 2.5, 3.5
@@ -1120,19 +1371,573 @@ class TestCrop:
         assert cropped.arr.shape == expected_shape
         np.testing.assert_array_equal(cropped.arr, expected_array)
 
-    def test_unsupported_crop_strategy(self, base_raster: RasterModel):
+    def test_unsupported_crop_strategy(self, base_raster: Raster):
         # Arrange
         bounds = base_raster.bounds
 
         # Act & Assert
         with pytest.raises(
-            NotImplementedError, match="Unsupported cropping strategy: invalid_strategy"
+            NotImplementedError,
+            match="Unsupported cropping strategy: invalid_strategy",
         ):
             base_raster.crop(bounds, strategy="invalid_strategy")  # type: ignore[reportArgumentType]
 
+    def test_strategy_is_keyword_only(self, base_raster: Raster):
+        # Arrange
+        bounds = base_raster.bounds
+
+        # Act & Assert
+        with pytest.raises(TypeError):
+            base_raster.crop(bounds, "overflow")  # type: ignore[reportCallIssue]
+
+
+class TestPad:
+    def test_example(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array(
+                [
+                    [1, 2, 3, 4, 5],
+                    [6, 7, 8, 9, 10],
+                    [11, 12, 13, 14, 15],
+                    [16, 17, 18, 19, 20],
+                    [21, 22, 23, 24, 25],
+                ],
+                dtype=float,
+            ),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        width = 2.0  # 2 units in CRS coordinates
+        padded = raster.pad(width=width)
+
+        # Assert
+        assert isinstance(padded, Raster)
+        # Should pad by 1 cell on each side (2.0 / 2.0 = 1.0, ceil(1.0) = 1)
+        assert padded.arr.shape == (7, 7)  # 5x5 + 2 padding on each side
+
+        # Check that original data is in the center
+        np.testing.assert_array_equal(padded.arr[1:6, 1:6], raster.arr)
+
+        # Check that padding is NaN by default
+        assert np.isnan(padded.arr[0, :]).all()  # Top row
+        assert np.isnan(padded.arr[-1, :]).all()  # Bottom row
+        assert np.isnan(padded.arr[:, 0]).all()  # Left column
+        assert np.isnan(padded.arr[:, -1]).all()  # Right column
+
+    def test_pad_with_custom_value(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        width = 2.0  # Same as cell size, so 1 cell padding
+        fill_value = -999.0
+        padded = raster.pad(width=width, value=fill_value)
+
+        # Assert
+        assert padded.arr.shape == (4, 4)  # 2x2 + 2 padding on each side
+
+        # Check that padding uses custom value
+        assert (padded.arr[0, :] == fill_value).all()  # Top row
+        assert (padded.arr[-1, :] == fill_value).all()  # Bottom row
+        assert (padded.arr[:, 0] == fill_value).all()  # Left column
+        assert (padded.arr[:, -1] == fill_value).all()  # Right column
+
+        # Check original data is preserved
+        np.testing.assert_array_equal(padded.arr[1:3, 1:3], raster.arr)
+
+    def test_pad_fractional_width(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act - use fractional width that should still result in 1 cell padding
+        width = 1.5  # Less than cell size (2.0), but ceil(1.5/2.0) = ceil(0.75) = 1
+        padded = raster.pad(width=width)
+
+        # Assert
+        assert padded.arr.shape == (4, 4)  # Still 1 cell padding on each side
+
+    def test_pad_preserves_metadata(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        padded = raster.pad(width=4.0)  # 2 cells padding
+
+        # Assert
+        assert padded.raster_meta.cell_size == raster.raster_meta.cell_size
+        assert padded.raster_meta.crs == raster.raster_meta.crs
+
+        # Check bounds are expanded correctly
+        orig_xmin, orig_ymin, orig_xmax, orig_ymax = raster.bounds
+        new_xmin, new_ymin, new_xmax, new_ymax = padded.bounds
+
+        expected_padding = 4.0  # 2 cells * 2.0 cell_size
+        assert new_xmin == pytest.approx(orig_xmin - expected_padding)
+        assert new_ymin == pytest.approx(orig_ymin - expected_padding)
+        assert new_xmax == pytest.approx(orig_xmax + expected_padding)
+        assert new_ymax == pytest.approx(orig_ymax + expected_padding)
+
+    def test_pad_zero_width(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        padded = raster.pad(width=0.0)
+
+        # Assert - should be unchanged when width is 0
+        assert padded.arr.shape == raster.arr.shape
+        np.testing.assert_array_equal(padded.arr, raster.arr)
+
+
+class TestTaperBorder:
+    def test_example(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array(
+                [
+                    [1, 2, 3, 4, 5],
+                    [6, 7, 8, 9, 10],
+                    [11, 12, 13, 14, 15],
+                    [16, 17, 18, 19, 20],
+                    [21, 22, 23, 24, 25],
+                ],
+                dtype=float,
+            ),
+            raster_meta=RasterMeta.example(),
+        )
+
+        # Act
+        w = 2.5
+        s = raster.raster_meta.cell_size
+        f = w / s
+        softened = raster.taper_border(width=w)
+
+        # Assert
+        assert isinstance(softened, Raster)
+        np.testing.assert_allclose(
+            softened.arr,
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 7 / f, 8 / f, 9 / f, 0],
+                    [0, 12 / f, 13, 14 / f, 0],
+                    [0, 17 / f, 18 / f, 19 / f, 0],
+                    [0, 0, 0, 0, 0],
+                ],
+            ),
+        )
+
+    def test_nonzero_limits(self):
+        # Arrange
+        raster = Raster.example()
+
+        # Act
+        softened = raster.taper_border(width=15.0, limit=20.0)
+
+        # Assert
+        assert isinstance(softened, Raster)
+        # Check that values around the edges equal the limit
+        assert np.all(softened.arr[0, :] == 20.0)
+        assert np.all(softened.arr[-1, :] == 20.0)
+        assert np.all(softened.arr[:, 0] == 20.0)
+        assert np.all(softened.arr[:, -1] == 20.0)
+
+
+class TestClip:
+    def test_example(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+            raster_meta=RasterMeta.example(),
+        )
+        polygon = raster.bbox.buffer(-2.5)
+
+        # Act
+        clipped = raster.clip(polygon)
+
+        # Assert
+        assert isinstance(clipped, Raster)
+        assert clipped.raster_meta == raster.raster_meta
+        np.testing.assert_array_equal(
+            clipped.arr,
+            np.array(
+                [
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, 5, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ]
+            ),
+        )
+
+    def test_own_bbox(self, base_raster: Raster):
+        # Arrange
+        polygon = base_raster.bbox
+
+        # Act
+        clipped = base_raster.clip(polygon)
+
+        # Assert
+        assert clipped == base_raster
+
+    def test_multipolygon(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        poly1 = box(
+            minx + cell_size, miny + cell_size, maxx - cell_size, maxy - cell_size
+        )
+        poly2 = box(minx, miny, minx + 2 * cell_size, miny + 2 * cell_size)
+        multipoly = MultiPolygon([poly1, poly2])
+
+        # Act
+        clipped = base_raster.clip(multipoly)
+
+        # Assert
+        expected_array = np.array(
+            [
+                [np.nan, np.nan, np.nan, np.nan],
+                [np.nan, 6, 7, np.nan],
+                [9, 10, 11, np.nan],
+                [13, 14, np.nan, np.nan],
+            ]
+        )
+        np.testing.assert_array_equal(clipped.arr, expected_array)
+
+
+class TestTrimNaN:
+    def test_no_nan_values_unchanged(self, base_raster: Raster):
+        # Arrange - base_raster has no NaN values
+
+        # Act
+        cropped = base_raster.trim_nan()
+
+        # Assert
+        assert cropped == base_raster
+        assert cropped.arr.shape == base_raster.arr.shape
+        np.testing.assert_array_equal(cropped.arr, base_raster.arr)
+        assert cropped.raster_meta == base_raster.raster_meta
+
+    def test_nan_edges_all_sides(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 5.0),
+        )
+        # Create 5x5 array with NaN border and 3x3 data center
+        arr = np.full((5, 5), np.nan)
+        arr[1:4, 1:4] = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        expected_arr = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (3, 3)
+
+        # Check that bounds are correctly adjusted
+        expected_transform = Affine(1.0, 0.0, 1.0, 0.0, -1.0, 4.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_nan_top_bottom_only(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=2.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(2.0, 0.0, 0.0, 0.0, -2.0, 8.0),
+        )
+        # Create 4x3 array with NaN top and bottom rows
+        arr = np.array(
+            [
+                [np.nan, np.nan, np.nan],
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [np.nan, np.nan, np.nan],
+            ]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        expected_arr = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (2, 3)
+
+        # Check transform adjustment (y origin should move down by 1 row)
+        expected_transform = Affine(2.0, 0.0, 0.0, 0.0, -2.0, 6.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_nan_left_right_only(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.5,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.5, 0.0, 0.0, 0.0, -1.5, 6.0),
+        )
+        # Create 3x4 array with NaN left and right columns
+        arr = np.array(
+            [
+                [np.nan, 1.0, 2.0, np.nan],
+                [np.nan, 3.0, 4.0, np.nan],
+                [np.nan, 5.0, 6.0, np.nan],
+            ]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        expected_arr = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (3, 2)
+
+        # Check transform adjustment (x origin should move right by 1 column)
+        expected_transform = Affine(1.5, 0.0, 1.5, 0.0, -1.5, 6.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_asymmetric_nan_borders(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
+        )
+        # Create 6x5 array with asymmetric NaN borders
+        arr = np.full((6, 5), np.nan)
+        # Data in a 2x2 region offset from center
+        arr[2:4, 1:3] = np.array([[1.0, 2.0], [3.0, 4.0]])
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        expected_arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (2, 2)
+
+        # Check transform adjustment
+        expected_transform = Affine(1.0, 0.0, 1.0, 0.0, -1.0, 4.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_single_non_nan_cell(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 4.0),
+        )
+        # Create 4x4 array with single non-NaN value
+        arr = np.full((4, 4), np.nan)
+        arr[1, 2] = 42.0
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        expected_arr = np.array([[42.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (1, 1)
+
+        # Check transform adjustment
+        expected_transform = Affine(1.0, 0.0, 2.0, 0.0, -1.0, 3.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_all_nan_raises_error(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.full((3, 3), np.nan)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Cannot crop raster: all values are NaN"):
+            raster.trim_nan()
+
+    def test_mixed_nan_and_finite_values(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 4.0),
+        )
+        arr = np.array(
+            [
+                [np.nan, np.nan, np.nan, np.nan],
+                [np.nan, 1.0, np.inf, np.nan],
+                [np.nan, -np.inf, 2.0, np.nan],
+                [np.nan, np.nan, np.nan, np.nan],
+            ]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        expected_arr = np.array([[1.0, np.inf], [-np.inf, 2.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (2, 2)
+
+    def test_preserve_metadata(self):
+        # Arrange
+        original_crs = CRS.from_epsg(4326)  # Different CRS
+        original_cell_size = 0.5
+        meta = RasterMeta(
+            cell_size=original_cell_size,
+            crs=original_crs,
+            transform=Affine(0.5, 0.0, 0.0, 0.0, -0.5, 2.0),
+        )
+        arr = np.array([[np.nan, np.nan], [1.0, 2.0]])
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        assert cropped.raster_meta.crs == original_crs
+        assert cropped.raster_meta.cell_size == original_cell_size
+        # Only transform should change
+        assert cropped.raster_meta.transform != raster.raster_meta.transform
+
+    def test_return_type_subclass(self):
+        # Arrange
+        class MyRaster(Raster):
+            pass
+
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.array(
+            [
+                [np.nan, np.nan, np.nan],
+                [np.nan, 1.0, np.nan],
+                [np.nan, np.nan, np.nan],
+            ]
+        )
+        raster = MyRaster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        assert isinstance(cropped, MyRaster)
+
+    def test_original_raster_unchanged(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        original_arr = np.array(
+            [
+                [np.nan, np.nan, np.nan],
+                [np.nan, 1.0, np.nan],
+                [np.nan, np.nan, np.nan],
+            ]
+        )
+        raster = Raster(arr=original_arr.copy(), raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        np.testing.assert_array_equal(raster.arr, original_arr)
+        assert raster.raster_meta == meta
+        assert cropped is not raster  # Different objects
+
+    def test_complex_transform_preservation(self):
+        # Arrange - create a transform with rotation/skew
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.1, 10.0, 0.1, -1.0, 20.0),  # Has rotation/skew
+        )
+        # Create array where we crop both rows and columns
+        arr = np.array(
+            [[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0], [np.nan, 3.0, 4.0]]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        # The a, b, d, e components should be preserved
+        original_transform = raster.raster_meta.transform
+        new_transform = cropped.raster_meta.transform
+
+        assert new_transform.a == original_transform.a  # x pixel size
+        assert new_transform.b == original_transform.b  # row rotation
+        assert new_transform.d == original_transform.d  # column rotation
+        assert new_transform.e == original_transform.e  # y pixel size
+        # Both c and f (origin) should change due to cropping
+        assert new_transform.c != original_transform.c
+        assert new_transform.f != original_transform.f
+
+    def test_disconnected_data_regions(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
+        )
+        # Create array with two disconnected data regions
+        arr = np.array(
+            [
+                [np.nan, np.nan, np.nan, np.nan, np.nan],
+                [np.nan, 1.0, np.nan, np.nan, np.nan],
+                [np.nan, np.nan, np.nan, np.nan, np.nan],
+                [np.nan, np.nan, np.nan, 2.0, np.nan],
+                [np.nan, np.nan, np.nan, np.nan, np.nan],
+            ]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_nan()
+
+        # Assert
+        # Should crop to the bounding box that contains both data points
+        expected_arr = np.array(
+            [[1.0, np.nan, np.nan], [np.nan, np.nan, np.nan], [np.nan, np.nan, 2.0]]
+        )
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (3, 3)
+
+        # Check transform adjustment (should move to include both data points)
+        expected_transform = Affine(1.0, 0.0, 1.0, 0.0, -1.0, 5.0)
+        assert cropped.raster_meta.transform == expected_transform
+
 
 class TestResample:
-    def test_upsampling_doubles_resolution(self, base_raster: RasterModel):
+    def test_upsampling_doubles_resolution(self, base_raster: Raster):
         # Arrange
         new_cell_size = 5.0  # Half the original size (10.0)
 
@@ -1146,7 +1951,7 @@ class TestResample:
         assert resampled.arr.shape[1] >= 7
         assert resampled.raster_meta.crs == base_raster.raster_meta.crs
 
-    def test_downsampling_halves_resolution(self, base_raster: RasterModel):
+    def test_downsampling_halves_resolution(self, base_raster: Raster):
         # Arrange
         new_cell_size = 20.0  # Double the original size (10.0)
 
@@ -1160,7 +1965,7 @@ class TestResample:
         assert resampled.arr.shape[1] <= 3
         assert resampled.raster_meta.crs == base_raster.raster_meta.crs
 
-    def test_same_cell_size_returns_similar_raster(self, base_raster: RasterModel):
+    def test_same_cell_size_returns_similar_raster(self, base_raster: Raster):
         # Arrange
         original_cell_size = base_raster.raster_meta.cell_size
 
@@ -1173,7 +1978,7 @@ class TestResample:
         assert abs(resampled.arr.shape[0] - base_raster.arr.shape[0]) <= 1
         assert abs(resampled.arr.shape[1] - base_raster.arr.shape[1]) <= 1
 
-    def test_extreme_upsampling(self, small_raster: RasterModel):
+    def test_extreme_upsampling(self, small_raster: Raster):
         # Arrange
         new_cell_size = 1.0  # Much smaller than original 5.0
 
@@ -1186,7 +1991,7 @@ class TestResample:
         assert resampled.arr.shape[0] >= 8
         assert resampled.arr.shape[1] >= 8
 
-    def test_extreme_downsampling(self, base_raster: RasterModel):
+    def test_extreme_downsampling(self, base_raster: Raster):
         # Arrange
         new_cell_size = 100.0  # Much larger than original 10.0
 
@@ -1201,7 +2006,7 @@ class TestResample:
         assert resampled.arr.shape[0] <= 2
         assert resampled.arr.shape[1] <= 2
 
-    def test_transform_scaling(self, small_raster: RasterModel):
+    def test_transform_scaling(self, small_raster: Raster):
         # Arrange
         new_cell_size = 2.5  # Half the original cell size
 
@@ -1214,7 +2019,7 @@ class TestResample:
         assert abs(abs(new_transform.a) - new_cell_size) < 0.1
         assert abs(abs(new_transform.e) - new_cell_size) < 0.1
 
-    def test_bilinear_interpolation_smoothing(self, small_raster: RasterModel):
+    def test_bilinear_interpolation_smoothing(self, small_raster: Raster):
         # Arrange
         new_cell_size = 2.0  # Between original cells
 
@@ -1234,21 +2039,21 @@ class TestResample:
         assert resampled_min >= original_min - 0.1
         assert resampled_max <= original_max + 0.1
 
-    def test_invalid_resampling_method(self, small_raster: RasterModel):
+    def test_invalid_resampling_method(self, small_raster: Raster):
         with pytest.raises(NotImplementedError, match="Unsupported resampling method"):
             small_raster.resample(new_cell_size=2.0, method="nearest")  # pyright: ignore[reportArgumentType]
 
-    def test_negative_cell_size_fails(self, small_raster: RasterModel):
+    def test_negative_cell_size_fails(self, small_raster: Raster):
         # This should fail during the internal calculations
         with pytest.raises((ValueError, RuntimeError)):
             small_raster.resample(new_cell_size=-1.0)
 
-    def test_zero_cell_size_fails(self, small_raster: RasterModel):
+    def test_zero_cell_size_fails(self, small_raster: Raster):
         # This should fail during the internal calculations
         with pytest.raises((ValueError, RuntimeError, ZeroDivisionError)):
             small_raster.resample(new_cell_size=0.0)
 
-    def test_very_small_cell_size(self, small_raster: RasterModel):
+    def test_very_small_cell_size(self, small_raster: Raster):
         # Arrange
         new_cell_size = 0.1  # Very small
 
@@ -1261,7 +2066,7 @@ class TestResample:
         assert resampled.arr.shape[0] >= 20
         assert resampled.arr.shape[1] >= 20
 
-    def test_metadata_preservation(self, base_raster: RasterModel):
+    def test_metadata_preservation(self, base_raster: Raster):
         # Arrange
         original_crs = base_raster.raster_meta.crs
         new_cell_size = 5.0
@@ -1275,7 +2080,7 @@ class TestResample:
         # Transform should be updated but maintain CRS
         assert resampled.raster_meta.transform != base_raster.raster_meta.transform
 
-    def test_bounds_consistency(self, base_raster: RasterModel):
+    def test_bounds_consistency(self, base_raster: Raster):
         # Arrange
         original_bounds = base_raster.bounds
         new_cell_size = 15.0
@@ -1294,15 +2099,15 @@ class TestResample:
         assert abs(new_bounds[2] - original_bounds[2]) <= tolerance  # xmax
         assert abs(new_bounds[3] - original_bounds[3]) <= tolerance  # ymax
 
-    def test_return_type(self, small_raster: RasterModel):
+    def test_return_type(self, small_raster: Raster):
         # Act
         result = small_raster.resample(new_cell_size=2.0)
 
         # Assert
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         assert result is not small_raster  # Should be a new instance
 
-    def test_original_raster_unchanged(self, small_raster: RasterModel):
+    def test_original_raster_unchanged(self, small_raster: Raster):
         # Arrange
         original_array = small_raster.arr.copy()
         original_cell_size = small_raster.raster_meta.cell_size
@@ -1322,18 +2127,18 @@ class TestResample:
             transform=Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0),
         )
         cell_array = np.array([[1.0, np.nan], [np.nan, 4.0]])
-        raster = RasterModel(arr=cell_array, raster_meta=meta)
+        raster = Raster(arr=cell_array, raster_meta=meta)
 
         # Act
         resampled = raster.resample(new_cell_size=5.0)
 
         # Assert
-        assert isinstance(resampled, RasterModel)
+        assert isinstance(resampled, Raster)
         assert resampled.raster_meta.cell_size == 5.0
         # Should handle NaN values gracefully
         assert not np.all(np.isnan(resampled.arr))  # Some non-NaN values
 
-    def test_float_precision_cell_size(self, small_raster: RasterModel):
+    def test_float_precision_cell_size(self, small_raster: Raster):
         # Arrange
         new_cell_size = 3.7  # Non-integer value
 
@@ -1342,7 +2147,7 @@ class TestResample:
 
         # Assert
         assert resampled.raster_meta.cell_size == new_cell_size
-        assert isinstance(resampled, RasterModel)
+        assert isinstance(resampled, Raster)
 
 
 class TestExplore:
@@ -1355,10 +2160,12 @@ class TestExplore:
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
         return raster.explore(cbar_label="My Legend")
 
     def test_overlay(self, explore_map: folium.Map):
+        import folium.raster_layers
+
         m = explore_map
         # Assert: an ImageOverlay is present
         has_image_overlay = any(
@@ -1368,6 +2175,8 @@ class TestExplore:
         assert has_image_overlay, "Expected an ImageOverlay to be added to the map"
 
     def test_cbar(self, explore_map: folium.Map):
+        from branca.colormap import LinearColormap
+
         m = explore_map
         expected_min = 1.0
         expected_max = 4.0
@@ -1393,13 +2202,13 @@ class TestExplore:
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
 
         # Simulate Folium not installed
         monkeypatch.setattr("rastr.raster.FOLIUM_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match="folium.*required"):
+        with pytest.raises(ImportError, match=r"folium.*required"):
             raster.explore()
 
     def test_explore_without_matplotlib_raises(self, monkeypatch: pytest.MonkeyPatch):
@@ -1410,16 +2219,18 @@ class TestExplore:
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
 
         # Simulate matplotlib not installed
         monkeypatch.setattr("rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match="matplotlib.*required"):
+        with pytest.raises(ImportError, match=r"matplotlib.*required"):
             raster.explore()
 
     def test_homogenous_raster(self):
+        import folium
+
         # Arrange a homogeneous raster
         arr = np.array([[1.0, 1.0], [1.0, 1.0]])
         meta = RasterMeta(
@@ -1427,7 +2238,7 @@ class TestExplore:
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
 
         # Act
         map_ = raster.explore()
@@ -1437,6 +2248,8 @@ class TestExplore:
         assert len(map_._children) > 0  # Check that something was added to the map
 
     def test_negative_x_scaling(self):
+        import folium
+
         # Arrange a raster with negative x scaling
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(
@@ -1444,7 +2257,7 @@ class TestExplore:
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
 
         # Act
         map_ = raster.explore()
@@ -1461,7 +2274,7 @@ class TestExplore:
             crs=CRS.from_epsg(2193),
             transform=Affine(-1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
 
         # Patch np.flip as used in module under test
         with patch("rastr.raster.np.flip", wraps=np.flip) as mock_flip:
@@ -1478,7 +2291,7 @@ class TestExplore:
             crs=CRS.from_epsg(2193),
             transform=Affine(-1.0, 0.0, 0.0, 0.0, 1.0, 2.0),
         )
-        raster = RasterModel(arr=arr, raster_meta=meta)
+        raster = Raster(arr=arr, raster_meta=meta)
 
         # Patch np.flip as used in module under test
         with patch("rastr.raster.np.flip", wraps=np.flip) as mock_flip:
@@ -1486,3 +2299,125 @@ class TestExplore:
 
         # Assert flip called exactly twice (both axes)
         assert mock_flip.call_count == 2
+
+    def test_vmin_vmax_parameters(self, small_raster: Raster):
+        import folium
+        from branca.colormap import LinearColormap
+
+        # Act
+        map_ = small_raster.explore(vmin=2.0, vmax=3.0)
+
+        # Assert
+        assert isinstance(map_, folium.Map)
+        assert len(map_._children) > 0  # Check that something was added to the map
+
+        # Check that the legend reflects the specified vmin/vmax
+        legends = [
+            child
+            for child in map_._children.values()
+            if isinstance(child, LinearColormap)
+        ]
+        assert len(legends) >= 1, "Expected a LinearColormap legend to be added"
+        legend = legends[-1]
+
+        assert pytest.approx(legend.vmin) == 2.0
+        assert pytest.approx(legend.vmax) == 3.0
+
+    def test_vmin_greater_than_vmax_raises(self, small_raster: Raster):
+        # Act / Assert
+        with pytest.raises(ValueError, match=r"'vmin' must be less than 'vmax'"):
+            small_raster.explore(vmin=3.0, vmax=2.0)
+
+
+class TestRasterStatistics:
+    """Test the statistical methods of the Raster class."""
+
+    @pytest.mark.parametrize(
+        ("method_name", "expected_result", "expected_result_with_nans"),
+        [
+            ("min", 1.0, 1.0),
+            ("max", 9.0, 9.0),
+            ("mean", 5.0, pytest.approx(5.2857, abs=1e-4)),
+            (
+                "std",
+                pytest.approx(2.5820, abs=1e-4),
+                pytest.approx(
+                    np.nanstd(
+                        np.array(
+                            [[1.0, 2.0, np.nan], [4.0, np.nan, 6.0], [7.0, 8.0, 9.0]]
+                        )
+                    )
+                ),
+            ),
+            ("median", pytest.approx(5.0), pytest.approx(6.0)),
+        ],
+    )
+    def test_basic_statistics(
+        self,
+        stats_test_raster: Raster,
+        stats_test_raster_with_nans: Raster,
+        method_name: str,
+        expected_result: float,
+        expected_result_with_nans: float,
+    ) -> None:
+        """Test that statistical methods return the correct values and handle NaNs
+        properly."""
+        # Get the method from the raster object
+        method = getattr(stats_test_raster, method_name)
+        method_with_nans = getattr(stats_test_raster_with_nans, method_name)
+
+        # Call the method and check results
+        assert method() == expected_result
+        assert method_with_nans() == expected_result_with_nans
+
+    @pytest.mark.parametrize(
+        ("quantile", "expected_result", "expected_result_with_nans"),
+        [
+            (0.0, pytest.approx(1.0), pytest.approx(1.0)),
+            (0.5, pytest.approx(5.0), pytest.approx(6.0)),
+            (1.0, pytest.approx(9.0), pytest.approx(9.0)),
+        ],
+    )
+    def test_quantile(
+        self,
+        stats_test_raster: Raster,
+        stats_test_raster_with_nans: Raster,
+        quantile: float,
+        expected_result: float,
+        expected_result_with_nans: float,
+    ) -> None:
+        """Test the quantile method with various quantiles and NaN handling."""
+        assert stats_test_raster.quantile(quantile) == expected_result
+        assert stats_test_raster_with_nans.quantile(quantile) == (
+            expected_result_with_nans
+        )
+
+
+class TestNormalize:
+    def test_example(self, example_raster: Raster):
+        # Act
+        normalized_raster = example_raster.normalize()
+
+        # Assert
+        assert isinstance(normalized_raster, Raster)
+        np.testing.assert_array_equal(
+            np.nanmin(normalized_raster.arr), 0.0
+        )  # Min should be 0
+        np.testing.assert_array_equal(
+            np.nanmax(normalized_raster.arr), 1.0
+        )  # Max should be 1
+        np.testing.assert_allclose(
+            normalized_raster.arr,
+            np.array([[0.0, 1 / 3], [2 / 3, 1.0]]),
+        )
+
+    def test_vmin_vmax(self, example_raster: Raster):
+        # Act
+        normalized_raster = example_raster.normalize(vmin=2.0, vmax=4.0)
+
+        # Assert
+        assert isinstance(normalized_raster, Raster)
+        np.testing.assert_allclose(
+            normalized_raster.arr,
+            np.array([[0.0, 0.0], [0.5, 1.0]]),
+        )

@@ -41,10 +41,10 @@ from pyproj.crs.crs import CRS
 from rasterio.transform import from_origin
 from rastr.create import full_raster
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
 # Create an example raster
-raster = RasterModel.example()
+raster = Raster.example()
 
 # Basic arithmetic operations
 doubled = raster * 2
@@ -96,6 +96,12 @@ Current version limitations:
 - In-memory processing only (streaming support planned).
 - Square cells only (rectangular cell support planned).
 - Only float dtypes (integer support planned).
+
+## Similar Projects
+
+- [rasters](https://github.com/python-rasters/rasters) is a project with similar goals of providing a dedicated raster datatype in Python with higher-level interfaces for GIS operations. Unlike `rastr`, it has support for multi-band rasters, and has some more advanced functionality for Earth Science applications. Both projects are relatively new and under active development.
+- [rasterio](https://rasterio.readthedocs.io/) is a core dependency of `rastr` and provides low-level raster I/O and processing capabilities.
+- [rioxarray](https://corteva.github.io/rioxarray/stable/getting_started/getting_started.html) extends [`xarray`](https://docs.xarray.dev/en/stable/index.html) for raster data with geospatial support via `rasterio`.
 
 ### Contributing
 

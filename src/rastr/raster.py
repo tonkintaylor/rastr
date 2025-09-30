@@ -756,6 +756,59 @@ class Raster(BaseModel):
         new_raster.arr = np.asarray(new_arr)
         return new_raster
 
+    def max(self) -> float:
+        """Get the maximum value in the raster, ignoring NaN values.
+
+        Returns:
+            The maximum value in the raster. Returns NaN if all values are NaN.
+        """
+        return float(np.nanmax(self.arr))
+
+    def min(self) -> float:
+        """Get the minimum value in the raster, ignoring NaN values.
+
+        Returns:
+            The minimum value in the raster. Returns NaN if all values are NaN.
+        """
+        return float(np.nanmin(self.arr))
+
+    def mean(self) -> float:
+        """Get the mean value in the raster, ignoring NaN values.
+
+        Returns:
+            The mean value in the raster. Returns NaN if all values are NaN.
+        """
+        return float(np.nanmean(self.arr))
+
+    def std(self) -> float:
+        """Get the standard deviation of values in the raster, ignoring NaN values.
+
+        Returns:
+            The standard deviation of the raster. Returns NaN if all values are NaN.
+        """
+        return float(np.nanstd(self.arr))
+
+    def quantile(self, q: float) -> float:
+        """Get the specified quantile value in the raster, ignoring NaN values.
+
+        Args:
+            q: Quantile to compute, must be between 0 and 1 inclusive.
+
+        Returns:
+            The quantile value. Returns NaN if all values are NaN.
+        """
+        return float(np.nanquantile(self.arr, q))
+
+    def median(self) -> float:
+        """Get the median value in the raster, ignoring NaN values.
+
+        This is equivalent to quantile(0.5).
+
+        Returns:
+            The median value in the raster. Returns NaN if all values are NaN.
+        """
+        return float(np.nanmedian(self.arr))
+
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
 

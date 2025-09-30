@@ -59,6 +59,30 @@ def example_raster_with_zeros():
     )
 
 
+@pytest.fixture
+def stats_test_raster() -> Raster:
+    meta = RasterMeta(
+        cell_size=1.0,
+        crs=CRS.from_epsg(2193),
+        transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+    )
+    # Create an array with known statistics
+    arr = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+    return Raster(arr=arr, raster_meta=meta)
+
+
+@pytest.fixture
+def stats_test_raster_with_nans() -> Raster:
+    meta = RasterMeta(
+        cell_size=1.0,
+        crs=CRS.from_epsg(2193),
+        transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+    )
+    # Create an array with NaNs to test nan-aware functions
+    arr = np.array([[1.0, 2.0, np.nan], [4.0, np.nan, 6.0], [7.0, 8.0, 9.0]])
+    return Raster(arr=arr, raster_meta=meta)
+
+
 class TestRaster:
     class TestInit:
         def test_meta_and_arr(self, example_raster: Raster):
@@ -2303,6 +2327,70 @@ class TestExplore:
         # Act / Assert
         with pytest.raises(ValueError, match=r"'vmin' must be less than 'vmax'"):
             small_raster.explore(vmin=3.0, vmax=2.0)
+
+
+class TestRasterStatistics:
+    """Test the statistical methods of the Raster class."""
+
+    @pytest.mark.parametrize(
+        ("method_name", "expected_result", "expected_result_with_nans"),
+        [
+            ("min", 1.0, 1.0),
+            ("max", 9.0, 9.0),
+            ("mean", 5.0, pytest.approx(5.2857, abs=1e-4)),
+            (
+                "std",
+                pytest.approx(2.5820, abs=1e-4),
+                pytest.approx(
+                    np.nanstd(
+                        np.array(
+                            [[1.0, 2.0, np.nan], [4.0, np.nan, 6.0], [7.0, 8.0, 9.0]]
+                        )
+                    )
+                ),
+            ),
+            ("median", pytest.approx(5.0), pytest.approx(6.0)),
+        ],
+    )
+    def test_basic_statistics(
+        self,
+        stats_test_raster: Raster,
+        stats_test_raster_with_nans: Raster,
+        method_name: str,
+        expected_result: float,
+        expected_result_with_nans: float,
+    ) -> None:
+        """Test that statistical methods return the correct values and handle NaNs
+        properly."""
+        # Get the method from the raster object
+        method = getattr(stats_test_raster, method_name)
+        method_with_nans = getattr(stats_test_raster_with_nans, method_name)
+
+        # Call the method and check results
+        assert method() == expected_result
+        assert method_with_nans() == expected_result_with_nans
+
+    @pytest.mark.parametrize(
+        ("quantile", "expected_result", "expected_result_with_nans"),
+        [
+            (0.0, pytest.approx(1.0), pytest.approx(1.0)),
+            (0.5, pytest.approx(5.0), pytest.approx(6.0)),
+            (1.0, pytest.approx(9.0), pytest.approx(9.0)),
+        ],
+    )
+    def test_quantile(
+        self,
+        stats_test_raster: Raster,
+        stats_test_raster_with_nans: Raster,
+        quantile: float,
+        expected_result: float,
+        expected_result_with_nans: float,
+    ) -> None:
+        """Test the quantile method with various quantiles and NaN handling."""
+        assert stats_test_raster.quantile(quantile) == expected_result
+        assert stats_test_raster_with_nans.quantile(quantile) == (
+            expected_result_with_nans
+        )
 
 
 class TestNormalize:

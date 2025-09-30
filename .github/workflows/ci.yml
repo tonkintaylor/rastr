@@ -60,6 +60,8 @@ jobs:
         with:
           custom-pytest: uv run pytest
           custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
+        env:
+          MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434
 
       - name: Create test reports directory
         if: matrix.pytest && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'

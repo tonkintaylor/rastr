@@ -830,7 +830,7 @@ class TestRaster:
             meta = RasterMeta(
                 cell_size=1.0,
                 crs=CRS.from_epsg(2193),
-                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
             )
             arr = np.array([[1.0, np.nan], [3.0, 4.0]])
             raster = Raster(arr=arr, raster_meta=meta)
@@ -852,7 +852,7 @@ class TestRaster:
             meta = RasterMeta(
                 cell_size=1.0,
                 crs=CRS.from_epsg(2193),
-                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
             )
             arr = np.array([[1.0, np.nan], [np.nan, 4.0]])
             raster = Raster(arr=arr, raster_meta=meta)
@@ -877,7 +877,7 @@ class TestRaster:
             meta = RasterMeta(
                 cell_size=1.0,
                 crs=CRS.from_epsg(2193),
-                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
             )
             arr = np.array([[1.0, 2.0], [3.0, 4.0]])
             raster = Raster(arr=arr, raster_meta=meta)

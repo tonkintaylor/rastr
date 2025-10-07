@@ -730,7 +730,7 @@ class Raster(BaseModel):
         # Import here to avoid circular import (rastr.io imports Raster)
         from rastr.io import read_raster_inmem  # noqa: PLC0415
 
-        return read_raster_inmem(filename, crs=crs)
+        return read_raster_inmem(filename, crs=crs, cls=cls)
 
     @overload
     def apply(

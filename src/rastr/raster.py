@@ -727,6 +727,7 @@ class Raster(BaseModel):
             filename: Path to the raster file.
             crs: Optional coordinate reference system to override the file's CRS.
         """
+        # Import here to avoid circular import (rastr.io imports Raster)
         from rastr.io import read_raster_inmem  # noqa: PLC0415
 
         return read_raster_inmem(filename, crs=crs)

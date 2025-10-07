@@ -21,7 +21,7 @@ def read_raster_inmem(
     raster_path: Path | str,
     *,
     crs: CRS | str | None = None,
-    cls: type[R],
+    cls: type[R] = Raster,
 ) -> R:
     """Read raster data from a file and return an in-memory Raster object.
 

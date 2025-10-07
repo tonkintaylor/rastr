@@ -264,6 +264,34 @@ class TestRaster:
             assert example_raster.raster_meta.transform is new_transform
             assert example_raster.transform != original_transform
 
+    class TestCellSize:
+        def test_cell_size_getter(self, example_raster: Raster):
+            # Act
+            cell_size_via_property = example_raster.cell_size
+            cell_size_via_meta = example_raster.meta.cell_size
+            cell_size_via_raster_meta = example_raster.raster_meta.cell_size
+
+            # Assert
+            assert cell_size_via_property is cell_size_via_meta
+            assert cell_size_via_property is cell_size_via_raster_meta
+            assert cell_size_via_property == cell_size_via_meta
+            assert cell_size_via_property == cell_size_via_raster_meta
+            assert isinstance(cell_size_via_property, float)
+
+        def test_cell_size_setter(self, example_raster: Raster):
+            # Arrange
+            new_cell_size = 5.0
+            original_cell_size = example_raster.cell_size
+
+            # Act
+            example_raster.cell_size = new_cell_size
+
+            # Assert
+            assert example_raster.cell_size == new_cell_size
+            assert example_raster.meta.cell_size == new_cell_size
+            assert example_raster.raster_meta.cell_size == new_cell_size
+            assert example_raster.cell_size != original_cell_size
+
     class TestSample:
         def test_sample_nan_raise(self, example_raster: Raster):
             with pytest.raises(

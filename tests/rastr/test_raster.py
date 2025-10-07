@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import rasterio
 from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
@@ -810,8 +811,6 @@ class TestRaster:
             assert filename.exists()
 
         def test_kwargs_passed_to_rasterio(self, tmp_path: Path, example_raster: Raster):
-            import rasterio
-
             # Arrange
             filename = tmp_path / "test_raster.tif"
 
@@ -824,8 +823,6 @@ class TestRaster:
                 assert src.compression.value.lower() == "lzw"
 
         def test_custom_nodata_value(self, tmp_path: Path):
-            import rasterio
-
             # Arrange
             meta = RasterMeta(
                 cell_size=1.0,
@@ -846,8 +843,6 @@ class TestRaster:
                 assert read_arr[0, 1] == pytest.approx(-9999.0)
 
         def test_nodata_replaces_nan_in_array(self, tmp_path: Path):
-            import rasterio
-
             # Arrange
             meta = RasterMeta(
                 cell_size=1.0,
@@ -870,8 +865,6 @@ class TestRaster:
                 assert read_arr[1, 1] == pytest.approx(4.0)
 
         def test_default_nodata_is_nan(self, tmp_path: Path):
-            import rasterio
-
             # Arrange
             filename = tmp_path / "test_default_nodata.tif"
             meta = RasterMeta(

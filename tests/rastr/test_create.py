@@ -209,9 +209,7 @@ class TestFullRaster:
         """Test that full_raster(r.meta, bounds=r.bounds).shape == r.shape."""
         # Create a raster
         transform = Affine.translation(0, 3) * Affine.scale(1.0, -1.0)
-        raster_meta = RasterMeta(
-            cell_size=1.0, crs=_PROJECTED_CRS, transform=transform
-        )
+        raster_meta = RasterMeta(cell_size=1.0, crs=_PROJECTED_CRS, transform=transform)
         arr = np.ones((3, 3))
         r1 = Raster(arr=arr, raster_meta=raster_meta)
 

@@ -929,6 +929,59 @@ class TestRaster:
             # Assert
             assert isinstance(raster, Raster)
 
+    class TestFullLike:
+        def test_basic_usage(self, example_raster: Raster):
+            # Act
+            filled_raster = Raster.full_like(example_raster, fill_value=5.0)
+
+            # Assert
+            assert filled_raster.shape == example_raster.shape
+            assert filled_raster.raster_meta == example_raster.raster_meta
+            expected_arr = np.array([[5.0, 5.0], [5.0, 5.0]])
+            np.testing.assert_array_equal(filled_raster.arr, expected_arr)
+
+        def test_with_nan_fill(self, example_raster: Raster):
+            # Act
+            filled_raster = Raster.full_like(example_raster, fill_value=np.nan)
+
+            # Assert
+            assert filled_raster.shape == example_raster.shape
+            assert filled_raster.raster_meta == example_raster.raster_meta
+            assert np.all(np.isnan(filled_raster.arr))
+
+        def test_with_zero_fill(self, example_raster: Raster):
+            # Act
+            filled_raster = Raster.full_like(example_raster, fill_value=0.0)
+
+            # Assert
+            assert filled_raster.shape == example_raster.shape
+            assert filled_raster.raster_meta == example_raster.raster_meta
+            expected_arr = np.array([[0.0, 0.0], [0.0, 0.0]])
+            np.testing.assert_array_equal(filled_raster.arr, expected_arr)
+
+        def test_different_size_raster(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+            )
+            large_raster = Raster(
+                arr=np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+                raster_meta=meta,
+            )
+
+            # Act
+            filled_raster = Raster.full_like(large_raster, fill_value=42.0)
+
+            # Assert
+            assert filled_raster.shape == (3, 3)
+            assert filled_raster.raster_meta == meta
+            np.testing.assert_array_equal(
+                filled_raster.arr,
+                np.array([[42.0, 42.0, 42.0], [42.0, 42.0, 42.0], [42.0, 42.0, 42.0]]),
+            )
+
     class TestFillNA:
         def test_2by2_example(self):
             # Arrange

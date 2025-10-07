@@ -668,8 +668,9 @@ class Raster(BaseModel):
 
         Args:
             path: Path to output file.
-            **kwargs: Additional keyword arguments to pass to `rasterio.open()`. If `nodata`
-                is provided, NaN values in the raster will be replaced with the nodata value.
+            **kwargs: Additional keyword arguments to pass to `rasterio.open()`. If
+                      `nodata` is provided, NaN values in the raster will be replaced
+                      with the nodata value.
         """
 
         path = Path(path)

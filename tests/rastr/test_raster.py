@@ -984,7 +984,7 @@ class TestRaster:
                 ("Mean of blurred raster should be close to original mean"),
             )
 
-        def test_nan_safe_preserves_nan_mask(self):
+        def test_preserve_nan_preserves_nan_mask(self):
             # Arrange
             meta = RasterMeta(
                 cell_size=1.0,
@@ -1005,12 +1005,12 @@ class TestRaster:
             original_nan_mask = np.isnan(raster.arr)
 
             # Act
-            blurred = raster.blur(sigma=0.5, nan_safe=True)
+            blurred = raster.blur(sigma=0.5, preserve_nan=True)
 
             # Assert
             assert np.array_equal(np.isnan(blurred.arr), original_nan_mask)
 
-        def test_nan_safe_blurs_valid_values(self):
+        def test_preserve_nan_blurs_valid_values(self):
             # Arrange
             meta = RasterMeta(
                 cell_size=1.0,
@@ -1028,12 +1028,12 @@ class TestRaster:
             raster = Raster(arr=arr, raster_meta=meta)
 
             # Act
-            blurred = raster.blur(sigma=0.5, nan_safe=True)
+            blurred = raster.blur(sigma=0.5, preserve_nan=True)
 
             # Assert
             assert not np.isnan(blurred.arr[1, 1])
 
-        def test_nan_safe_without_nans_behaves_normally(self):
+        def test_preserve_nan_without_nans_behaves_normally(self):
             # Arrange
             meta = RasterMeta(
                 cell_size=1.0,
@@ -1044,13 +1044,40 @@ class TestRaster:
             raster = Raster(arr=arr, raster_meta=meta)
 
             # Act
-            blurred_normal = raster.blur(sigma=0.5)
-            blurred_safe = raster.blur(sigma=0.5, nan_safe=True)
+            blurred_default = raster.blur(sigma=0.5)
+            blurred_preserve = raster.blur(sigma=0.5, preserve_nan=True)
 
             # Assert
-            np.testing.assert_array_almost_equal(blurred_normal.arr, blurred_safe.arr)
+            np.testing.assert_array_almost_equal(
+                blurred_default.arr, blurred_preserve.arr
+            )
 
-        def test_default_nan_safe_is_false(self):
+        def test_default_preserve_nan_is_true(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            arr = np.array(
+                [
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, 5.0, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=float,
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+            original_nan_mask = np.isnan(raster.arr)
+
+            # Act
+            blurred = raster.blur(sigma=0.5)
+
+            # Assert - default behavior should preserve NaNs
+            assert np.array_equal(np.isnan(blurred.arr), original_nan_mask)
+            assert not np.isnan(blurred.arr[1, 1])
+
+        def test_preserve_nan_false_spreads_nans(self):
             # Arrange
             meta = RasterMeta(
                 cell_size=1.0,
@@ -1068,9 +1095,9 @@ class TestRaster:
             raster = Raster(arr=arr, raster_meta=meta)
 
             # Act
-            blurred = raster.blur(sigma=0.5)
+            blurred = raster.blur(sigma=0.5, preserve_nan=False)
 
-            # Assert
+            # Assert - NaNs should spread into data
             assert np.all(np.isnan(blurred.arr))
 
     class TestExtrapolate:

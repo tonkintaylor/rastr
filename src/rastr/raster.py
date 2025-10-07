@@ -905,22 +905,22 @@ class Raster(BaseModel):
         # Dissolve contours by level to merge all contour lines of the same level
         return contour_gdf.dissolve(by="level", as_index=False)
 
-    def blur(self, sigma: float, *, nan_safe: bool = False) -> Self:
+    def blur(self, sigma: float, *, preserve_nan: bool = True) -> Self:
         """Apply a Gaussian blur to the raster data.
 
         Args:
             sigma: Standard deviation for Gaussian kernel, in units of geographic
                    coordinate distance (e.g. meters). A larger sigma results in a more
                    blurred image.
-            nan_safe: If True, applies NaN-safe blurring by extrapolating NaN values
-                      before blurring and restoring them afterwards. This prevents NaNs
-                      from spreading into valid data during the blur operation.
+            preserve_nan: If True, applies NaN-safe blurring by extrapolating NaN values
+                          before blurring and restoring them afterwards. This prevents
+                          NaNs from spreading into valid data during the blur operation.
         """
         from scipy.ndimage import gaussian_filter
 
         cell_sigma = sigma / self.raster_meta.cell_size
 
-        if nan_safe:
+        if preserve_nan:
             # Save the original NaN mask
             nan_mask = np.isnan(self.arr)
 

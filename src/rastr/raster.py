@@ -667,7 +667,7 @@ class Raster(BaseModel):
         """Write the raster to a GeoTIFF file.
 
         Args:
-            path: Path to output file
+            path: Path to output file.
             **kwargs: Additional keyword arguments to pass to `rasterio.open()`. If `nodata`
                 is provided, NaN values in the raster will be replaced with the nodata value.
         """
@@ -686,14 +686,12 @@ class Raster(BaseModel):
             raise ValueError(msg)
 
         # Handle nodata: use provided value or default to np.nan
-        nodata_provided = "nodata" in kwargs
-        nodata_value = kwargs.pop("nodata", np.nan)
-
-        # Prepare the array to write
-        if nodata_provided:
+        if "nodata" in kwargs:
             # Replace NaN values with the nodata value
+            nodata_value = kwargs.pop("nodata")
             arr_to_write = np.where(np.isnan(self.arr), nodata_value, self.arr)
         else:
+            nodata_value = np.nan
             arr_to_write = self.arr
 
         with rasterio.open(

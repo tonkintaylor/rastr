@@ -66,6 +66,7 @@ dev = [
   "ruff>=0.13.2",
   "tqdm>=4.67.1",
   "usethis>=0.15.2",
+  "zizmor>=1.14.2",
 ]
 test = [
   "coverage[toml]>=7.10.1",

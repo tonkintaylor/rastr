@@ -719,6 +719,18 @@ class Raster(BaseModel):
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
 
+    @classmethod
+    def read_file(cls, filename: Path | str, crs: CRS | str | None = None) -> Self:
+        """Read raster data from a file and return an in-memory Raster object.
+
+        Args:
+            filename: Path to the raster file.
+            crs: Optional coordinate reference system to override the file's CRS.
+        """
+        from rastr.io import read_raster_inmem  # noqa: PLC0415
+
+        return read_raster_inmem(filename, crs=crs)
+
     @overload
     def apply(
         self,

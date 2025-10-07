@@ -52,7 +52,6 @@ jobs:
         if: matrix.checks
         run: |
           uv run pre-commit run --all-files
-        env:
 
       - name: Run pyright
         if: matrix.checks

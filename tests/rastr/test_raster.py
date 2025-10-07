@@ -810,7 +810,9 @@ class TestRaster:
             # Assert
             assert filename.exists()
 
-        def test_kwargs_passed_to_rasterio(self, tmp_path: Path, example_raster: Raster):
+        def test_kwargs_passed_to_rasterio(
+            self, tmp_path: Path, example_raster: Raster
+        ):
             # Arrange
             filename = tmp_path / "test_raster.tif"
 

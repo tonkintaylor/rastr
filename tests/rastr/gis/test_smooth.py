@@ -172,17 +172,3 @@ class TestRecursiveEval:
         # Assert
         assert isinstance(result, list)
         assert all(isinstance(pt, tuple) and len(pt) == 2 for pt in result)
-
-    def test_tangents_as_tuple(self):
-        """Test tangents parameter accepts tuple (Collection) vs just list."""
-        # Arrange
-        coords = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0], [3.0, 1.0]])
-        tangents_tuple = (0.0, 1.0, 2.0, 3.0)
-        ts = np.array([1.5])
-
-        # Act
-        result = _recursive_eval(coords, tangents_tuple, ts)
-
-        # Assert
-        assert isinstance(result, list)
-        assert all(isinstance(pt, tuple) and len(pt) == 2 for pt in result)

@@ -12,8 +12,6 @@ from shapely.geometry import LineString, Polygon
 from typing_extensions import assert_never
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
-
     from numpy.typing import NDArray
 
 T: TypeAlias = LineString | Polygon
@@ -94,7 +92,7 @@ def _catmull_rom(
 
 
 def _recursive_eval(
-    slice4: NDArray, tangents: Collection[float], ts: NDArray
+    slice4: NDArray, tangents: list[float], ts: NDArray
 ) -> list[tuple[float, float]]:
     """De Boor/De Casteljau-style recursive linear interpolation over 4 control points.
 

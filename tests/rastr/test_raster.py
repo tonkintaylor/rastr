@@ -2510,11 +2510,19 @@ class TestRasterStatistics:
         assert method() == expected_result
         assert method_with_nans() == expected_result_with_nans
 
-    def test_statistical_methods_return_float(
-        self, float32_raster: Raster, float64_raster: Raster, float16_raster: Raster
+    def test_statistical_methods_return_float_from_float32(
+        self, float32_raster: Raster
     ):
-        """Test that statistical methods return Python floats with correct precision."""
-        # Test with float32 - should return float32 precision
+        """Test that statistical methods return Python floats from float32 arrays."""
+        # Verify the underlying array is float32
+        assert float32_raster.arr.dtype == np.float32
+
+        # Verify numpy operations preserve float32 before conversion
+        assert type(np.nanmax(float32_raster.arr)) is np.float32
+        assert type(np.nanmin(float32_raster.arr)) is np.float32
+        assert type(np.nanmean(float32_raster.arr)) is np.float32
+
+        # Verify methods return Python float (converted from np.float32)
         assert isinstance(float32_raster.max(), float)
         assert isinstance(float32_raster.min(), float)
         assert isinstance(float32_raster.mean(), float)
@@ -2522,7 +2530,19 @@ class TestRasterStatistics:
         assert isinstance(float32_raster.median(), float)
         assert isinstance(float32_raster.quantile(0.5), float)
 
-        # Test with float64 - should return float64 precision
+    def test_statistical_methods_return_float_from_float64(
+        self, float64_raster: Raster
+    ):
+        """Test that statistical methods return Python floats from float64 arrays."""
+        # Verify the underlying array is float64
+        assert float64_raster.arr.dtype == np.float64
+
+        # Verify numpy operations preserve float64 before conversion
+        assert type(np.nanmax(float64_raster.arr)) is np.float64
+        assert type(np.nanmin(float64_raster.arr)) is np.float64
+        assert type(np.nanmean(float64_raster.arr)) is np.float64
+
+        # Verify methods return Python float (converted from np.float64)
         assert isinstance(float64_raster.max(), float)
         assert isinstance(float64_raster.min(), float)
         assert isinstance(float64_raster.mean(), float)
@@ -2530,7 +2550,19 @@ class TestRasterStatistics:
         assert isinstance(float64_raster.median(), float)
         assert isinstance(float64_raster.quantile(0.5), float)
 
-        # Test with float16 - should return float precision
+    def test_statistical_methods_return_float_from_float16(
+        self, float16_raster: Raster
+    ):
+        """Test that statistical methods return Python floats from float16 arrays."""
+        # Verify the underlying array is float16
+        assert float16_raster.arr.dtype == np.float16
+
+        # Verify numpy operations preserve float16 before conversion
+        assert type(np.nanmax(float16_raster.arr)) is np.float16
+        assert type(np.nanmin(float16_raster.arr)) is np.float16
+        assert type(np.nanmean(float16_raster.arr)) is np.float16
+
+        # Verify methods return Python float (converted from np.float16)
         assert isinstance(float16_raster.max(), float)
         assert isinstance(float16_raster.min(), float)
         assert isinstance(float16_raster.mean(), float)

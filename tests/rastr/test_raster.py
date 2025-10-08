@@ -929,6 +929,19 @@ class TestRaster:
             # Assert
             assert isinstance(raster, Raster)
 
+    class TestReadFile:
+        def test_basic_tif(self, assets_dir: Path):
+            # Arrange
+            raster_path = assets_dir / "pga_g_clipped.tif"
+
+            # Act
+            raster = Raster.read_file(raster_path)
+
+            # Assert
+            assert isinstance(raster, Raster)
+            assert raster.arr.shape == (2, 2)
+            assert raster.raster_meta.crs.to_epsg() == 4326
+
     class TestFillNA:
         def test_2by2_example(self):
             # Arrange

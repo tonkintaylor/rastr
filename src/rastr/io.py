@@ -23,8 +23,13 @@ def read_raster_inmem(
 
     with rasterio.open(raster_path, mode="r") as dst:
         # Read the entire array
-        arr: NDArray[np.float64] = dst.read()
-        arr = arr.squeeze().astype(np.float64)
+        arr = dst.read()
+        arr = arr.squeeze()
+        
+        # Cast integers to float16 to handle NaN values
+        if np.issubdtype(arr.dtype, np.integer):
+            arr = arr.astype(np.float16)
+        
         # Extract metadata
         cell_size = dst.res[0]
         if crs is None:
@@ -81,10 +86,14 @@ def read_raster_mosaic_inmem(
             crs = CRS.from_user_input(sources[0].crs)
 
         nodata = sources[0].nodata
+        arr = arr.squeeze()
+        
+        # Cast integers to float16 to handle NaN values
+        if np.issubdtype(arr.dtype, np.integer):
+            arr = arr.astype(np.float16)
+        
         if nodata is not None:
             arr[arr == nodata] = np.nan
-
-        arr = arr.squeeze().astype(np.float64)
 
         raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
         raster_obj = Raster(arr=arr, raster_meta=raster_meta)

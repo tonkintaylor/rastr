@@ -16,7 +16,7 @@ from rastr.meta import RasterMeta
 from rastr.raster import Raster
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Collection, Iterable
 
     import geopandas as gpd
     from numpy.typing import ArrayLike
@@ -141,7 +141,7 @@ def rasterize_gdf(
     gdf: gpd.GeoDataFrame,
     *,
     raster_meta: RasterMeta,
-    target_cols: list[str],
+    target_cols: Collection[str],
 ) -> list[Raster]:
     """Rasterize geometries from a GeoDataFrame.
 
@@ -212,7 +212,7 @@ def rasterize_gdf(
     return rasters
 
 
-def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> None:
+def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: Collection[str]) -> None:
     """Validate that all target columns exist in the GeoDataFrame.
 
     Args:
@@ -228,7 +228,7 @@ def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> No
         raise MissingColumnsError(msg)
 
 
-def _validate_columns_numeric(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> None:
+def _validate_columns_numeric(gdf: gpd.GeoDataFrame, target_cols: Collection[str]) -> None:
     """Validate that all target columns contain numeric data.
 
     Args:

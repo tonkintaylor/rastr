@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import rasterio
@@ -10,9 +9,6 @@ from pyproj.crs.crs import CRS
 
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
 
 
 def read_raster_inmem(
@@ -25,11 +21,11 @@ def read_raster_inmem(
         # Read the entire array
         arr = dst.read()
         arr = arr.squeeze()
-        
+
         # Cast integers to float16 to handle NaN values
         if np.issubdtype(arr.dtype, np.integer):
             arr = arr.astype(np.float16)
-        
+
         # Extract metadata
         cell_size = dst.res[0]
         if crs is None:
@@ -87,11 +83,11 @@ def read_raster_mosaic_inmem(
 
         nodata = sources[0].nodata
         arr = arr.squeeze()
-        
+
         # Cast integers to float16 to handle NaN values
         if np.issubdtype(arr.dtype, np.integer):
             arr = arr.astype(np.float16)
-        
+
         if nodata is not None:
             arr[arr == nodata] = np.nan
 

@@ -1220,6 +1220,49 @@ class Raster(BaseModel):
 
         return self.__class__(arr=cropped_arr, raster_meta=new_meta)
 
+    def trim_zeros(self) -> Self:
+        """Crop the raster by trimming away all-zero slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        of the non-zero values. Note that this does not guarantee no zero values at all
+        around the edges, only that there won't be entire edges which are all-zero.
+        """
+        arr = self.arr
+
+        # Check if the entire array is zero
+        if np.all(arr == 0):
+            msg = "Cannot crop raster: all values are zero"
+            raise ValueError(msg)
+
+        # Find rows and columns that are not all zero
+        zero_row_mask = np.all(arr == 0, axis=1)
+        zero_col_mask = np.all(arr == 0, axis=0)
+
+        # Find the bounding indices
+        (row_indices,) = np.where(~zero_row_mask)
+        (col_indices,) = np.where(~zero_col_mask)
+
+        min_row, max_row = row_indices[0], row_indices[-1]
+        min_col, max_col = col_indices[0], col_indices[-1]
+
+        # Crop the array
+        cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
+
+        # Shift the transform by the number of pixels cropped (min_col, min_row)
+        new_transform = (
+            self.raster_meta.transform
+            * rasterio.transform.Affine.translation(min_col, min_row)
+        )
+
+        # Create new metadata
+        new_meta = RasterMeta(
+            cell_size=self.raster_meta.cell_size,
+            crs=self.raster_meta.crs,
+            transform=new_transform,
+        )
+
+        return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
     ) -> Self:

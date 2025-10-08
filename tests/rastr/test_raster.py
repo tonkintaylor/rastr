@@ -1936,6 +1936,295 @@ class TestTrimNaN:
         assert cropped.raster_meta.transform == expected_transform
 
 
+class TestTrimZeros:
+    def test_no_zero_values_unchanged(self, base_raster: Raster):
+        # Arrange - base_raster has no zero values
+
+        # Act
+        cropped = base_raster.trim_zeros()
+
+        # Assert
+        assert cropped == base_raster
+        assert cropped.arr.shape == base_raster.arr.shape
+        np.testing.assert_array_equal(cropped.arr, base_raster.arr)
+        assert cropped.raster_meta == base_raster.raster_meta
+
+    def test_zero_edges_all_sides(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 5.0),
+        )
+        # Create 5x5 array with zero border and 3x3 data center
+        arr = np.zeros((5, 5))
+        arr[1:4, 1:4] = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        expected_arr = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (3, 3)
+
+        # Check that bounds are correctly adjusted
+        expected_transform = Affine(1.0, 0.0, 1.0, 0.0, -1.0, 4.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_zero_top_bottom_only(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=2.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(2.0, 0.0, 0.0, 0.0, -2.0, 8.0),
+        )
+        # Create 4x3 array with zero top and bottom rows
+        arr = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        expected_arr = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (2, 3)
+
+        # Check transform adjustment (y origin should move down by 1 row)
+        expected_transform = Affine(2.0, 0.0, 0.0, 0.0, -2.0, 6.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_zero_left_right_only(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.5,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.5, 0.0, 0.0, 0.0, -1.5, 6.0),
+        )
+        # Create 3x4 array with zero left and right columns
+        arr = np.array(
+            [
+                [0.0, 1.0, 2.0, 0.0],
+                [0.0, 3.0, 4.0, 0.0],
+                [0.0, 5.0, 6.0, 0.0],
+            ]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        expected_arr = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (3, 2)
+
+        # Check transform adjustment (x origin should move right by 1 column)
+        expected_transform = Affine(1.5, 0.0, 1.5, 0.0, -1.5, 6.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_asymmetric_zero_borders(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
+        )
+        # Create 6x5 array with asymmetric zero borders
+        arr = np.zeros((6, 5))
+        # Data in a 2x2 region offset from center
+        arr[2:4, 1:3] = np.array([[1.0, 2.0], [3.0, 4.0]])
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        expected_arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (2, 2)
+
+        # Check transform adjustment
+        expected_transform = Affine(1.0, 0.0, 1.0, 0.0, -1.0, 4.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_single_non_zero_cell(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 4.0),
+        )
+        # Create 4x4 array with single non-zero value
+        arr = np.zeros((4, 4))
+        arr[1, 2] = 42.0
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        expected_arr = np.array([[42.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (1, 1)
+
+        # Check transform adjustment
+        expected_transform = Affine(1.0, 0.0, 2.0, 0.0, -1.0, 3.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+    def test_all_zeros_raises_error(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.zeros((3, 3))
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Cannot crop raster: all values are zero"):
+            raster.trim_zeros()
+
+    def test_preserve_metadata(self):
+        # Arrange
+        original_crs = CRS.from_epsg(4326)  # Different CRS
+        original_cell_size = 0.5
+        meta = RasterMeta(
+            cell_size=original_cell_size,
+            crs=original_crs,
+            transform=Affine(0.5, 0.0, 0.0, 0.0, -0.5, 2.0),
+        )
+        arr = np.array([[0.0, 0.0], [1.0, 2.0]])
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        assert cropped.raster_meta.crs == original_crs
+        assert cropped.raster_meta.cell_size == original_cell_size
+        # Only transform should change
+        assert cropped.raster_meta.transform != raster.raster_meta.transform
+
+    def test_return_type_subclass(self):
+        # Arrange
+        class MyRaster(Raster):
+            pass
+
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        raster = MyRaster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        assert isinstance(cropped, MyRaster)
+
+    def test_original_raster_unchanged(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        original_arr = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        raster = Raster(arr=original_arr.copy(), raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        np.testing.assert_array_equal(raster.arr, original_arr)
+        assert raster.raster_meta == meta
+        assert cropped is not raster  # Different objects
+
+    def test_complex_transform_preservation(self):
+        # Arrange - create a transform with rotation/skew
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.1, 10.0, 0.1, -1.0, 20.0),  # Has rotation/skew
+        )
+        # Create array where we crop both rows and columns
+        arr = np.array([[0.0, 0.0, 0.0], [0.0, 1.0, 2.0], [0.0, 3.0, 4.0]])
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        # The a, b, d, e components should be preserved
+        original_transform = raster.raster_meta.transform
+        new_transform = cropped.raster_meta.transform
+
+        assert new_transform.a == original_transform.a  # x pixel size
+        assert new_transform.b == original_transform.b  # row rotation
+        assert new_transform.d == original_transform.d  # column rotation
+        assert new_transform.e == original_transform.e  # y pixel size
+        # Both c and f (origin) should change due to cropping
+        assert new_transform.c != original_transform.c
+        assert new_transform.f != original_transform.f
+
+    def test_disconnected_data_regions(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
+        )
+        # Create array with two disconnected data regions
+        arr = np.array(
+            [
+                [0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        cropped = raster.trim_zeros()
+
+        # Assert
+        # Should crop to the bounding box that contains both data points
+        expected_arr = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 2.0]])
+        np.testing.assert_array_equal(cropped.arr, expected_arr)
+        assert cropped.arr.shape == (3, 3)
+
+        # Check transform adjustment (should move to include both data points)
+        expected_transform = Affine(1.0, 0.0, 1.0, 0.0, -1.0, 5.0)
+        assert cropped.raster_meta.transform == expected_transform
+
+
 class TestResample:
     def test_upsampling_doubles_resolution(self, base_raster: Raster):
         # Arrange

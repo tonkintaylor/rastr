@@ -114,12 +114,12 @@ class TestReadRasterInMem:
         np.testing.assert_allclose(raster.arr, arr)
 
     def test_integer_conversion_to_float16(self, tmp_path: Path):
-        """Test that integer dtypes are converted to float16."""
+        """Test that integer dtypes are converted to float16 and nodata values become NaN."""
         # Arrange
-        arr = np.array([[1, 2], [3, 4]], dtype=np.int32)
+        arr = np.array([[1, 2], [3, -9999]], dtype=np.int32)
         transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)
         path = TestReadRasterMosaicInMem._write_tiff(
-            tmp_path, "test.tif", arr, transform, nodata=None
+            tmp_path, "test.tif", arr, transform, nodata=-9999
         )
 
         # Act
@@ -127,7 +127,9 @@ class TestReadRasterInMem:
 
         # Assert
         assert raster.arr.dtype == np.float16
-        np.testing.assert_allclose(raster.arr, arr.astype(np.float16))
+        assert np.isnan(raster.arr[1, 1])
+        expected = np.array([[1, 2], [3, np.nan]], dtype=np.float16)
+        np.testing.assert_allclose(raster.arr, expected, equal_nan=True)
 
 
 class TestReadRasterMosaicInMem:

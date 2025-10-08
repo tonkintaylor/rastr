@@ -733,6 +733,8 @@ class Raster(BaseModel):
         """
         arr = np.full(other.shape, fill_value, dtype=np.float32)
         return cls(arr=arr, raster_meta=other.raster_meta)
+
+    @classmethod
     def read_file(cls, filename: Path | str, crs: CRS | str | None = None) -> Self:
         """Read raster data from a file and return an in-memory Raster object.
 

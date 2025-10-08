@@ -981,6 +981,7 @@ class TestRaster:
                 filled_raster.arr,
                 np.array([[42.0, 42.0, 42.0], [42.0, 42.0, 42.0], [42.0, 42.0, 42.0]]),
             )
+
     class TestReadFile:
         def test_basic_tif(self, assets_dir: Path):
             # Arrange

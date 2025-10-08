@@ -720,6 +720,21 @@ class Raster(BaseModel):
         return cls(arr=arr, raster_meta=raster_meta)
 
     @classmethod
+    def full_like(cls, other: Raster, *, fill_value: float) -> Self:
+        """Create a raster with the same metadata as another but filled with a constant.
+
+        Args:
+            other: The raster to copy metadata from.
+            fill_value: The constant value to fill all cells with.
+
+        Returns:
+            A new raster with the same shape and metadata as `other`, but with all cells
+            set to `fill_value`.
+        """
+        arr = np.full(other.shape, fill_value, dtype=np.float32)
+        return cls(arr=arr, raster_meta=other.raster_meta)
+
+    @classmethod
     def read_file(cls, filename: Path | str, crs: CRS | str | None = None) -> Self:
         """Read raster data from a file and return an in-memory Raster object.
 

@@ -947,6 +947,37 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(filled_raster.arr, np.array([[1, 0], [0, 4]]))
 
+    class TestCopy:
+        def test_returns_new_instance(self, example_raster: Raster):
+            # Act
+            copied = example_raster.copy()
+
+            # Assert
+            assert isinstance(copied, Raster)
+            assert copied is not example_raster
+
+        def test_preserves_array_values(self, example_raster: Raster):
+            # Act
+            copied = example_raster.copy()
+
+            # Assert
+            np.testing.assert_array_equal(copied.arr, example_raster.arr)
+
+        def test_preserves_metadata(self, example_raster: Raster):
+            # Act
+            copied = example_raster.copy()
+
+            # Assert
+            assert copied.raster_meta == example_raster.raster_meta
+
+        def test_modifications_dont_affect_original(self, example_raster: Raster):
+            # Act
+            copied = example_raster.copy()
+            copied.arr[0, 0] = 999.0
+
+            # Assert
+            assert example_raster.arr[0, 0] != 999.0
+
     class TestGetXY:
         def test_get_xy(self, example_raster: Raster):
             # Act

@@ -1175,6 +1175,49 @@ class Raster(BaseModel):
 
         return raster
 
+    def _trim_value(self, *, value_mask: NDArray[np.bool_], value_name: str) -> Self:
+        """Crop the raster by trimming away slices matching the mask at the edges.
+
+        Args:
+            value_mask: Boolean mask where True indicates values to trim
+            value_name: Name of the value type for error messages (e.g., 'NaN', 'zero')
+        """
+        arr = self.arr
+
+        # Check if the entire array matches the mask
+        if np.all(value_mask):
+            msg = f"Cannot crop raster: all values are {value_name}"
+            raise ValueError(msg)
+
+        # Find rows and columns that are not all matching the mask
+        row_mask = np.all(value_mask, axis=1)
+        col_mask = np.all(value_mask, axis=0)
+
+        # Find the bounding indices
+        (row_indices,) = np.where(~row_mask)
+        (col_indices,) = np.where(~col_mask)
+
+        min_row, max_row = row_indices[0], row_indices[-1]
+        min_col, max_col = col_indices[0], col_indices[-1]
+
+        # Crop the array
+        cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
+
+        # Shift the transform by the number of pixels cropped (min_col, min_row)
+        new_transform = (
+            self.raster_meta.transform
+            * rasterio.transform.Affine.translation(min_col, min_row)
+        )
+
+        # Create new metadata
+        new_meta = RasterMeta(
+            cell_size=self.raster_meta.cell_size,
+            crs=self.raster_meta.crs,
+            transform=new_transform,
+        )
+
+        return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+
     def trim_nan(self) -> Self:
         """Crop the raster by trimming away all-NaN slices at the edges.
 
@@ -1184,41 +1227,7 @@ class Raster(BaseModel):
 
         Consider using `.extrapolate()` for further cleanup of NaN values.
         """
-        arr = self.arr
-
-        # Check if the entire array is NaN
-        if np.all(np.isnan(arr)):
-            msg = "Cannot crop raster: all values are NaN"
-            raise ValueError(msg)
-
-        # Find rows and columns that are not all NaN
-        nan_row_mask = np.all(np.isnan(arr), axis=1)
-        nan_col_mask = np.all(np.isnan(arr), axis=0)
-
-        # Find the bounding indices
-        (row_indices,) = np.where(~nan_row_mask)
-        (col_indices,) = np.where(~nan_col_mask)
-
-        min_row, max_row = row_indices[0], row_indices[-1]
-        min_col, max_col = col_indices[0], col_indices[-1]
-
-        # Crop the array
-        cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
-
-        # Shift the transform by the number of pixels cropped (min_col, min_row)
-        new_transform = (
-            self.raster_meta.transform
-            * rasterio.transform.Affine.translation(min_col, min_row)
-        )
-
-        # Create new metadata
-        new_meta = RasterMeta(
-            cell_size=self.raster_meta.cell_size,
-            crs=self.raster_meta.crs,
-            transform=new_transform,
-        )
-
-        return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+        return self._trim_value(value_mask=np.isnan(self.arr), value_name="NaN")
 
     def trim_zeros(self) -> Self:
         """Crop the raster by trimming away all-zero slices at the edges.
@@ -1227,41 +1236,7 @@ class Raster(BaseModel):
         of the non-zero values. Note that this does not guarantee no zero values at all
         around the edges, only that there won't be entire edges which are all-zero.
         """
-        arr = self.arr
-
-        # Check if the entire array is zero
-        if np.all(arr == 0):
-            msg = "Cannot crop raster: all values are zero"
-            raise ValueError(msg)
-
-        # Find rows and columns that are not all zero
-        zero_row_mask = np.all(arr == 0, axis=1)
-        zero_col_mask = np.all(arr == 0, axis=0)
-
-        # Find the bounding indices
-        (row_indices,) = np.where(~zero_row_mask)
-        (col_indices,) = np.where(~zero_col_mask)
-
-        min_row, max_row = row_indices[0], row_indices[-1]
-        min_col, max_col = col_indices[0], col_indices[-1]
-
-        # Crop the array
-        cropped_arr = arr[min_row : max_row + 1, min_col : max_col + 1]
-
-        # Shift the transform by the number of pixels cropped (min_col, min_row)
-        new_transform = (
-            self.raster_meta.transform
-            * rasterio.transform.Affine.translation(min_col, min_row)
-        )
-
-        # Create new metadata
-        new_meta = RasterMeta(
-            cell_size=self.raster_meta.cell_size,
-            crs=self.raster_meta.crs,
-            transform=new_transform,
-        )
-
-        return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+        return self._trim_value(value_mask=(self.arr == 0), value_name="zero")
 
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"

@@ -1454,6 +1454,32 @@ class TestRaster:
             assert len(gdf) > 0
             assert set(gdf["level"]) == {1.0}
 
+        def test_contour_with_tuple_levels(self):
+            # Arrange
+            raster = Raster.example()
+            levels = (0.0, 0.5)
+
+            # Act
+            contour_gdf = raster.contour(levels=levels)
+
+            # Assert
+            result_levels = set(contour_gdf["level"].unique())
+            expected_levels = set(levels)
+            assert result_levels == expected_levels
+
+        def test_contour_with_set_levels(self):
+            # Arrange
+            raster = Raster.example()
+            levels = {0.0, 0.5}
+
+            # Act
+            contour_gdf = raster.contour(levels=levels)
+
+            # Assert
+            result_levels = set(contour_gdf["level"].unique())
+            expected_levels = levels
+            assert result_levels == expected_levels
+
 
 @pytest.fixture
 def base_raster():

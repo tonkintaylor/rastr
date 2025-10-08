@@ -890,7 +890,7 @@ class Raster(BaseModel):
         return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, levels: list[float] | NDArray, *, smoothing: bool = True
+        self, levels: Collection[float] | NDArray, *, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
@@ -903,8 +903,8 @@ class Raster(BaseModel):
         contouring, to denoise the contours.
 
         Args:
-            levels: A list or array of contour levels to generate. The contour lines
-                    will be generated for each level in this sequence.
+            levels: A collection or array of contour levels to generate. The contour
+                    lines will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the
                        Catmull-Rom spline algorithm. If set to False, the raw

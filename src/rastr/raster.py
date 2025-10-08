@@ -819,6 +819,27 @@ class Raster(BaseModel):
         new_raster.arr = filled_arr
         return new_raster
 
+    def replace(self, old_value: float, new_value: float) -> Self:
+        """Replace all occurrences of a value in the raster with another value.
+
+        Creates a new raster with the specified value replaced. This is useful for
+        operations like replacing zeros with NaNs, or vice versa.
+
+        Args:
+            old_value: The value to be replaced.
+            new_value: The value to replace with.
+        """
+        # Handle NaN specially since NaN != NaN
+        if np.isnan(old_value):
+            mask = np.isnan(self.arr)
+        else:
+            mask = self.arr == old_value
+
+        replaced_arr = np.where(mask, new_value, self.arr)
+        new_raster = self.model_copy()
+        new_raster.arr = replaced_arr
+        return new_raster
+
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Get the x and y coordinates of the raster cell centres in meshgrid format.
 

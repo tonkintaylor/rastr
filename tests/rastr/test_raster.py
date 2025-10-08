@@ -947,6 +947,112 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(filled_raster.arr, np.array([[1, 0], [0, 4]]))
 
+    class TestReplace:
+        def test_replace_zero_with_nan(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(0, np.nan)
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1, np.nan], [np.nan, 4]])
+            )
+
+        def test_replace_nan_with_zero(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, np.nan], [np.nan, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(np.nan, 0)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 0], [0, 4]]))
+
+        def test_replace_value_with_different_value(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 2], [3, 2]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(2, 99)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 99], [3, 99]]))
+
+        def test_replace_returns_new_raster(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(0, 5)
+
+            # Assert
+            assert result is not raster
+
+        def test_original_raster_unchanged(self):
+            # Arrange
+            original_arr = np.array([[1, 0], [0, 4]])
+            raster = Raster(
+                arr=original_arr.copy(),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            _ = raster.replace(0, 5)
+
+            # Assert
+            np.testing.assert_array_equal(raster.arr, original_arr)
+
+        def test_no_matching_values(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 2], [3, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(99, 0)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+
     class TestGetXY:
         def test_get_xy(self, example_raster: Raster):
             # Act

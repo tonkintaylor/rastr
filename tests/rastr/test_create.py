@@ -205,6 +205,32 @@ class TestFullRaster:
         assert result.raster_meta == raster_meta
         assert result.arr.shape == (3, 3)  # 3x3 grid for bounds (0,0) to (3,3)
 
+    def test_full_raster_roundtrip_shape(self):
+        """Test that full_raster(r.meta, bounds=r.bounds).shape == r.shape."""
+        # Create a raster
+        transform = Affine.translation(0, 3) * Affine.scale(1.0, -1.0)
+        raster_meta = RasterMeta(cell_size=1.0, crs=_PROJECTED_CRS, transform=transform)
+        arr = np.ones((3, 3))
+        r1 = Raster(arr=arr, raster_meta=raster_meta)
+
+        # Recreate using full_raster with the same bounds
+        r2 = full_raster(r1.raster_meta, bounds=r1.bounds)
+
+        assert r2.shape == r1.shape
+
+    def test_full_raster_floating_point_robustness(self):
+        """Test that full_raster handles floating-point errors in bounds."""
+        raster_meta = RasterMeta(
+            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
+        )
+
+        # Bounds with tiny floating-point error (simulating computational error)
+        bounds_with_fp_error = (0.0, 0.0, 3.0 + 1e-10, 3.0 + 1e-10)
+        result = full_raster(raster_meta, bounds=bounds_with_fp_error)
+
+        # Should still produce a 3x3 raster, not 4x4
+        assert result.arr.shape == (3, 3)
+
 
 class TestRasterizeGdf:
     """Test suite for rasterize_gdf function."""

@@ -212,7 +212,9 @@ def rasterize_gdf(
     return rasters
 
 
-def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: Collection[str]) -> None:
+def _validate_columns_exist(
+    gdf: gpd.GeoDataFrame, target_cols: Collection[str]
+) -> None:
     """Validate that all target columns exist in the GeoDataFrame.
 
     Args:
@@ -228,7 +230,9 @@ def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: Collection[str])
         raise MissingColumnsError(msg)
 
 
-def _validate_columns_numeric(gdf: gpd.GeoDataFrame, target_cols: Collection[str]) -> None:
+def _validate_columns_numeric(
+    gdf: gpd.GeoDataFrame, target_cols: Collection[str]
+) -> None:
     """Validate that all target columns contain numeric data.
 
     Args:

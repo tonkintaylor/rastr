@@ -1307,11 +1307,11 @@ def _get_vmin_vmax(
             category=RuntimeWarning,
         )
         if vmin is None:
-            _vmin = raster.min()
+            _vmin = float(raster.min())
         else:
             _vmin = vmin
         if vmax is None:
-            _vmax = raster.max()
+            _vmax = float(raster.max())
         else:
             _vmax = vmax
 

@@ -138,7 +138,7 @@ class TestReadRasterMosaicInMem:
         arr: np.ndarray,
         transform: rasterio.transform.Affine,
         crs: str | CRS = "EPSG:4326",
-        nodata: float = float("nan"),
+        nodata: float | None = float("nan"),
     ) -> Path:
         path = dir_path / name
         with rasterio.open(

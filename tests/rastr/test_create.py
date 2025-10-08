@@ -720,7 +720,6 @@ class TestRasterizeGdf:
         assert isinstance(result[0], Raster)
 
 
-
 class TestRasterFromPointCloud:
     def test_square(self):
         """Test rasterization from a simple square point cloud.

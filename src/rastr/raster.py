@@ -673,8 +673,15 @@ class Raster(BaseModel):
 
         return raster_gdf
 
-    def to_file(self, path: Path | str) -> None:
-        """Write the raster to a GeoTIFF file."""
+    def to_file(self, path: Path | str, **kwargs: Any) -> None:
+        """Write the raster to a GeoTIFF file.
+
+        Args:
+            path: Path to output file.
+            **kwargs: Additional keyword arguments to pass to `rasterio.open()`. If
+                      `nodata` is provided, NaN values in the raster will be replaced
+                      with the nodata value.
+        """
 
         path = Path(path)
 
@@ -689,6 +696,15 @@ class Raster(BaseModel):
             msg = f"Unsupported file extension: {suffix}"
             raise ValueError(msg)
 
+        # Handle nodata: use provided value or default to np.nan
+        if "nodata" in kwargs:
+            # Replace NaN values with the nodata value
+            nodata_value = kwargs.pop("nodata")
+            arr_to_write = np.where(np.isnan(self.arr), nodata_value, self.arr)
+        else:
+            nodata_value = np.nan
+            arr_to_write = self.arr
+
         with rasterio.open(
             path,
             "w",
@@ -699,10 +715,11 @@ class Raster(BaseModel):
             dtype=self.arr.dtype,
             crs=self.raster_meta.crs,
             transform=self.raster_meta.transform,
-            nodata=np.nan,
+            nodata=nodata_value,
+            **kwargs,
         ) as dst:
             try:
-                dst.write(self.arr, 1)
+                dst.write(arr_to_write, 1)
             except CPLE_BaseError as err:
                 msg = f"Failed to write raster to file: {err}"
                 raise OSError(msg) from err

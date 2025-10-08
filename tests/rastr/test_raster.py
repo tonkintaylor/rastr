@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import rasterio
 from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
@@ -836,6 +837,80 @@ class TestRaster:
 
             # Assert
             assert filename.exists()
+
+        def test_kwargs_passed_to_rasterio(
+            self, tmp_path: Path, example_raster: Raster
+        ):
+            # Arrange
+            filename = tmp_path / "test_raster.tif"
+
+            # Act - pass compress kwarg to rasterio
+            example_raster.to_file(filename, compress="lzw")
+
+            # Assert
+            assert filename.exists()
+            with rasterio.open(filename) as src:
+                assert src.compression.value.lower() == "lzw"
+
+        def test_custom_nodata_value(self, tmp_path: Path):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
+            )
+            arr = np.array([[1.0, np.nan], [3.0, 4.0]])
+            raster = Raster(arr=arr, raster_meta=meta)
+            filename = tmp_path / "test_nodata.tif"
+
+            # Act
+            raster.to_file(filename, nodata=-9999.0)
+
+            # Assert
+            with rasterio.open(filename) as src:
+                assert src.nodata == pytest.approx(-9999.0)
+                read_arr = src.read(1)
+                assert read_arr[0, 1] == pytest.approx(-9999.0)
+
+        def test_nodata_replaces_nan_in_array(self, tmp_path: Path):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
+            )
+            arr = np.array([[1.0, np.nan], [np.nan, 4.0]])
+            raster = Raster(arr=arr, raster_meta=meta)
+            filename = tmp_path / "test_nodata_replace.tif"
+
+            # Act
+            raster.to_file(filename, nodata=-9999.0)
+
+            # Assert
+            with rasterio.open(filename) as src:
+                read_arr = src.read(1)
+                assert read_arr[0, 0] == pytest.approx(1.0)
+                assert read_arr[0, 1] == pytest.approx(-9999.0)
+                assert read_arr[1, 0] == pytest.approx(-9999.0)
+                assert read_arr[1, 1] == pytest.approx(4.0)
+
+        def test_default_nodata_is_nan(self, tmp_path: Path):
+            # Arrange
+            filename = tmp_path / "test_default_nodata.tif"
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
+            )
+            arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            # Act
+            raster.to_file(filename)
+
+            # Assert
+            with rasterio.open(filename) as src:
+                assert np.isnan(src.nodata)
 
     class TestPlot:
         def test_cell_array_unchanged(self, example_raster_with_zeros: Raster):

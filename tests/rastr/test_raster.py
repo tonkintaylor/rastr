@@ -2510,14 +2510,33 @@ class TestRasterStatistics:
         assert method() == expected_result
         assert method_with_nans() == expected_result_with_nans
 
-    def test_statistical_methods_return_float(self, float32_raster: Raster):
-        """Test that statistical methods return Python floats."""
+    def test_statistical_methods_return_float(
+        self, float32_raster: Raster, float64_raster: Raster, float16_raster: Raster
+    ):
+        """Test that statistical methods return Python floats with correct precision."""
+        # Test with float32 - should return float32 precision
         assert isinstance(float32_raster.max(), float)
         assert isinstance(float32_raster.min(), float)
         assert isinstance(float32_raster.mean(), float)
         assert isinstance(float32_raster.std(), float)
         assert isinstance(float32_raster.median(), float)
         assert isinstance(float32_raster.quantile(0.5), float)
+
+        # Test with float64 - should return float64 precision
+        assert isinstance(float64_raster.max(), float)
+        assert isinstance(float64_raster.min(), float)
+        assert isinstance(float64_raster.mean(), float)
+        assert isinstance(float64_raster.std(), float)
+        assert isinstance(float64_raster.median(), float)
+        assert isinstance(float64_raster.quantile(0.5), float)
+
+        # Test with float16 - should return float precision
+        assert isinstance(float16_raster.max(), float)
+        assert isinstance(float16_raster.min(), float)
+        assert isinstance(float16_raster.mean(), float)
+        assert isinstance(float16_raster.std(), float)
+        assert isinstance(float16_raster.median(), float)
+        assert isinstance(float16_raster.quantile(0.5), float)
 
     @pytest.mark.parametrize(
         ("quantile", "expected_result", "expected_result_with_nans"),

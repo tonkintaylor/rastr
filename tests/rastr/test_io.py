@@ -81,6 +81,54 @@ class TestReadRasterInMem:
         # Assert
         assert raster_obj.raster_meta.crs.to_epsg() == 4326
 
+    def test_dtype_preservation_float32(self, tmp_path: Path):
+        """Test that float32 dtype is preserved when reading."""
+        # Arrange
+        arr = np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float32)
+        transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)
+        path = TestReadRasterMosaicInMem._write_tiff(
+            tmp_path, "test.tif", arr, transform
+        )
+
+        # Act
+        raster = read_raster_inmem(path)
+
+        # Assert
+        assert raster.arr.dtype == np.float32
+        np.testing.assert_allclose(raster.arr, arr)
+
+    def test_dtype_preservation_float64(self, tmp_path: Path):
+        """Test that float64 dtype is preserved when reading."""
+        # Arrange
+        arr = np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float64)
+        transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)
+        path = TestReadRasterMosaicInMem._write_tiff(
+            tmp_path, "test.tif", arr, transform
+        )
+
+        # Act
+        raster = read_raster_inmem(path)
+
+        # Assert
+        assert raster.arr.dtype == np.float64
+        np.testing.assert_allclose(raster.arr, arr)
+
+    def test_integer_conversion_to_float16(self, tmp_path: Path):
+        """Test that integer dtypes are converted to float16."""
+        # Arrange
+        arr = np.array([[1, 2], [3, 4]], dtype=np.int32)
+        transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)
+        path = TestReadRasterMosaicInMem._write_tiff(
+            tmp_path, "test.tif", arr, transform, nodata=None
+        )
+
+        # Act
+        raster = read_raster_inmem(path)
+
+        # Assert
+        assert raster.arr.dtype == np.float16
+        np.testing.assert_allclose(raster.arr, arr.astype(np.float16))
+
 
 class TestReadRasterMosaicInMem:
     @staticmethod
@@ -195,48 +243,6 @@ class TestReadRasterMosaicInMem:
 
         # Assert
         np.testing.assert_allclose(raster.arr, first)
-
-    def test_dtype_preservation_float32(self, tmp_path: Path):
-        """Test that float32 dtype is preserved when reading."""
-        # Arrange
-        arr = np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float32)
-        transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)
-        path = self._write_tiff(tmp_path, "test.tif", arr, transform)
-
-        # Act
-        raster = read_raster_inmem(path)
-
-        # Assert
-        assert raster.arr.dtype == np.float32
-        np.testing.assert_allclose(raster.arr, arr)
-
-    def test_dtype_preservation_float64(self, tmp_path: Path):
-        """Test that float64 dtype is preserved when reading."""
-        # Arrange
-        arr = np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float64)
-        transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)
-        path = self._write_tiff(tmp_path, "test.tif", arr, transform)
-
-        # Act
-        raster = read_raster_inmem(path)
-
-        # Assert
-        assert raster.arr.dtype == np.float64
-        np.testing.assert_allclose(raster.arr, arr)
-
-    def test_integer_conversion_to_float16(self, tmp_path: Path):
-        """Test that integer dtypes are converted to float16."""
-        # Arrange
-        arr = np.array([[1, 2], [3, 4]], dtype=np.int32)
-        transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)
-        path = self._write_tiff(tmp_path, "test.tif", arr, transform, nodata=None)
-
-        # Act
-        raster = read_raster_inmem(path)
-
-        # Assert
-        assert raster.arr.dtype == np.float16
-        np.testing.assert_allclose(raster.arr, arr.astype(np.float16))
 
     def test_mosaic_dtype_preservation_float32(self, tmp_path: Path):
         """Test that float32 dtype is preserved when reading mosaics."""

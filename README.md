@@ -46,6 +46,11 @@ from rastr.raster import Raster
 # Create an example raster
 raster = Raster.example()
 
+# Read a raster from a file
+raster = Raster.read_file("path/to/raster.tif")
+# Or override the CRS if needed
+raster = Raster.read_file("path/to/raster.tif", crs="EPSG:2193")
+
 # Basic arithmetic operations
 doubled = raster * 2
 summed = raster + 10

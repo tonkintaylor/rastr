@@ -130,11 +130,6 @@ repos:
         language: system
         pass_filenames: false
         require_serial: true
-  - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.14.2 
-    hooks:
-       - id: zizmor
-         args: ["--no-progress", "--pedantic", ".github/"]
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:

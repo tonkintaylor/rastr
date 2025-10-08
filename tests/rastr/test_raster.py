@@ -2518,12 +2518,12 @@ class TestRasterStatistics:
         assert float32_raster.arr.dtype == np.float32
 
         # Test that methods work and return Python float
-        assert type(float32_raster.max()) is float
-        assert type(float32_raster.min()) is float
-        assert type(float32_raster.mean()) is float
-        assert type(float32_raster.std()) is float
-        assert type(float32_raster.median()) is float
-        assert type(float32_raster.quantile(0.5)) is float
+        assert type(float32_raster.max()) is np.float32
+        assert type(float32_raster.min()) is np.float32
+        assert type(float32_raster.mean()) is np.float32
+        assert type(float32_raster.std()) is np.float32
+        assert type(float32_raster.median()) is np.float32
+        assert type(float32_raster.quantile(0.5)) is np.float32
 
     def test_statistical_methods_return_float_from_float64(
         self, float64_raster: Raster
@@ -2533,12 +2533,12 @@ class TestRasterStatistics:
         assert float64_raster.arr.dtype == np.float64
 
         # Test that methods work and return Python float
-        assert type(float64_raster.max()) is float
-        assert type(float64_raster.min()) is float
-        assert type(float64_raster.mean()) is float
-        assert type(float64_raster.std()) is float
-        assert type(float64_raster.median()) is float
-        assert type(float64_raster.quantile(0.5)) is float
+        assert type(float64_raster.max()) is np.float64
+        assert type(float64_raster.min()) is np.float64
+        assert type(float64_raster.mean()) is np.float64
+        assert type(float64_raster.std()) is np.float64
+        assert type(float64_raster.median()) is np.float64
+        assert type(float64_raster.quantile(0.5)) is np.float64
 
     def test_statistical_methods_return_float_from_float16(
         self, float16_raster: Raster
@@ -2548,12 +2548,12 @@ class TestRasterStatistics:
         assert float16_raster.arr.dtype == np.float16
 
         # Test that methods work and return Python float
-        assert type(float16_raster.max()) is float
-        assert type(float16_raster.min()) is float
-        assert type(float16_raster.mean()) is float
-        assert type(float16_raster.std()) is float
-        assert type(float16_raster.median()) is float
-        assert type(float16_raster.quantile(0.5)) is float
+        assert type(float16_raster.max()) is np.float16
+        assert type(float16_raster.min()) is np.float16
+        assert type(float16_raster.mean()) is np.float16
+        assert type(float16_raster.std()) is np.float16
+        assert type(float16_raster.median()) is np.float16
+        assert type(float16_raster.quantile(0.5)) is np.float16
 
     @pytest.mark.parametrize(
         ("quantile", "expected_result", "expected_result_with_nans"),

@@ -2513,98 +2513,47 @@ class TestRasterStatistics:
     def test_statistical_methods_return_float_from_float32(
         self, float32_raster: Raster
     ):
-        """Test that statistical methods work with float32 arrays."""
+        """Test that statistical methods work with float32 and return float."""
         # Verify the underlying array is float32
         assert float32_raster.arr.dtype == np.float32
 
-        # Test that methods work and verify intermediate numpy results preserve dtype
-        max_val = float32_raster.max()
-        assert isinstance(max_val, float)
-        assert type(np.nanmax(float32_raster.arr)) is np.float32
-
-        min_val = float32_raster.min()
-        assert isinstance(min_val, float)
-        assert type(np.nanmin(float32_raster.arr)) is np.float32
-
-        mean_val = float32_raster.mean()
-        assert isinstance(mean_val, float)
-        assert type(np.nanmean(float32_raster.arr)) is np.float32
-
-        std_val = float32_raster.std()
-        assert isinstance(std_val, float)
-        assert type(np.nanstd(float32_raster.arr)) is np.float32
-
-        median_val = float32_raster.median()
-        assert isinstance(median_val, float)
-        assert type(np.nanmedian(float32_raster.arr)) is np.float32
-
-        quantile_val = float32_raster.quantile(0.5)
-        assert isinstance(quantile_val, float)
-        assert type(np.nanquantile(float32_raster.arr, 0.5)) is np.float32
+        # Test that methods work and return Python float
+        assert type(float32_raster.max()) is float
+        assert type(float32_raster.min()) is float
+        assert type(float32_raster.mean()) is float
+        assert type(float32_raster.std()) is float
+        assert type(float32_raster.median()) is float
+        assert type(float32_raster.quantile(0.5)) is float
 
     def test_statistical_methods_return_float_from_float64(
         self, float64_raster: Raster
     ):
-        """Test that statistical methods work with float64 arrays."""
+        """Test that statistical methods work with float64 and return float."""
         # Verify the underlying array is float64
         assert float64_raster.arr.dtype == np.float64
 
-        # Test that methods work and verify intermediate numpy results preserve dtype
-        max_val = float64_raster.max()
-        assert isinstance(max_val, float)
-        assert type(np.nanmax(float64_raster.arr)) is np.float64
-
-        min_val = float64_raster.min()
-        assert isinstance(min_val, float)
-        assert type(np.nanmin(float64_raster.arr)) is np.float64
-
-        mean_val = float64_raster.mean()
-        assert isinstance(mean_val, float)
-        assert type(np.nanmean(float64_raster.arr)) is np.float64
-
-        std_val = float64_raster.std()
-        assert isinstance(std_val, float)
-        assert type(np.nanstd(float64_raster.arr)) is np.float64
-
-        median_val = float64_raster.median()
-        assert isinstance(median_val, float)
-        assert type(np.nanmedian(float64_raster.arr)) is np.float64
-
-        quantile_val = float64_raster.quantile(0.5)
-        assert isinstance(quantile_val, float)
-        assert type(np.nanquantile(float64_raster.arr, 0.5)) is np.float64
+        # Test that methods work and return Python float
+        assert type(float64_raster.max()) is float
+        assert type(float64_raster.min()) is float
+        assert type(float64_raster.mean()) is float
+        assert type(float64_raster.std()) is float
+        assert type(float64_raster.median()) is float
+        assert type(float64_raster.quantile(0.5)) is float
 
     def test_statistical_methods_return_float_from_float16(
         self, float16_raster: Raster
     ):
-        """Test that statistical methods work with float16 arrays."""
+        """Test that statistical methods work with float16 and return float."""
         # Verify the underlying array is float16
         assert float16_raster.arr.dtype == np.float16
 
-        # Test that methods work and verify intermediate numpy results preserve dtype
-        max_val = float16_raster.max()
-        assert isinstance(max_val, float)
-        assert type(np.nanmax(float16_raster.arr)) is np.float16
-
-        min_val = float16_raster.min()
-        assert isinstance(min_val, float)
-        assert type(np.nanmin(float16_raster.arr)) is np.float16
-
-        mean_val = float16_raster.mean()
-        assert isinstance(mean_val, float)
-        assert type(np.nanmean(float16_raster.arr)) is np.float16
-
-        std_val = float16_raster.std()
-        assert isinstance(std_val, float)
-        assert type(np.nanstd(float16_raster.arr)) is np.float16
-
-        median_val = float16_raster.median()
-        assert isinstance(median_val, float)
-        assert type(np.nanmedian(float16_raster.arr)) is np.float16
-
-        quantile_val = float16_raster.quantile(0.5)
-        assert isinstance(quantile_val, float)
-        assert type(np.nanquantile(float16_raster.arr, 0.5)) is np.float16
+        # Test that methods work and return Python float
+        assert type(float16_raster.max()) is float
+        assert type(float16_raster.min()) is float
+        assert type(float16_raster.mean()) is float
+        assert type(float16_raster.std()) is float
+        assert type(float16_raster.median()) is float
+        assert type(float16_raster.quantile(0.5)) is float
 
     @pytest.mark.parametrize(
         ("quantile", "expected_result", "expected_result_with_nans"),

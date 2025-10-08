@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import rasterio
 from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
@@ -263,6 +264,34 @@ class TestRaster:
             assert example_raster.meta.transform is new_transform
             assert example_raster.raster_meta.transform is new_transform
             assert example_raster.transform != original_transform
+
+    class TestCellSize:
+        def test_cell_size_getter(self, example_raster: Raster):
+            # Act
+            cell_size_via_property = example_raster.cell_size
+            cell_size_via_meta = example_raster.meta.cell_size
+            cell_size_via_raster_meta = example_raster.raster_meta.cell_size
+
+            # Assert
+            assert cell_size_via_property is cell_size_via_meta
+            assert cell_size_via_property is cell_size_via_raster_meta
+            assert cell_size_via_property == cell_size_via_meta
+            assert cell_size_via_property == cell_size_via_raster_meta
+            assert isinstance(cell_size_via_property, float)
+
+        def test_cell_size_setter(self, example_raster: Raster):
+            # Arrange
+            new_cell_size = 5.0
+            original_cell_size = example_raster.cell_size
+
+            # Act
+            example_raster.cell_size = new_cell_size
+
+            # Assert
+            assert example_raster.cell_size == new_cell_size
+            assert example_raster.meta.cell_size == new_cell_size
+            assert example_raster.raster_meta.cell_size == new_cell_size
+            assert example_raster.cell_size != original_cell_size
 
     class TestSample:
         def test_sample_nan_raise(self, example_raster: Raster):
@@ -865,6 +894,80 @@ class TestRaster:
             # Assert
             assert filename.exists()
 
+        def test_kwargs_passed_to_rasterio(
+            self, tmp_path: Path, example_raster: Raster
+        ):
+            # Arrange
+            filename = tmp_path / "test_raster.tif"
+
+            # Act - pass compress kwarg to rasterio
+            example_raster.to_file(filename, compress="lzw")
+
+            # Assert
+            assert filename.exists()
+            with rasterio.open(filename) as src:
+                assert src.compression.value.lower() == "lzw"
+
+        def test_custom_nodata_value(self, tmp_path: Path):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
+            )
+            arr = np.array([[1.0, np.nan], [3.0, 4.0]])
+            raster = Raster(arr=arr, raster_meta=meta)
+            filename = tmp_path / "test_nodata.tif"
+
+            # Act
+            raster.to_file(filename, nodata=-9999.0)
+
+            # Assert
+            with rasterio.open(filename) as src:
+                assert src.nodata == pytest.approx(-9999.0)
+                read_arr = src.read(1)
+                assert read_arr[0, 1] == pytest.approx(-9999.0)
+
+        def test_nodata_replaces_nan_in_array(self, tmp_path: Path):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
+            )
+            arr = np.array([[1.0, np.nan], [np.nan, 4.0]])
+            raster = Raster(arr=arr, raster_meta=meta)
+            filename = tmp_path / "test_nodata_replace.tif"
+
+            # Act
+            raster.to_file(filename, nodata=-9999.0)
+
+            # Assert
+            with rasterio.open(filename) as src:
+                read_arr = src.read(1)
+                assert read_arr[0, 0] == pytest.approx(1.0)
+                assert read_arr[0, 1] == pytest.approx(-9999.0)
+                assert read_arr[1, 0] == pytest.approx(-9999.0)
+                assert read_arr[1, 1] == pytest.approx(4.0)
+
+        def test_default_nodata_is_nan(self, tmp_path: Path):
+            # Arrange
+            filename = tmp_path / "test_default_nodata.tif"
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
+            )
+            arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            # Act
+            raster.to_file(filename)
+
+            # Assert
+            with rasterio.open(filename) as src:
+                assert np.isnan(src.nodata)
+
     class TestPlot:
         def test_cell_array_unchanged(self, example_raster_with_zeros: Raster):
             # Arrange
@@ -985,6 +1088,72 @@ class TestRaster:
             # Assert
             assert isinstance(raster, Raster)
 
+    class TestFullLike:
+        def test_basic_usage(self, example_raster: Raster):
+            # Act
+            filled_raster = Raster.full_like(example_raster, fill_value=5.0)
+
+            # Assert
+            assert filled_raster.shape == example_raster.shape
+            assert filled_raster.raster_meta == example_raster.raster_meta
+            expected_arr = np.array([[5.0, 5.0], [5.0, 5.0]])
+            np.testing.assert_array_equal(filled_raster.arr, expected_arr)
+
+        def test_with_nan_fill(self, example_raster: Raster):
+            # Act
+            filled_raster = Raster.full_like(example_raster, fill_value=np.nan)
+
+            # Assert
+            assert filled_raster.shape == example_raster.shape
+            assert filled_raster.raster_meta == example_raster.raster_meta
+            assert np.all(np.isnan(filled_raster.arr))
+
+        def test_with_zero_fill(self, example_raster: Raster):
+            # Act
+            filled_raster = Raster.full_like(example_raster, fill_value=0.0)
+
+            # Assert
+            assert filled_raster.shape == example_raster.shape
+            assert filled_raster.raster_meta == example_raster.raster_meta
+            expected_arr = np.array([[0.0, 0.0], [0.0, 0.0]])
+            np.testing.assert_array_equal(filled_raster.arr, expected_arr)
+
+        def test_different_size_raster(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+            )
+            large_raster = Raster(
+                arr=np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+                raster_meta=meta,
+            )
+
+            # Act
+            filled_raster = Raster.full_like(large_raster, fill_value=42.0)
+
+            # Assert
+            assert filled_raster.shape == (3, 3)
+            assert filled_raster.raster_meta == meta
+            np.testing.assert_array_equal(
+                filled_raster.arr,
+                np.array([[42.0, 42.0, 42.0], [42.0, 42.0, 42.0], [42.0, 42.0, 42.0]]),
+            )
+
+    class TestReadFile:
+        def test_basic_tif(self, assets_dir: Path):
+            # Arrange
+            raster_path = assets_dir / "pga_g_clipped.tif"
+
+            # Act
+            raster = Raster.read_file(raster_path)
+
+            # Assert
+            assert isinstance(raster, Raster)
+            assert raster.arr.shape == (2, 2)
+            assert raster.raster_meta.crs.to_epsg() == 4326
+
     class TestFillNA:
         def test_2by2_example(self):
             # Arrange
@@ -1070,6 +1239,122 @@ class TestRaster:
             """Test that blur() preserves dtype for float64."""
             result = float64_raster.blur(sigma=0.5)
             assert result.arr.dtype == np.float64
+
+        def test_preserve_nan_preserves_nan_mask(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            arr = np.array(
+                [
+                    [np.nan, np.nan, np.nan, np.nan, np.nan],
+                    [np.nan, 1.0, 2.0, 3.0, np.nan],
+                    [np.nan, 4.0, 5.0, 6.0, np.nan],
+                    [np.nan, 7.0, 8.0, 9.0, np.nan],
+                    [np.nan, np.nan, np.nan, np.nan, np.nan],
+                ],
+                dtype=float,
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+            original_nan_mask = np.isnan(raster.arr)
+
+            # Act
+            blurred = raster.blur(sigma=0.5, preserve_nan=True)
+
+            # Assert
+            assert np.array_equal(np.isnan(blurred.arr), original_nan_mask)
+
+        def test_preserve_nan_blurs_valid_values(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            arr = np.array(
+                [
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, 5.0, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=float,
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            # Act
+            blurred = raster.blur(sigma=0.5, preserve_nan=True)
+
+            # Assert
+            assert not np.isnan(blurred.arr[1, 1])
+
+        def test_preserve_nan_without_nans_behaves_normally(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            arr = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=float)
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            # Act
+            blurred_default = raster.blur(sigma=0.5)
+            blurred_preserve = raster.blur(sigma=0.5, preserve_nan=True)
+
+            # Assert
+            np.testing.assert_array_almost_equal(
+                blurred_default.arr, blurred_preserve.arr
+            )
+
+        def test_default_preserve_nan_is_true(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            arr = np.array(
+                [
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, 5.0, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=float,
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+            original_nan_mask = np.isnan(raster.arr)
+
+            # Act
+            blurred = raster.blur(sigma=0.5)
+
+            # Assert - default behavior should preserve NaNs
+            assert np.array_equal(np.isnan(blurred.arr), original_nan_mask)
+            assert not np.isnan(blurred.arr[1, 1])
+
+        def test_preserve_nan_false_spreads_nans(self):
+            # Arrange
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            arr = np.array(
+                [
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, 5.0, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=float,
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            # Act
+            blurred = raster.blur(sigma=0.5, preserve_nan=False)
+
+            # Assert - NaNs should spread into data
+            assert np.all(np.isnan(blurred.arr))
 
     class TestExtrapolate:
         class TestNearest:
@@ -1276,6 +1561,32 @@ class TestRaster:
             # Assert
             assert len(gdf) > 0
             assert set(gdf["level"]) == {1.0}
+
+        def test_contour_with_tuple_levels(self):
+            # Arrange
+            raster = Raster.example()
+            levels = (0.0, 0.5)
+
+            # Act
+            contour_gdf = raster.contour(levels=levels)
+
+            # Assert
+            result_levels = set(contour_gdf["level"].unique())
+            expected_levels = set(levels)
+            assert result_levels == expected_levels
+
+        def test_contour_with_set_levels(self):
+            # Arrange
+            raster = Raster.example()
+            levels = {0.0, 0.5}
+
+            # Act
+            contour_gdf = raster.contour(levels=levels)
+
+            # Assert
+            result_levels = set(contour_gdf["level"].unique())
+            expected_levels = levels
+            assert result_levels == expected_levels
 
 
 @pytest.fixture

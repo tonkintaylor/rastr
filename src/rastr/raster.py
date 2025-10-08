@@ -108,6 +108,16 @@ class Raster(BaseModel):
         """Set the transform via meta."""
         self.meta.transform = value
 
+    @property
+    def cell_size(self) -> float:
+        """Convenience property to access the cell size via meta."""
+        return self.meta.cell_size
+
+    @cell_size.setter
+    def cell_size(self, value: float) -> None:
+        """Set the cell size via meta."""
+        self.meta.cell_size = value
+
     def __init__(
         self,
         *,
@@ -663,8 +673,15 @@ class Raster(BaseModel):
 
         return raster_gdf
 
-    def to_file(self, path: Path | str) -> None:
-        """Write the raster to a GeoTIFF file."""
+    def to_file(self, path: Path | str, **kwargs: Any) -> None:
+        """Write the raster to a GeoTIFF file.
+
+        Args:
+            path: Path to output file.
+            **kwargs: Additional keyword arguments to pass to `rasterio.open()`. If
+                      `nodata` is provided, NaN values in the raster will be replaced
+                      with the nodata value.
+        """
 
         path = Path(path)
 
@@ -679,6 +696,15 @@ class Raster(BaseModel):
             msg = f"Unsupported file extension: {suffix}"
             raise ValueError(msg)
 
+        # Handle nodata: use provided value or default to np.nan
+        if "nodata" in kwargs:
+            # Replace NaN values with the nodata value
+            nodata_value = kwargs.pop("nodata")
+            arr_to_write = np.where(np.isnan(self.arr), nodata_value, self.arr)
+        else:
+            nodata_value = np.nan
+            arr_to_write = self.arr
+
         with rasterio.open(
             path,
             "w",
@@ -689,10 +715,11 @@ class Raster(BaseModel):
             dtype=self.arr.dtype,
             crs=self.raster_meta.crs,
             transform=self.raster_meta.transform,
-            nodata=np.nan,
+            nodata=nodata_value,
+            **kwargs,
         ) as dst:
             try:
-                dst.write(self.arr, 1)
+                dst.write(arr_to_write, 1)
             except CPLE_BaseError as err:
                 msg = f"Failed to write raster to file: {err}"
                 raise OSError(msg) from err
@@ -718,6 +745,34 @@ class Raster(BaseModel):
 
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
+
+    @classmethod
+    def full_like(cls, other: Raster, *, fill_value: float) -> Self:
+        """Create a raster with the same metadata as another but filled with a constant.
+
+        Args:
+            other: The raster to copy metadata from.
+            fill_value: The constant value to fill all cells with.
+
+        Returns:
+            A new raster with the same shape and metadata as `other`, but with all cells
+            set to `fill_value`.
+        """
+        arr = np.full(other.shape, fill_value, dtype=np.float32)
+        return cls(arr=arr, raster_meta=other.raster_meta)
+
+    @classmethod
+    def read_file(cls, filename: Path | str, crs: CRS | str | None = None) -> Self:
+        """Read raster data from a file and return an in-memory Raster object.
+
+        Args:
+            filename: Path to the raster file.
+            crs: Optional coordinate reference system to override the file's CRS.
+        """
+        # Import here to avoid circular import (rastr.io imports Raster)
+        from rastr.io import read_raster_inmem  # noqa: PLC0415
+
+        return read_raster_inmem(filename, crs=crs, cls=cls)
 
     @overload
     def apply(
@@ -835,7 +890,7 @@ class Raster(BaseModel):
         return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, levels: list[float] | NDArray, *, smoothing: bool = True
+        self, levels: Collection[float] | NDArray, *, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
@@ -848,8 +903,8 @@ class Raster(BaseModel):
         contouring, to denoise the contours.
 
         Args:
-            levels: A list or array of contour levels to generate. The contour lines
-                    will be generated for each level in this sequence.
+            levels: A collection or array of contour levels to generate. The contour
+                    lines will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the
                        Catmull-Rom spline algorithm. If set to False, the raw
@@ -905,19 +960,40 @@ class Raster(BaseModel):
         # Dissolve contours by level to merge all contour lines of the same level
         return contour_gdf.dissolve(by="level", as_index=False)
 
-    def blur(self, sigma: float) -> Self:
+    def blur(self, sigma: float, *, preserve_nan: bool = True) -> Self:
         """Apply a Gaussian blur to the raster data.
 
         Args:
             sigma: Standard deviation for Gaussian kernel, in units of geographic
                    coordinate distance (e.g. meters). A larger sigma results in a more
                    blurred image.
+            preserve_nan: If True, applies NaN-safe blurring by extrapolating NaN values
+                          before blurring and restoring them afterwards. This prevents
+                          NaNs from spreading into valid data during the blur operation.
         """
         from scipy.ndimage import gaussian_filter
 
         cell_sigma = sigma / self.raster_meta.cell_size
 
-        blurred_array = gaussian_filter(self.arr, sigma=cell_sigma)
+        if preserve_nan:
+            # Save the original NaN mask
+            nan_mask = np.isnan(self.arr)
+
+            # If there are no NaNs, just apply regular blur
+            if not np.any(nan_mask):
+                blurred_array = gaussian_filter(self.arr, sigma=cell_sigma)
+            else:
+                # Extrapolate to fill NaN values temporarily
+                extrapolated_arr = fillna_nearest_neighbours(arr=self.arr)
+
+                # Apply blur to the extrapolated array
+                blurred_array = gaussian_filter(extrapolated_arr, sigma=cell_sigma)
+
+                # Restore original NaN values
+                blurred_array = np.where(nan_mask, np.nan, blurred_array)
+        else:
+            blurred_array = gaussian_filter(self.arr, sigma=cell_sigma)
+
         new_raster = self.model_copy()
         new_raster.arr = blurred_array
         return new_raster

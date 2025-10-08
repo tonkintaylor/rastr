@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 import rasterio
@@ -14,11 +14,23 @@ from rastr.raster import Raster
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+R = TypeVar("R", bound=Raster)
+
 
 def read_raster_inmem(
-    raster_path: Path | str, *, crs: CRS | str | None = None
-) -> Raster:
-    """Read raster data from a file and return an in-memory Raster object."""
+    raster_path: Path | str,
+    *,
+    crs: CRS | str | None = None,
+    cls: type[R] = Raster,
+) -> R:
+    """Read raster data from a file and return an in-memory Raster object.
+
+    Args:
+        raster_path: Path to the raster file.
+        crs: Optional CRS to override the raster's native CRS.
+        cls: The Raster subclass to instantiate. This is mostly for internal use,
+             but can be useful if you have a custom `Raster` subclass.
+    """
     crs = CRS.from_user_input(crs) if crs is not None else None
 
     with rasterio.open(raster_path, mode="r") as dst:
@@ -43,7 +55,7 @@ def read_raster_inmem(
             arr[raw_arr == nodata] = np.nan
 
     raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
-    raster_obj = Raster(arr=arr, raster_meta=raster_meta)
+    raster_obj = cls(arr=arr, raster_meta=raster_meta)
     return raster_obj
 
 

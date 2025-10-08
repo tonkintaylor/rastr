@@ -263,6 +263,6 @@ root_packages = [ "rastr" ]
 [[tool.importlinter.contracts]]
 name = "rastr"
 type = "layers"
-layers = [ "create | io", "raster", "meta", "arr | gis", "_version" ]
+layers = [ "create : io : raster", "meta", "arr | gis", "_version" ]
 containers = [ "rastr" ]
 exhaustive = true

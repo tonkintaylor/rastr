@@ -108,6 +108,16 @@ class Raster(BaseModel):
         """Set the transform via meta."""
         self.meta.transform = value
 
+    @property
+    def cell_size(self) -> float:
+        """Convenience property to access the cell size via meta."""
+        return self.meta.cell_size
+
+    @cell_size.setter
+    def cell_size(self, value: float) -> None:
+        """Set the cell size via meta."""
+        self.meta.cell_size = value
+
     def __init__(
         self,
         *,

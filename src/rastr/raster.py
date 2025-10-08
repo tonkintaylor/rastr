@@ -29,7 +29,8 @@ from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable, Generator, Mapping
+    from collections.abc import Set as AbstractSet
 
     import geopandas as gpd
     from affine import Affine
@@ -41,6 +42,10 @@ if TYPE_CHECKING:
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from shapely import MultiPolygon
     from typing_extensions import Self
+
+    # Type aliases for BaseModel.copy() signature compatibility
+    AbstractSetIntStr = AbstractSet[int] | AbstractSet[str]
+    MappingIntStrAny = Mapping[int, Any] | Mapping[str, Any]
 
 try:
     from rasterio._err import CPLE_BaseError
@@ -819,17 +824,33 @@ class Raster(BaseModel):
         new_raster.arr = filled_arr
         return new_raster
 
-    def copy(self, *, deep: bool = True) -> Self:  # type: ignore[override]
+    def copy(
+        self,
+        *,
+        include: AbstractSetIntStr | MappingIntStrAny | None = None,
+        exclude: AbstractSetIntStr | MappingIntStrAny | None = None,
+        update: dict[str, Any] | None = None,
+        deep: bool = False,
+    ) -> Self:
         """Create a copy of the raster.
 
-        This method wraps `model_copy()` for convenience and defaults to a deep copy.
+        This method wraps `model_copy()` for convenience.
 
         Args:
-            deep: If True, perform a deep copy. Defaults to True.
+            include: Fields to include in the copy.
+            exclude: Fields to exclude from the copy.
+            update: Dictionary of field-value pairs to override in the copied model.
+            deep: If True, perform a deep copy. Defaults to False to match
+                  BaseModel.copy().
 
         Returns:
             A new Raster instance.
         """
+        if include is not None or exclude is not None or update is not None:
+            # Fall back to the deprecated BaseModel.copy() for these features
+            return super().copy(
+                include=include, exclude=exclude, update=update, deep=deep
+            )
         return self.model_copy(deep=deep)
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:

@@ -972,7 +972,7 @@ class TestRaster:
 
         def test_modifications_dont_affect_original(self, example_raster: Raster):
             # Act
-            copied = example_raster.copy()
+            copied = example_raster.copy(deep=True)
             copied.arr[0, 0] = 999.0
 
             # Assert

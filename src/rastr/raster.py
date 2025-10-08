@@ -756,7 +756,7 @@ class Raster(BaseModel):
         new_raster.arr = np.asarray(new_arr)
         return new_raster
 
-    def max(self) -> np.floating:
+    def max(self) -> float:
         """Get the maximum value in the raster, ignoring NaN values.
 
         Returns:
@@ -764,7 +764,7 @@ class Raster(BaseModel):
         """
         return np.nanmax(self.arr)
 
-    def min(self) -> np.floating:
+    def min(self) -> float:
         """Get the minimum value in the raster, ignoring NaN values.
 
         Returns:
@@ -772,7 +772,7 @@ class Raster(BaseModel):
         """
         return np.nanmin(self.arr)
 
-    def mean(self) -> np.floating:
+    def mean(self) -> float:
         """Get the mean value in the raster, ignoring NaN values.
 
         Returns:
@@ -780,7 +780,7 @@ class Raster(BaseModel):
         """
         return np.nanmean(self.arr)
 
-    def std(self) -> np.floating:
+    def std(self) -> float:
         """Get the standard deviation of values in the raster, ignoring NaN values.
 
         Returns:
@@ -788,7 +788,7 @@ class Raster(BaseModel):
         """
         return np.nanstd(self.arr)
 
-    def quantile(self, q: float) -> np.floating:
+    def quantile(self, q: float) -> float:
         """Get the specified quantile value in the raster, ignoring NaN values.
 
         Args:
@@ -799,7 +799,7 @@ class Raster(BaseModel):
         """
         return np.nanquantile(self.arr, q)
 
-    def median(self) -> np.floating:
+    def median(self) -> float:
         """Get the median value in the raster, ignoring NaN values.
 
         This is equivalent to quantile(0.5).

@@ -762,7 +762,7 @@ class Raster(BaseModel):
         Returns:
             The maximum value in the raster. Returns NaN if all values are NaN.
         """
-        return np.nanmax(self.arr)
+        return float(np.nanmax(self.arr))
 
     def min(self) -> float:
         """Get the minimum value in the raster, ignoring NaN values.
@@ -770,7 +770,7 @@ class Raster(BaseModel):
         Returns:
             The minimum value in the raster. Returns NaN if all values are NaN.
         """
-        return np.nanmin(self.arr)
+        return float(np.nanmin(self.arr))
 
     def mean(self) -> float:
         """Get the mean value in the raster, ignoring NaN values.
@@ -778,7 +778,7 @@ class Raster(BaseModel):
         Returns:
             The mean value in the raster. Returns NaN if all values are NaN.
         """
-        return np.nanmean(self.arr)
+        return float(np.nanmean(self.arr))
 
     def std(self) -> float:
         """Get the standard deviation of values in the raster, ignoring NaN values.
@@ -786,7 +786,7 @@ class Raster(BaseModel):
         Returns:
             The standard deviation of the raster. Returns NaN if all values are NaN.
         """
-        return np.nanstd(self.arr)
+        return float(np.nanstd(self.arr))
 
     def quantile(self, q: float) -> float:
         """Get the specified quantile value in the raster, ignoring NaN values.
@@ -797,7 +797,7 @@ class Raster(BaseModel):
         Returns:
             The quantile value. Returns NaN if all values are NaN.
         """
-        return np.nanquantile(self.arr, q)
+        return float(np.nanquantile(self.arr, q))
 
     def median(self) -> float:
         """Get the median value in the raster, ignoring NaN values.
@@ -807,7 +807,7 @@ class Raster(BaseModel):
         Returns:
             The median value in the raster. Returns NaN if all values are NaN.
         """
-        return np.nanmedian(self.arr)
+        return float(np.nanmedian(self.arr))
 
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.

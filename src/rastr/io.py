@@ -28,7 +28,12 @@ def read_raster_inmem(
     Args:
         raster_path: Path to the raster file.
         crs: Optional CRS to override the raster's native CRS.
-        cls: The Raster subclass to instantiate.
+        cls: The Raster subclass to instantiate. This is useful when you want to
+            extend the `Raster` class with additional functionality in your own
+            codebase, especially during early development stages of `rastr` when
+            features you need may not yet be available in the package. By passing
+            your custom subclass here, the returned object will be an instance of
+            your extended class rather than the base `Raster` class.
     """
     crs = CRS.from_user_input(crs) if crs is not None else None
 

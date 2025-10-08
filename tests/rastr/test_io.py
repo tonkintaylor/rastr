@@ -114,7 +114,7 @@ class TestReadRasterInMem:
         np.testing.assert_allclose(raster.arr, arr)
 
     def test_integer_conversion_to_float16(self, tmp_path: Path):
-        """Test that integer dtypes are converted to float16 and nodata values become NaN."""
+        """Test integer dtypes are converted to float16 and nodata values become NaN."""
         # Arrange
         arr = np.array([[1, 2], [3, -9999]], dtype=np.int32)
         transform = rasterio.transform.Affine(1, 0, 0, 0, -1, 2)

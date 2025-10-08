@@ -516,6 +516,27 @@ class TestRaster:
             with pytest.raises(TypeError, match="unsupported operand type"):
                 raster + "hello"  # type: ignore[reportOperatorIssue]
 
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that addition with scalar preserves float32."""
+            result = float32_raster + 1.0
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that addition with scalar preserves float64."""
+            result = float64_raster + 1.0
+            assert result.arr.dtype == np.float64
+
+        def test_preserves_dtype_float16(self, float16_raster: Raster):
+            """Test that addition with scalar preserves float16."""
+            result = float16_raster + 1.0
+            assert result.arr.dtype == np.float16
+
+        def test_raster_addition_preserves_dtype(self, float32_raster: Raster):
+            """Test that raster-to-raster addition preserves dtype."""
+            other = float32_raster.model_copy()
+            result = float32_raster + other
+            assert result.arr.dtype == np.float32
+
     class TestMul:
         def test_basic(self):
             # Arrange
@@ -620,6 +641,16 @@ class TestRaster:
             # Act
             with pytest.raises(TypeError):
                 raster * "hello"  # type: ignore[reportOperatorIssue]
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that multiplication preserves float32."""
+            result = float32_raster * 2.0
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that multiplication preserves float64."""
+            result = float64_raster * 2.0
+            assert result.arr.dtype == np.float64
 
     class TestTrueDiv:
         def test_basic(self):
@@ -728,6 +759,11 @@ class TestRaster:
             with pytest.raises(TypeError):
                 raster / "hello"  # type: ignore[reportOperatorIssue]
 
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that division preserves float32."""
+            result = float32_raster / 2.0
+            assert result.arr.dtype == np.float32
+
     class TestSub:
         def test_basic(self):
             # Arrange
@@ -770,6 +806,16 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[0, -1], [-2, -3]]))
 
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that subtraction preserves float32."""
+            result = float32_raster - 1.0
+            assert result.arr.dtype == np.float32
+
+        def test_negation_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that negation preserves float32."""
+            result = -float32_raster
+            assert result.arr.dtype == np.float32
+
     class TestApply:
         def test_sine(self, example_raster: Raster):
             # Act
@@ -777,6 +823,16 @@ class TestRaster:
 
             # Assert
             np.testing.assert_array_equal(result.arr, np.sin(example_raster.arr))
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that apply() preserves dtype."""
+            result = float32_raster.apply(lambda x: x * 2)
+            assert result.arr.dtype == np.float32
+
+        def test_apply_raw_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that apply() with raw=True preserves dtype."""
+            result = float32_raster.apply(lambda arr: arr * 2, raw=True)
+            assert result.arr.dtype == np.float32
 
     class TestToFile:
         def test_saving_gtiff(self, tmp_path: Path, example_raster: Raster):
@@ -947,6 +1003,27 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(filled_raster.arr, np.array([[1, 0], [0, 4]]))
 
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that fillna() preserves dtype."""
+            raster_with_nan = float32_raster.model_copy()
+            raster_with_nan.arr[0, 0] = np.nan
+            result = raster_with_nan.fillna(0.0)
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that fillna() preserves dtype for float64."""
+            raster_with_nan = float64_raster.model_copy()
+            raster_with_nan.arr[0, 0] = np.nan
+            result = raster_with_nan.fillna(0.0)
+            assert result.arr.dtype == np.float64
+
+        def test_preserves_dtype_float16(self, float16_raster: Raster):
+            """Test that fillna() preserves dtype for float16."""
+            raster_with_nan = float16_raster.model_copy()
+            raster_with_nan.arr[0, 0] = np.nan
+            result = raster_with_nan.fillna(0.0)
+            assert result.arr.dtype == np.float16
+
     class TestGetXY:
         def test_get_xy(self, example_raster: Raster):
             # Act
@@ -983,6 +1060,16 @@ class TestRaster:
                 pytest.approx(original_mean) == blurred_mean,
                 ("Mean of blurred raster should be close to original mean"),
             )
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that blur() preserves dtype."""
+            result = float32_raster.blur(sigma=0.5)
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that blur() preserves dtype for float64."""
+            result = float64_raster.blur(sigma=0.5)
+            assert result.arr.dtype == np.float64
 
     class TestExtrapolate:
         class TestNearest:
@@ -1035,6 +1122,27 @@ class TestRaster:
                         [[np.nan, np.nan], [np.nan, np.nan]]
                     ),  # No change expected
                 )
+
+            def test_preserves_dtype_float32(self, float32_raster: Raster):
+                """Test that extrapolate() preserves dtype."""
+                raster_with_nan = float32_raster.model_copy()
+                raster_with_nan.arr[0, 0] = np.nan
+                result = raster_with_nan.extrapolate()
+                assert result.arr.dtype == np.float32
+
+            def test_preserves_dtype_float64(self, float64_raster: Raster):
+                """Test that extrapolate() preserves dtype for float64."""
+                raster_with_nan = float64_raster.model_copy()
+                raster_with_nan.arr[0, 0] = np.nan
+                result = raster_with_nan.extrapolate()
+                assert result.arr.dtype == np.float64
+
+            def test_preserves_dtype_float16(self, float16_raster: Raster):
+                """Test that extrapolate() preserves dtype for float16."""
+                raster_with_nan = float16_raster.model_copy()
+                raster_with_nan.arr[0, 0] = np.nan
+                result = raster_with_nan.extrapolate()
+                assert result.arr.dtype == np.float16
 
     class TestContour:
         def test_contour_with_list_levels(self):
@@ -1390,6 +1498,12 @@ class TestCrop:
         with pytest.raises(TypeError):
             base_raster.crop(bounds, "overflow")  # type: ignore[reportCallIssue]
 
+    def test_preserves_dtype_float32(self, float32_raster: Raster):
+        """Test that crop() preserves dtype."""
+        bounds = (0.0, 0.0, 1.5, 1.5)
+        result = float32_raster.crop(bounds)
+        assert result.arr.dtype == np.float32
+
 
 class TestPad:
     def test_example(self):
@@ -1502,6 +1616,11 @@ class TestPad:
         assert padded.arr.shape == raster.arr.shape
         np.testing.assert_array_equal(padded.arr, raster.arr)
 
+    def test_preserves_dtype_float32(self, float32_raster: Raster):
+        """Test that pad() preserves dtype."""
+        result = float32_raster.pad(width=1.0)
+        assert result.arr.dtype == np.float32
+
 
 class TestTaperBorder:
     def test_example(self):
@@ -1555,6 +1674,11 @@ class TestTaperBorder:
         assert np.all(softened.arr[-1, :] == 20.0)
         assert np.all(softened.arr[:, 0] == 20.0)
         assert np.all(softened.arr[:, -1] == 20.0)
+
+    def test_preserves_dtype_float32(self, float32_raster: Raster):
+        """Test that taper_border() preserves dtype."""
+        result = float32_raster.taper_border(width=0.5)
+        assert result.arr.dtype == np.float32
 
 
 class TestClip:
@@ -1935,6 +2059,12 @@ class TestTrimNaN:
         expected_transform = Affine(1.0, 0.0, 1.0, 0.0, -1.0, 5.0)
         assert cropped.raster_meta.transform == expected_transform
 
+    def test_preserves_dtype_float32(self, float32_raster: Raster):
+        """Test that trim_nan() preserves dtype."""
+        raster_with_nan = float32_raster.pad(width=1.0, value=np.nan)
+        result = raster_with_nan.trim_nan()
+        assert result.arr.dtype == np.float32
+
 
 class TestResample:
     def test_upsampling_doubles_resolution(self, base_raster: Raster):
@@ -2148,6 +2278,16 @@ class TestResample:
         # Assert
         assert resampled.raster_meta.cell_size == new_cell_size
         assert isinstance(resampled, Raster)
+
+    def test_preserves_dtype_float32(self, float32_raster: Raster):
+        """Test that resample() preserves dtype."""
+        result = float32_raster.resample(new_cell_size=0.5)
+        assert result.arr.dtype == np.float32
+
+    def test_preserves_dtype_float64(self, float64_raster: Raster):
+        """Test that resample() preserves dtype for float64."""
+        result = float64_raster.resample(new_cell_size=0.5)
+        assert result.arr.dtype == np.float64
 
 
 class TestExplore:
@@ -2370,6 +2510,15 @@ class TestRasterStatistics:
         assert method() == expected_result
         assert method_with_nans() == expected_result_with_nans
 
+    def test_statistical_methods_return_float(self, float32_raster: Raster):
+        """Test that statistical methods return Python floats."""
+        assert isinstance(float32_raster.max(), float)
+        assert isinstance(float32_raster.min(), float)
+        assert isinstance(float32_raster.mean(), float)
+        assert isinstance(float32_raster.std(), float)
+        assert isinstance(float32_raster.median(), float)
+        assert isinstance(float32_raster.quantile(0.5), float)
+
     @pytest.mark.parametrize(
         ("quantile", "expected_result", "expected_result_with_nans"),
         [
@@ -2417,3 +2566,18 @@ class TestNormalize:
             normalized_raster.arr,
             np.array([[0.0, 0.0], [0.5, 1.0]]),
         )
+
+    def test_preserves_dtype_float32(self, float32_raster: Raster):
+        """Test that normalize() preserves dtype."""
+        result = float32_raster.normalize()
+        assert result.arr.dtype == np.float32
+
+    def test_preserves_dtype_float64(self, float64_raster: Raster):
+        """Test that normalize() preserves dtype for float64."""
+        result = float64_raster.normalize()
+        assert result.arr.dtype == np.float64
+
+    def test_preserves_dtype_float16(self, float16_raster: Raster):
+        """Test that normalize() preserves dtype for float16."""
+        result = float16_raster.normalize()
+        assert result.arr.dtype == np.float16

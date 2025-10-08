@@ -819,18 +819,15 @@ class Raster(BaseModel):
         new_raster.arr = filled_arr
         return new_raster
 
-    def copy(self, *, deep: bool = True) -> Self:  # type: ignore[override]
+    def copy(self) -> Self:  # type: ignore[override]
         """Create a copy of the raster.
 
-        This method wraps `model_copy()` for convenience and defaults to a deep copy.
-
-        Args:
-            deep: If True, perform a deep copy. Defaults to True.
+        This method wraps `model_copy()` for convenience.
 
         Returns:
             A new Raster instance.
         """
-        return self.model_copy(deep=deep)
+        return self.model_copy(deep=True)
 
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Get the x and y coordinates of the raster cell centres in meshgrid format.

@@ -111,15 +111,44 @@ class TestDtypePreservation:
         result = raster_with_nan.fillna(0.0)
         assert result.arr.dtype == np.float32
 
+    def test_fillna_preserves_dtype_float64(self, float64_raster: Raster):
+        """Test that fillna() preserves dtype for float64."""
+        raster_with_nan = float64_raster.model_copy()
+        raster_with_nan.arr[0, 0] = np.nan
+        result = raster_with_nan.fillna(0.0)
+        assert result.arr.dtype == np.float64
+
+    def test_fillna_preserves_dtype_float16(self, float16_raster: Raster):
+        """Test that fillna() preserves dtype for float16."""
+        raster_with_nan = float16_raster.model_copy()
+        raster_with_nan.arr[0, 0] = np.nan
+        result = raster_with_nan.fillna(0.0)
+        assert result.arr.dtype == np.float16
+
     def test_normalize_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that normalize() preserves dtype."""
         result = float32_raster.normalize()
         assert result.arr.dtype == np.float32
 
+    def test_normalize_preserves_dtype_float64(self, float64_raster: Raster):
+        """Test that normalize() preserves dtype for float64."""
+        result = float64_raster.normalize()
+        assert result.arr.dtype == np.float64
+
+    def test_normalize_preserves_dtype_float16(self, float16_raster: Raster):
+        """Test that normalize() preserves dtype for float16."""
+        result = float16_raster.normalize()
+        assert result.arr.dtype == np.float16
+
     def test_blur_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that blur() preserves dtype."""
         result = float32_raster.blur(sigma=0.5)
         assert result.arr.dtype == np.float32
+
+    def test_blur_preserves_dtype_float64(self, float64_raster: Raster):
+        """Test that blur() preserves dtype for float64."""
+        result = float64_raster.blur(sigma=0.5)
+        assert result.arr.dtype == np.float64
 
     def test_extrapolate_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that extrapolate() preserves dtype."""
@@ -128,6 +157,20 @@ class TestDtypePreservation:
         raster_with_nan.arr[0, 0] = np.nan
         result = raster_with_nan.extrapolate()
         assert result.arr.dtype == np.float32
+
+    def test_extrapolate_preserves_dtype_float64(self, float64_raster: Raster):
+        """Test that extrapolate() preserves dtype for float64."""
+        raster_with_nan = float64_raster.model_copy()
+        raster_with_nan.arr[0, 0] = np.nan
+        result = raster_with_nan.extrapolate()
+        assert result.arr.dtype == np.float64
+
+    def test_extrapolate_preserves_dtype_float16(self, float16_raster: Raster):
+        """Test that extrapolate() preserves dtype for float16."""
+        raster_with_nan = float16_raster.model_copy()
+        raster_with_nan.arr[0, 0] = np.nan
+        result = raster_with_nan.extrapolate()
+        assert result.arr.dtype == np.float16
 
     def test_pad_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that pad() preserves dtype."""
@@ -156,6 +199,11 @@ class TestDtypePreservation:
         """Test that resample() preserves dtype."""
         result = float32_raster.resample(new_cell_size=0.5)
         assert result.arr.dtype == np.float32
+
+    def test_resample_preserves_dtype_float64(self, float64_raster: Raster):
+        """Test that resample() preserves dtype for float64."""
+        result = float64_raster.resample(new_cell_size=0.5)
+        assert result.arr.dtype == np.float64
 
     def test_model_copy_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that model_copy() preserves dtype."""

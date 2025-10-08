@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import rasterio
@@ -9,6 +10,9 @@ from pyproj.crs.crs import CRS
 
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 def read_raster_inmem(
@@ -19,12 +23,8 @@ def read_raster_inmem(
 
     with rasterio.open(raster_path, mode="r") as dst:
         # Read the entire array
-        arr = dst.read()
-        arr = arr.squeeze()
-
-        # Cast integers to float16 to handle NaN values
-        if np.issubdtype(arr.dtype, np.integer):
-            arr = arr.astype(np.float16)
+        arr: NDArray = dst.read()
+        raw_arr = arr.squeeze()
 
         # Extract metadata
         cell_size = dst.res[0]
@@ -32,6 +32,13 @@ def read_raster_inmem(
             crs = CRS.from_user_input(dst.crs)
         transform = dst.transform
         nodata = dst.nodata
+
+        # Cast integers to float16 to handle NaN values
+        if np.issubdtype(raw_arr.dtype, np.integer):
+            arr = raw_arr.astype(np.float16)
+        else:
+            arr = raw_arr
+
         if nodata is not None:
             arr[arr == nodata] = np.nan
 
@@ -82,11 +89,13 @@ def read_raster_mosaic_inmem(
             crs = CRS.from_user_input(sources[0].crs)
 
         nodata = sources[0].nodata
-        arr = arr.squeeze()
+        raw_arr = arr.squeeze()
 
         # Cast integers to float16 to handle NaN values
-        if np.issubdtype(arr.dtype, np.integer):
-            arr = arr.astype(np.float16)
+        if np.issubdtype(raw_arr.dtype, np.integer):
+            arr = raw_arr.astype(np.float16)
+        else:
+            arr = raw_arr
 
         if nodata is not None:
             arr[arr == nodata] = np.nan

@@ -5,7 +5,7 @@ Fork + Port of <https://github.com/philipschall/shapelysmooth> (Public domain)
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 from shapely.geometry import LineString, Polygon
@@ -14,7 +14,7 @@ from typing_extensions import assert_never
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-T: TypeAlias = LineString | Polygon
+T = TypeVar("T", bound=LineString | Polygon)
 
 
 class InputeTypeError(TypeError):
@@ -38,12 +38,12 @@ def catmull_rom_smooth(geometry: T, alpha: float = 0.5, subdivs: int = 10) -> T:
     coords, interior_coords = _get_coords(geometry)
     coords_smoothed = _catmull_rom(coords, alpha=alpha, subdivs=subdivs)
     if isinstance(geometry, LineString):
-        return type(geometry)(coords_smoothed)
+        return geometry.__class__(coords_smoothed)
     elif isinstance(geometry, Polygon):
         interior_coords_smoothed = [
             _catmull_rom(c, alpha=alpha, subdivs=subdivs) for c in interior_coords
         ]
-        return type(geometry)(coords_smoothed, holes=interior_coords_smoothed)
+        return geometry.__class__(coords_smoothed, holes=interior_coords_smoothed)
     else:
         assert_never(geometry)
 

@@ -671,6 +671,54 @@ class TestRasterizeGdf:
         non_nan_count = np.count_nonzero(~np.isnan(raster_array))
         assert non_nan_count >= 1, "Boundary point should be rasterized"
 
+    def test_target_cols_as_tuple(self):
+        """Test that target_cols accepts a tuple (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+            Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {
+                "value1": [10.0, 20.0],
+                "value2": [100.0, 200.0],
+                "geometry": polygons,
+            },
+            crs=_PROJECTED_CRS,
+        )
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        # Use tuple instead of list for target_cols
+        result = rasterize_gdf(
+            gdf, raster_meta=raster_meta, target_cols=("value1", "value2")
+        )
+
+        assert len(result) == 2
+        assert all(isinstance(r, Raster) for r in result)
+
+    def test_target_cols_as_set(self):
+        """Test that target_cols accepts a set (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
+        )
+        raster_meta = RasterMeta(
+            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
+        )
+
+        # Use set instead of list for target_cols
+        result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols={"value"})
+
+        assert len(result) == 1
+        assert isinstance(result[0], Raster)
+
 
 class TestRasterFromPointCloud:
     def test_square(self):

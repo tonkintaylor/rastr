@@ -1202,6 +1202,7 @@ class TestRaster:
 
             # Assert
             assert example_raster.arr[0, 0] != 999.0
+
         def test_preserves_dtype_float32(self, float32_raster: Raster):
             """Test that fillna() preserves dtype."""
             raster_with_nan = float32_raster.model_copy()

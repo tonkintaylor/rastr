@@ -1261,29 +1261,27 @@ class Raster(BaseModel):
 
         return raster
 
-    def trim_nan(self) -> Self:
-        """Crop the raster by trimming away all-NaN slices at the edges.
+    def _trim_value(self, *, value_mask: NDArray[np.bool_], value_name: str) -> Self:
+        """Crop the raster by trimming away slices matching the mask at the edges.
 
-        This effectively trims the raster to the smallest bounding box that contains all
-        of the non-NaN values. Note that this does not guarantee no NaN values at all
-        around the edges, only that there won't be entire edges which are all-NaN.
-
-        Consider using `.extrapolate()` for further cleanup of NaN values.
+        Args:
+            value_mask: Boolean mask where True indicates values to trim
+            value_name: Name of the value type for error messages (e.g., 'NaN', 'zero')
         """
         arr = self.arr
 
-        # Check if the entire array is NaN
-        if np.all(np.isnan(arr)):
-            msg = "Cannot crop raster: all values are NaN"
+        # Check if the entire array matches the mask
+        if np.all(value_mask):
+            msg = f"Cannot crop raster: all values are {value_name}"
             raise ValueError(msg)
 
-        # Find rows and columns that are not all NaN
-        nan_row_mask = np.all(np.isnan(arr), axis=1)
-        nan_col_mask = np.all(np.isnan(arr), axis=0)
+        # Find rows and columns that are not all matching the mask
+        row_mask = np.all(value_mask, axis=1)
+        col_mask = np.all(value_mask, axis=0)
 
         # Find the bounding indices
-        (row_indices,) = np.where(~nan_row_mask)
-        (col_indices,) = np.where(~nan_col_mask)
+        (row_indices,) = np.where(~row_mask)
+        (col_indices,) = np.where(~col_mask)
 
         min_row, max_row = row_indices[0], row_indices[-1]
         min_col, max_col = col_indices[0], col_indices[-1]
@@ -1305,6 +1303,26 @@ class Raster(BaseModel):
         )
 
         return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+
+    def trim_nan(self) -> Self:
+        """Crop the raster by trimming away all-NaN slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        of the non-NaN values. Note that this does not guarantee no NaN values at all
+        around the edges, only that there won't be entire edges which are all-NaN.
+
+        Consider using `.extrapolate()` for further cleanup of NaN values.
+        """
+        return self._trim_value(value_mask=np.isnan(self.arr), value_name="NaN")
+
+    def trim_zeros(self) -> Self:
+        """Crop the raster by trimming away all-zero slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        of the non-zero values. Note that this does not guarantee no zero values at all
+        around the edges, only that there won't be entire edges which are all-zero.
+        """
+        return self._trim_value(value_mask=(self.arr == 0), value_name="zero")
 
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
@@ -1393,11 +1411,11 @@ def _get_vmin_vmax(
             category=RuntimeWarning,
         )
         if vmin is None:
-            _vmin = raster.min()
+            _vmin = float(raster.min())
         else:
             _vmin = vmin
         if vmax is None:
-            _vmax = raster.max()
+            _vmax = float(raster.max())
         else:
             _vmax = vmax
 

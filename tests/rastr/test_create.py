@@ -205,6 +205,32 @@ class TestFullRaster:
         assert result.raster_meta == raster_meta
         assert result.arr.shape == (3, 3)  # 3x3 grid for bounds (0,0) to (3,3)
 
+    def test_full_raster_roundtrip_shape(self):
+        """Test that full_raster(r.meta, bounds=r.bounds).shape == r.shape."""
+        # Create a raster
+        transform = Affine.translation(0, 3) * Affine.scale(1.0, -1.0)
+        raster_meta = RasterMeta(cell_size=1.0, crs=_PROJECTED_CRS, transform=transform)
+        arr = np.ones((3, 3))
+        r1 = Raster(arr=arr, raster_meta=raster_meta)
+
+        # Recreate using full_raster with the same bounds
+        r2 = full_raster(r1.raster_meta, bounds=r1.bounds)
+
+        assert r2.shape == r1.shape
+
+    def test_full_raster_floating_point_robustness(self):
+        """Test that full_raster handles floating-point errors in bounds."""
+        raster_meta = RasterMeta(
+            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
+        )
+
+        # Bounds with tiny floating-point error (simulating computational error)
+        bounds_with_fp_error = (0.0, 0.0, 3.0 + 1e-10, 3.0 + 1e-10)
+        result = full_raster(raster_meta, bounds=bounds_with_fp_error)
+
+        # Should still produce a 3x3 raster, not 4x4
+        assert result.arr.shape == (3, 3)
+
 
 class TestRasterizeGdf:
     """Test suite for rasterize_gdf function."""
@@ -644,6 +670,54 @@ class TestRasterizeGdf:
         # Point should be assigned to one of the adjacent cells
         non_nan_count = np.count_nonzero(~np.isnan(raster_array))
         assert non_nan_count >= 1, "Boundary point should be rasterized"
+
+    def test_target_cols_as_tuple(self):
+        """Test that target_cols accepts a tuple (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+            Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {
+                "value1": [10.0, 20.0],
+                "value2": [100.0, 200.0],
+                "geometry": polygons,
+            },
+            crs=_PROJECTED_CRS,
+        )
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        # Use tuple instead of list for target_cols
+        result = rasterize_gdf(
+            gdf, raster_meta=raster_meta, target_cols=("value1", "value2")
+        )
+
+        assert len(result) == 2
+        assert all(isinstance(r, Raster) for r in result)
+
+    def test_target_cols_as_set(self):
+        """Test that target_cols accepts a set (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
+        )
+        raster_meta = RasterMeta(
+            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
+        )
+
+        # Use set instead of list for target_cols
+        result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols={"value"})
+
+        assert len(result) == 1
+        assert isinstance(result[0], Raster)
 
 
 class TestRasterFromPointCloud:

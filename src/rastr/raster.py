@@ -108,6 +108,16 @@ class Raster(BaseModel):
         """Set the transform via meta."""
         self.meta.transform = value
 
+    @property
+    def cell_size(self) -> float:
+        """Convenience property to access the cell size via meta."""
+        return self.meta.cell_size
+
+    @cell_size.setter
+    def cell_size(self, value: float) -> None:
+        """Set the cell size via meta."""
+        self.meta.cell_size = value
+
     def __init__(
         self,
         *,
@@ -663,8 +673,15 @@ class Raster(BaseModel):
 
         return raster_gdf
 
-    def to_file(self, path: Path | str) -> None:
-        """Write the raster to a GeoTIFF file."""
+    def to_file(self, path: Path | str, **kwargs: Any) -> None:
+        """Write the raster to a GeoTIFF file.
+
+        Args:
+            path: Path to output file.
+            **kwargs: Additional keyword arguments to pass to `rasterio.open()`. If
+                      `nodata` is provided, NaN values in the raster will be replaced
+                      with the nodata value.
+        """
 
         path = Path(path)
 
@@ -679,6 +696,15 @@ class Raster(BaseModel):
             msg = f"Unsupported file extension: {suffix}"
             raise ValueError(msg)
 
+        # Handle nodata: use provided value or default to np.nan
+        if "nodata" in kwargs:
+            # Replace NaN values with the nodata value
+            nodata_value = kwargs.pop("nodata")
+            arr_to_write = np.where(np.isnan(self.arr), nodata_value, self.arr)
+        else:
+            nodata_value = np.nan
+            arr_to_write = self.arr
+
         with rasterio.open(
             path,
             "w",
@@ -689,10 +715,11 @@ class Raster(BaseModel):
             dtype=self.arr.dtype,
             crs=self.raster_meta.crs,
             transform=self.raster_meta.transform,
-            nodata=np.nan,
+            nodata=nodata_value,
+            **kwargs,
         ) as dst:
             try:
-                dst.write(self.arr, 1)
+                dst.write(arr_to_write, 1)
             except CPLE_BaseError as err:
                 msg = f"Failed to write raster to file: {err}"
                 raise OSError(msg) from err
@@ -718,6 +745,34 @@ class Raster(BaseModel):
 
         raster_meta = RasterMeta.example()
         return cls(arr=arr, raster_meta=raster_meta)
+
+    @classmethod
+    def full_like(cls, other: Raster, *, fill_value: float) -> Self:
+        """Create a raster with the same metadata as another but filled with a constant.
+
+        Args:
+            other: The raster to copy metadata from.
+            fill_value: The constant value to fill all cells with.
+
+        Returns:
+            A new raster with the same shape and metadata as `other`, but with all cells
+            set to `fill_value`.
+        """
+        arr = np.full(other.shape, fill_value, dtype=np.float32)
+        return cls(arr=arr, raster_meta=other.raster_meta)
+
+    @classmethod
+    def read_file(cls, filename: Path | str, crs: CRS | str | None = None) -> Self:
+        """Read raster data from a file and return an in-memory Raster object.
+
+        Args:
+            filename: Path to the raster file.
+            crs: Optional coordinate reference system to override the file's CRS.
+        """
+        # Import here to avoid circular import (rastr.io imports Raster)
+        from rastr.io import read_raster_inmem  # noqa: PLC0415
+
+        return read_raster_inmem(filename, crs=crs, cls=cls)
 
     @overload
     def apply(
@@ -819,6 +874,16 @@ class Raster(BaseModel):
         new_raster.arr = filled_arr
         return new_raster
 
+    def copy(self) -> Self:  # type: ignore[override]
+        """Create a copy of the raster.
+
+        This method wraps `model_copy()` for convenience.
+
+        Returns:
+            A new Raster instance.
+        """
+        return self.model_copy(deep=True)
+
     def get_xy(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Get the x and y coordinates of the raster cell centres in meshgrid format.
 
@@ -835,7 +900,7 @@ class Raster(BaseModel):
         return coords[:, :, 0], coords[:, :, 1]
 
     def contour(
-        self, levels: list[float] | NDArray, *, smoothing: bool = True
+        self, levels: Collection[float] | NDArray, *, smoothing: bool = True
     ) -> gpd.GeoDataFrame:
         """Create contour lines from the raster data, optionally with smoothing.
 
@@ -848,8 +913,8 @@ class Raster(BaseModel):
         contouring, to denoise the contours.
 
         Args:
-            levels: A list or array of contour levels to generate. The contour lines
-                    will be generated for each level in this sequence.
+            levels: A collection or array of contour levels to generate. The contour
+                    lines will be generated for each level in this sequence.
             smoothing: Defaults to true, which corresponds to applying a smoothing
                        algorithm to the contour lines. At the moment, this is the
                        Catmull-Rom spline algorithm. If set to False, the raw
@@ -859,15 +924,13 @@ class Raster(BaseModel):
 
         all_levels = []
         all_geoms = []
-        arr_max = np.nanmax(self.arr)
-        arr_min = np.nanmin(self.arr)
         for level in levels:
             # If this is the maximum or minimum level, perturb it ever-so-slightly to
             # ensure we get contours at the edges of the raster
             perturbed_level = level
-            if level == arr_max:
+            if level == self.max():
                 perturbed_level -= CONTOUR_PERTURB_EPS
-            elif level == arr_min:
+            elif level == self.min():
                 perturbed_level += CONTOUR_PERTURB_EPS
 
             contours = skimage.measure.find_contours(
@@ -907,19 +970,40 @@ class Raster(BaseModel):
         # Dissolve contours by level to merge all contour lines of the same level
         return contour_gdf.dissolve(by="level", as_index=False)
 
-    def blur(self, sigma: float) -> Self:
+    def blur(self, sigma: float, *, preserve_nan: bool = True) -> Self:
         """Apply a Gaussian blur to the raster data.
 
         Args:
             sigma: Standard deviation for Gaussian kernel, in units of geographic
                    coordinate distance (e.g. meters). A larger sigma results in a more
                    blurred image.
+            preserve_nan: If True, applies NaN-safe blurring by extrapolating NaN values
+                          before blurring and restoring them afterwards. This prevents
+                          NaNs from spreading into valid data during the blur operation.
         """
         from scipy.ndimage import gaussian_filter
 
         cell_sigma = sigma / self.raster_meta.cell_size
 
-        blurred_array = gaussian_filter(self.arr, sigma=cell_sigma)
+        if preserve_nan:
+            # Save the original NaN mask
+            nan_mask = np.isnan(self.arr)
+
+            # If there are no NaNs, just apply regular blur
+            if not np.any(nan_mask):
+                blurred_array = gaussian_filter(self.arr, sigma=cell_sigma)
+            else:
+                # Extrapolate to fill NaN values temporarily
+                extrapolated_arr = fillna_nearest_neighbours(arr=self.arr)
+
+                # Apply blur to the extrapolated array
+                blurred_array = gaussian_filter(extrapolated_arr, sigma=cell_sigma)
+
+                # Restore original NaN values
+                blurred_array = np.where(nan_mask, np.nan, blurred_array)
+        else:
+            blurred_array = gaussian_filter(self.arr, sigma=cell_sigma)
+
         new_raster = self.model_copy()
         new_raster.arr = blurred_array
         return new_raster
@@ -1177,29 +1261,27 @@ class Raster(BaseModel):
 
         return raster
 
-    def trim_nan(self) -> Self:
-        """Crop the raster by trimming away all-NaN slices at the edges.
+    def _trim_value(self, *, value_mask: NDArray[np.bool_], value_name: str) -> Self:
+        """Crop the raster by trimming away slices matching the mask at the edges.
 
-        This effectively trims the raster to the smallest bounding box that contains all
-        of the non-NaN values. Note that this does not guarantee no NaN values at all
-        around the edges, only that there won't be entire edges which are all-NaN.
-
-        Consider using `.extrapolate()` for further cleanup of NaN values.
+        Args:
+            value_mask: Boolean mask where True indicates values to trim
+            value_name: Name of the value type for error messages (e.g., 'NaN', 'zero')
         """
         arr = self.arr
 
-        # Check if the entire array is NaN
-        if np.all(np.isnan(arr)):
-            msg = "Cannot crop raster: all values are NaN"
+        # Check if the entire array matches the mask
+        if np.all(value_mask):
+            msg = f"Cannot crop raster: all values are {value_name}"
             raise ValueError(msg)
 
-        # Find rows and columns that are not all NaN
-        nan_row_mask = np.all(np.isnan(arr), axis=1)
-        nan_col_mask = np.all(np.isnan(arr), axis=0)
+        # Find rows and columns that are not all matching the mask
+        row_mask = np.all(value_mask, axis=1)
+        col_mask = np.all(value_mask, axis=0)
 
         # Find the bounding indices
-        (row_indices,) = np.where(~nan_row_mask)
-        (col_indices,) = np.where(~nan_col_mask)
+        (row_indices,) = np.where(~row_mask)
+        (col_indices,) = np.where(~col_mask)
 
         min_row, max_row = row_indices[0], row_indices[-1]
         min_col, max_col = col_indices[0], col_indices[-1]
@@ -1221,6 +1303,26 @@ class Raster(BaseModel):
         )
 
         return self.__class__(arr=cropped_arr, raster_meta=new_meta)
+
+    def trim_nan(self) -> Self:
+        """Crop the raster by trimming away all-NaN slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        of the non-NaN values. Note that this does not guarantee no NaN values at all
+        around the edges, only that there won't be entire edges which are all-NaN.
+
+        Consider using `.extrapolate()` for further cleanup of NaN values.
+        """
+        return self._trim_value(value_mask=np.isnan(self.arr), value_name="NaN")
+
+    def trim_zeros(self) -> Self:
+        """Crop the raster by trimming away all-zero slices at the edges.
+
+        This effectively trims the raster to the smallest bounding box that contains all
+        of the non-zero values. Note that this does not guarantee no zero values at all
+        around the edges, only that there won't be entire edges which are all-zero.
+        """
+        return self._trim_value(value_mask=(self.arr == 0), value_name="zero")
 
     def resample(
         self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
@@ -1309,11 +1411,11 @@ def _get_vmin_vmax(
             category=RuntimeWarning,
         )
         if vmin is None:
-            _vmin = np.nanmin(raster.arr)
+            _vmin = float(raster.min())
         else:
             _vmin = vmin
         if vmax is None:
-            _vmax = np.nanmax(raster.arr)
+            _vmax = float(raster.max())
         else:
             _vmax = vmax
 

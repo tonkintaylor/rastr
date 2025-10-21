@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pyproj import CRS
 
@@ -9,6 +9,7 @@ from rastr.gis.crs import get_affine_sign
 
 if TYPE_CHECKING:
     import pytest
+    from typing_extensions import Self
 
 
 class TestGetAffineSign:

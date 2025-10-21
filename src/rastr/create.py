@@ -321,15 +321,16 @@ def raster_from_point_cloud(
     )
 
     raster_meta, shape = RasterMeta.infer(x, y, cell_size=cell_size, crs=crs)
-    arr = (
-        interpn_kernel(
-            points=np.column_stack((x, y)),
-            values=z,
-            xi=np.column_stack(_get_grid(raster_meta, shape=shape)),
-        )
-        .reshape(shape)
-        .astype(z.dtype)
-    )
+    arr = interpn_kernel(
+        points=np.column_stack((x, y)),
+        values=z,
+        xi=np.column_stack(_get_grid(raster_meta, shape=shape)),
+    ).reshape(shape)
+
+    if z.dtype in (np.float16, np.float32, np.float64):
+        arr = arr.astype(z.dtype)
+    else:
+        arr = arr.astype(np.float64)
 
     return Raster(arr=arr, raster_meta=raster_meta)
 

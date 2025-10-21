@@ -18,15 +18,12 @@ def get_affine_sign(crs: CRS | str) -> tuple[Literal[+1, -1], Literal[+1, -1]]:
     # Try to detect horizontal axis directions from CRS metadata
     dir_x, dir_y, *_ = [(a.direction or "").lower() for a in crs.axis_info]
 
-    if "south" in dir_x or "down" in dir_x:
-        x_sign = -1
-    elif "north" in dir_x or "up" in dir_x:
-        x_sign = +1
-    elif "west" in dir_x or "left" in dir_x:
-        x_sign = -1
-    elif "east" in dir_x or "right" in dir_x:
-        x_sign = +1
-    else:
+    try:
+        if _is_conventional_direction(dir_x):
+            x_sign = +1
+        else:
+            x_sign = -1
+    except NotImplementedError:
         msg = (
             f"Could not determine x-axis direction from CRS axis info '{dir_x}'. "
             "Falling back to +1 (increasing to the right)."
@@ -34,15 +31,12 @@ def get_affine_sign(crs: CRS | str) -> tuple[Literal[+1, -1], Literal[+1, -1]]:
         warnings.warn(msg, stacklevel=2)
         x_sign = +1
 
-    if "north" in dir_y or "up" in dir_y:
-        y_sign = -1
-    elif "south" in dir_y or "down" in dir_y:
-        y_sign = +1
-    elif "east" in dir_y or "right" in dir_y:
-        y_sign = -1
-    elif "west" in dir_y or "left" in dir_y:
-        y_sign = +1
-    else:
+    try:
+        if _is_conventional_direction(dir_y):
+            y_sign = -1
+        else:
+            y_sign = +1
+    except NotImplementedError:
         msg = (
             f"Could not determine y-axis direction from CRS axis info '{dir_y}'. "
             "Falling back to -1 (increasing upwards)."
@@ -51,3 +45,23 @@ def get_affine_sign(crs: CRS | str) -> tuple[Literal[+1, -1], Literal[+1, -1]]:
         y_sign = -1
 
     return x_sign, y_sign
+
+
+def _is_conventional_direction(direction: str) -> bool:
+    """Return True if the axis direction indicates positive increase."""
+    if (
+        "north" in direction
+        or "up" in direction
+        or "east" in direction
+        or "right" in direction
+    ):
+        return True
+    elif (
+        "south" in direction
+        or "down" in direction
+        or "west" in direction
+        or "left" in direction
+    ):
+        return False
+    else:
+        raise NotImplementedError

@@ -1469,7 +1469,7 @@ class TestRaster:
             levels = [0.0, 0.5]
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             assert isinstance(contour_gdf, gpd.GeoDataFrame)
@@ -1484,7 +1484,7 @@ class TestRaster:
             levels = np.array([0.0, 0.5])
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             assert isinstance(contour_gdf, gpd.GeoDataFrame)
@@ -1498,8 +1498,8 @@ class TestRaster:
             levels_array = np.array([0.0, 0.5])
 
             # Act
-            contour_gdf_list = raster.contour(levels=levels_list)
-            contour_gdf_array = raster.contour(levels=levels_array)
+            contour_gdf_list = raster.contour(levels=levels_list, smoothing=False)
+            contour_gdf_array = raster.contour(levels=levels_array, smoothing=False)
 
             # Assert
             # Results should be equivalent (same number of contours at same levels)
@@ -1518,7 +1518,7 @@ class TestRaster:
             import geopandas as gpd
 
             raster = Raster.example()
-            gdf = raster.contour(levels=[0.0, 0.5])
+            gdf = raster.contour(levels=[0.0, 0.5], smoothing=False)
 
             assert isinstance(gdf, gpd.GeoDataFrame)
             assert list(gdf.columns) == ["level", "geometry"]
@@ -1528,7 +1528,7 @@ class TestRaster:
         def test_contour_levels_in_result(self):
             raster = Raster.example()
             levels = [0.0, 0.5]
-            gdf = raster.contour(levels=levels)
+            gdf = raster.contour(levels=levels, smoothing=False)
 
             result_levels = set(gdf["level"].unique())
             expected_levels = set(levels)
@@ -1537,7 +1537,7 @@ class TestRaster:
         def test_contour_dissolve_behavior_one_row_per_level(self):
             raster = Raster.example()
             levels = [0.0, 0.5]
-            gdf = raster.contour(levels=levels)
+            gdf = raster.contour(levels=levels, smoothing=False)
 
             # After dissolving, should have exactly one row per level
             assert len(gdf) == len(levels)
@@ -1556,13 +1556,6 @@ class TestRaster:
             assert len(gdf) > 0
             assert all(gdf["level"] == 0.0)
 
-        def test_contour_without_smoothing(self):
-            raster = Raster.example()
-            gdf = raster.contour(levels=[0.0], smoothing=False)
-
-            assert len(gdf) > 0
-            assert all(gdf["level"] == 0.0)
-
         def test_level_at_max(self):
             # https://github.com/tonkintaylor/rastr/issues/154
 
@@ -1573,7 +1566,7 @@ class TestRaster:
             )
 
             # Act
-            gdf = raster.contour(levels=[4])
+            gdf = raster.contour(levels=[4], smoothing=False)
 
             # Assert
             assert len(gdf) > 0
@@ -1587,7 +1580,7 @@ class TestRaster:
             )
 
             # Act
-            gdf = raster.contour(levels=[1])
+            gdf = raster.contour(levels=[1], smoothing=False)
 
             # Assert
             assert len(gdf) > 0
@@ -1599,7 +1592,7 @@ class TestRaster:
             levels = (0.0, 0.5)
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             result_levels = set(contour_gdf["level"].unique())
@@ -1612,7 +1605,7 @@ class TestRaster:
             levels = {0.0, 0.5}
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             result_levels = set(contour_gdf["level"].unique())

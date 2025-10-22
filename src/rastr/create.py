@@ -357,7 +357,7 @@ def _validate_xyz(
             "surface."
         )
         raise ValueError(msg)
-    #  Check for duplicate (x, y) points
+    # Check for duplicate (x, y) points
     xy_points = np.column_stack((x, y))
     if len(xy_points) != len(np.unique(xy_points, axis=0)):
         msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."

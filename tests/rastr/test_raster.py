@@ -6,6 +6,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import rasterio
+import rasterio.transform
 from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
@@ -1235,6 +1236,36 @@ class TestRaster:
             expected_y = np.array([[1.0, 1.0], [3.0, 3.0]])
             np.testing.assert_array_equal(x, expected_x)
             np.testing.assert_array_equal(y, expected_y)
+
+    class TestSobel:
+        def test_happy_path(self):
+            # Arrange
+            arr = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64)
+            cell_size = 2.0
+            raster_meta = RasterMeta(
+                cell_size=cell_size,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 0, 1, 1),
+            )
+            raster = Raster(arr=arr, raster_meta=raster_meta)
+            # Act
+            result = raster.sobel()
+            # Assert
+            expected = (
+                np.array(
+                    [  # Regression test - values are highest in middle row,
+                        # as expected, since the values increase more in the vertical
+                        # direction and the .sobel() method uses a 'reflect' border
+                        # mode.
+                        [2.23607, 2.54951, 2.23607],
+                        [4.30116, 4.47214, 4.30116],
+                        [2.23607, 2.54951, 2.23607],
+                    ]
+                )
+                / cell_size
+            )
+            np.testing.assert_almost_equal(result.arr, expected, decimal=5)
+            assert result.meta == raster_meta
 
     class TestBlur:
         def test_numeric_propertoes(self, example_raster: Raster):

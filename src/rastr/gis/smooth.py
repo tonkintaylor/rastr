@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 from shapely.geometry import LineString, Polygon
 from typing_extensions import assert_never
 
@@ -55,7 +56,8 @@ def _catmull_rom(
     subdivs: int = 8,
 ) -> list[tuple[float, float]]:
     arr = np.asarray(coords, dtype=float)
-    if arr.shape[0] < 2:
+    n = arr.shape[0]
+    if n < 2:
         return arr.tolist()
 
     is_closed = np.allclose(arr[0], arr[-1])
@@ -70,25 +72,44 @@ def _catmull_rom(
             ]
         )
 
-    new_ls = [tuple(arr[1])]
-    for k in range(len(arr) - 3):
-        slice4 = arr[k : k + 4]
-        tangents = [0.0]
-        for j in range(3):
-            dist = float(np.linalg.norm(slice4[j + 1] - slice4[j]))
-            tangents.append(float(tangents[-1] + dist**alpha))
+    # Shape of (segments, 4, D)
+    segments = sliding_window_view(arr, (4, arr.shape[1]))[:, 0, :]
 
-        # Resample: subdivs-1 samples strictly between t1 and t2
-        seg_len = (tangents[2] - tangents[1]) / float(subdivs)
-        if subdivs > 1:
-            ts = np.linspace(tangents[1] + seg_len, tangents[2] - seg_len, subdivs - 1)
-        else:
-            ts = np.array([])
+    # Distances and tangent values
+    diffs = np.diff(segments, axis=1)
+    dists = np.linalg.norm(diffs, axis=2)
+    tangents = np.concatenate(
+        [np.zeros((len(dists), 1)), np.cumsum(dists**alpha, axis=1)], axis=1
+    )
 
-        interpolants = _recursive_eval(slice4, np.asarray(tangents), ts)
-        new_ls.extend(interpolants)
-        new_ls.append(tuple(slice4[2]))
-    return new_ls
+    # Build ts per segment
+    if subdivs > 1:
+        seg_lens = (tangents[:, 2] - tangents[:, 1]) / subdivs
+        u = np.linspace(1, subdivs - 1, subdivs - 1)
+        ts = tangents[:, [1]] + seg_lens[:, None] * u  # (N-3, subdivs-1)
+    else:
+        ts = np.empty((len(segments), 0))
+
+    # Vectorize over segments
+    out_segments = []
+    for seg, tang, tvals in zip(segments, tangents, ts, strict=False):
+        if tvals.size:
+            out_segments.append(_recursive_eval(seg, tang, tvals))
+    if out_segments:
+        all_midpoints = np.vstack(out_segments)
+    else:
+        all_midpoints = np.empty((0, arr.shape[1]))
+
+    # Gather final output in order
+    result = [tuple(arr[1])]
+    idx = 0
+    for k in range(len(segments)):
+        block = all_midpoints[idx : idx + max(subdivs - 1, 0)]
+        result.extend(map(tuple, block))
+        result.append(tuple(segments[k, 2]))
+        idx += max(subdivs - 1, 0)
+
+    return result
 
 
 def _recursive_eval(slice4: NDArray, tangents: NDArray, ts: NDArray) -> NDArray:

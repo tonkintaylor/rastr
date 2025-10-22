@@ -15,7 +15,6 @@ import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
-import skimage.measure
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import Transformer
 from pyproj.crs.crs import CRS
@@ -53,6 +52,9 @@ BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 CONTOUR_PERTURB_EPS = 1e-10
+CELL_EPS = (
+    1e-9  # Small epsilon to avoid floating-point issues when comparing cell sizes
+)
 
 
 class RasterCellArrayShapeError(ValueError):
@@ -921,6 +923,7 @@ class Raster(BaseModel):
                        contours will be returned without any smoothing.
         """
         import geopandas as gpd
+        import skimage.measure
 
         all_levels = []
         all_geoms = []
@@ -1006,6 +1009,39 @@ class Raster(BaseModel):
 
         new_raster = self.model_copy()
         new_raster.arr = blurred_array
+        return new_raster
+
+    def dilate(self, radius: float) -> Self:
+        """Apply a morphological dilation to the raster using a disk footprint.
+
+        Morphological dilation sets the value of a pixel to the maximum over all pixel
+        values within a local neighborhood centered about it.
+
+        Dilation enlarges bright regions and shrinks dark regions. This is useful e.g.
+        to find a region nearby a steep edge after applying a Sobel filter.
+
+        Borders are treated using half-sample symmetric sampling, i.e. repeating the
+        border values. Be aware that this can lead to edge artifacts.
+
+        The radius parameter controls the dilation extent. This is rounded up to the
+        nearest integer multiple of the cell size, since dilation is a discrete
+        operation. To reduce inaccuracies due to this rounding, consider resampling
+        the raster to a smaller cell size before applying dilation.
+
+        Args:
+            radius: Radius of the disk footprint used in dilation, in units of
+                    geographic coordinate distance (e.g. meters).
+
+        Returns:
+            New raster with dilated values.
+        """
+        from skimage import morphology
+
+        cell_radius = radius / self.cell_size
+        # Round up to nearest cell, but in a floating-point safe way
+        cell_radius = int(np.ceil(cell_radius + CELL_EPS))
+        new_raster = self.model_copy()
+        new_raster.arr = morphology.dilation(self.arr, morphology.disk(cell_radius))
         return new_raster
 
     def extrapolate(self, method: Literal["nearest"] = "nearest") -> Self:

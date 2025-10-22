@@ -1172,6 +1172,197 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(filled_raster.arr, np.array([[1, 0], [0, 4]]))
 
+    class TestReplace:
+        def test_replace_zero_with_nan(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(to_replace=0, value=np.nan)
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1, np.nan], [np.nan, 4]])
+            )
+
+        def test_replace_nan_with_zero(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, np.nan], [np.nan, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(to_replace=np.nan, value=0)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 0], [0, 4]]))
+
+        def test_replace_value_with_different_value(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 2], [3, 2]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(to_replace=2, value=99)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 99], [3, 99]]))
+
+        def test_replace_returns_new_raster(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(to_replace=0, value=5)
+
+            # Assert
+            assert result is not raster
+
+        def test_original_raster_unchanged(self):
+            # Arrange
+            original_arr = np.array([[1, 0], [0, 4]])
+            raster = Raster(
+                arr=original_arr.copy(),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            _ = raster.replace(to_replace=0, value=5)
+
+            # Assert
+            np.testing.assert_array_equal(raster.arr, original_arr)
+
+        def test_no_matching_values(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 2], [3, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace(to_replace=99, value=0)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+
+        def test_replace_dict_multiple_values(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0, 2], [0, -999, 2]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace({0: np.nan, -999: np.nan})
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1, np.nan, 2], [np.nan, np.nan, 2]])
+            )
+
+        def test_replace_dict_with_nan_key(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, np.nan, 0], [np.nan, 2, 0]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace({np.nan: -999, 0: -888})
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1, -999, -888], [-999, 2, -888]])
+            )
+
+        def test_replace_dict_with_value_raises(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act & Assert
+            with pytest.raises(ValueError, match="value must be None"):
+                raster.replace({0: np.nan}, value=5)
+
+        def test_replace_float_without_value_raises(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act & Assert
+            with pytest.raises(ValueError, match="value must be specified"):
+                raster.replace(to_replace=0)
+
+        def test_replace_dict_with_chained_values(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 1], [2, 2]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace({1: 2, 2: 3})
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[2, 2], [3, 3]]))
+
     class TestCopy:
         def test_returns_new_instance(self, example_raster: Raster):
             # Act
@@ -1469,7 +1660,7 @@ class TestRaster:
             levels = [0.0, 0.5]
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             assert isinstance(contour_gdf, gpd.GeoDataFrame)
@@ -1484,7 +1675,7 @@ class TestRaster:
             levels = np.array([0.0, 0.5])
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             assert isinstance(contour_gdf, gpd.GeoDataFrame)
@@ -1498,8 +1689,8 @@ class TestRaster:
             levels_array = np.array([0.0, 0.5])
 
             # Act
-            contour_gdf_list = raster.contour(levels=levels_list)
-            contour_gdf_array = raster.contour(levels=levels_array)
+            contour_gdf_list = raster.contour(levels=levels_list, smoothing=False)
+            contour_gdf_array = raster.contour(levels=levels_array, smoothing=False)
 
             # Assert
             # Results should be equivalent (same number of contours at same levels)
@@ -1518,7 +1709,7 @@ class TestRaster:
             import geopandas as gpd
 
             raster = Raster.example()
-            gdf = raster.contour(levels=[0.0, 0.5])
+            gdf = raster.contour(levels=[0.0, 0.5], smoothing=False)
 
             assert isinstance(gdf, gpd.GeoDataFrame)
             assert list(gdf.columns) == ["level", "geometry"]
@@ -1528,7 +1719,7 @@ class TestRaster:
         def test_contour_levels_in_result(self):
             raster = Raster.example()
             levels = [0.0, 0.5]
-            gdf = raster.contour(levels=levels)
+            gdf = raster.contour(levels=levels, smoothing=False)
 
             result_levels = set(gdf["level"].unique())
             expected_levels = set(levels)
@@ -1537,7 +1728,7 @@ class TestRaster:
         def test_contour_dissolve_behavior_one_row_per_level(self):
             raster = Raster.example()
             levels = [0.0, 0.5]
-            gdf = raster.contour(levels=levels)
+            gdf = raster.contour(levels=levels, smoothing=False)
 
             # After dissolving, should have exactly one row per level
             assert len(gdf) == len(levels)
@@ -1556,13 +1747,6 @@ class TestRaster:
             assert len(gdf) > 0
             assert all(gdf["level"] == 0.0)
 
-        def test_contour_without_smoothing(self):
-            raster = Raster.example()
-            gdf = raster.contour(levels=[0.0], smoothing=False)
-
-            assert len(gdf) > 0
-            assert all(gdf["level"] == 0.0)
-
         def test_level_at_max(self):
             # https://github.com/tonkintaylor/rastr/issues/154
 
@@ -1573,7 +1757,7 @@ class TestRaster:
             )
 
             # Act
-            gdf = raster.contour(levels=[4])
+            gdf = raster.contour(levels=[4], smoothing=False)
 
             # Assert
             assert len(gdf) > 0
@@ -1587,7 +1771,7 @@ class TestRaster:
             )
 
             # Act
-            gdf = raster.contour(levels=[1])
+            gdf = raster.contour(levels=[1], smoothing=False)
 
             # Assert
             assert len(gdf) > 0
@@ -1599,7 +1783,7 @@ class TestRaster:
             levels = (0.0, 0.5)
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             result_levels = set(contour_gdf["level"].unique())
@@ -1612,7 +1796,7 @@ class TestRaster:
             levels = {0.0, 0.5}
 
             # Act
-            contour_gdf = raster.contour(levels=levels)
+            contour_gdf = raster.contour(levels=levels, smoothing=False)
 
             # Assert
             result_levels = set(contour_gdf["level"].unique())

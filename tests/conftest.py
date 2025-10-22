@@ -12,6 +12,14 @@ collect_ignore_glob = ["assets/**"]
 pytest_plugins = []
 
 
+@pytest.fixture(autouse=True)
+def _turn_off_show(monkeypatch: pytest.MonkeyPatch) -> None:
+    import matplotlib.pyplot as plt
+
+    monkeypatch.setattr(plt, "show", lambda: None)
+    plt.switch_backend("Agg")
+
+
 @pytest.fixture(scope="session")
 def assets_dir() -> Path:
     """Return a path to the test assets directory."""

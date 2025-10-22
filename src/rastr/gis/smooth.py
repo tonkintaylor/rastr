@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 from shapely.geometry import LineString, Polygon
 from typing_extensions import assert_never
 
@@ -55,7 +56,8 @@ def _catmull_rom(
     subdivs: int = 8,
 ) -> list[tuple[float, float]]:
     arr = np.asarray(coords, dtype=float)
-    if arr.shape[0] < 2:
+    n = arr.shape[0]
+    if n < 2:
         return arr.tolist()
 
     is_closed = np.allclose(arr[0], arr[-1])
@@ -70,63 +72,80 @@ def _catmull_rom(
             ]
         )
 
-    new_ls = [tuple(arr[1])]
-    for k in range(len(arr) - 3):
-        slice4 = arr[k : k + 4]
-        tangents = [0.0]
-        for j in range(3):
-            dist = float(np.linalg.norm(slice4[j + 1] - slice4[j]))
-            tangents.append(float(tangents[-1] + dist**alpha))
+    # Shape of (segments, 4, D)
+    segments = sliding_window_view(arr, (4, arr.shape[1]))[:, 0, :]
 
-        # Resample: subdivs-1 samples strictly between t1 and t2
-        seg_len = (tangents[2] - tangents[1]) / float(subdivs)
-        if subdivs > 1:
-            ts = np.linspace(tangents[1] + seg_len, tangents[2] - seg_len, subdivs - 1)
-        else:
-            ts = np.array([])
+    # Distances and tangent values
+    diffs = np.diff(segments, axis=1)
+    dists = np.linalg.norm(diffs, axis=2)
+    tangents = np.concatenate(
+        [np.zeros((len(dists), 1)), np.cumsum(dists**alpha, axis=1)], axis=1
+    )
 
-        interpolants = _recursive_eval(slice4, tangents, ts)
-        new_ls.extend(interpolants)
-        new_ls.append(tuple(slice4[2]))
-    return new_ls
+    # Build ts per segment
+    if subdivs > 1:
+        seg_lens = (tangents[:, 2] - tangents[:, 1]) / subdivs
+        u = np.linspace(1, subdivs - 1, subdivs - 1)
+        ts = tangents[:, [1]] + seg_lens[:, None] * u  # (N-3, subdivs-1)
+    else:
+        ts = np.empty((len(segments), 0))
+
+    # Vectorize over segments
+    out_segments = []
+    for seg, tang, tvals in zip(segments, tangents, ts, strict=True):
+        if tvals.size:
+            out_segments.append(
+                _recursive_eval(seg, np.asarray(tang), np.asarray(tvals))
+            )
+    if out_segments:
+        all_midpoints = np.vstack(out_segments)
+    else:
+        all_midpoints = np.empty((0, arr.shape[1]))
+
+    # Gather final output in order
+    result = [tuple(arr[1])]
+    idx = 0
+    for k in range(len(segments)):
+        block = all_midpoints[idx : idx + max(subdivs - 1, 0)]
+        result.extend(map(tuple, block))
+        result.append(tuple(segments[k, 2]))
+        idx += max(subdivs - 1, 0)
+
+    return result
 
 
-def _recursive_eval(
-    slice4: NDArray, tangents: list[float], ts: NDArray
-) -> list[tuple[float, float]]:
+def _recursive_eval(slice4: NDArray, tangents: NDArray, ts: NDArray) -> NDArray:
     """De Boor/De Casteljau-style recursive linear interpolation over 4 control points.
 
     Parameterized by the non-uniform 'tangents' values.
     """
-    # N.B. comments are LLM-generated
+    slice4 = np.asarray(slice4, dtype=float)
+    tangents = np.asarray(tangents, dtype=float)
+    ts = np.asarray(ts, dtype=float)
+    bigm = ts.shape[0]
+    bigd = slice4.shape[1]
 
-    out = []
-    for tp in ts:
-        # Start with the 4 control points for this segment
-        points = slice4.copy()
-        # Perform 3 levels of linear interpolation (De Casteljau's algorithm)
-        for r in range(1, 4):
-            idx = max(r - 2, 0)
-            new_points = []
-            # Interpolate between points at this level
-            for i in range(4 - r):
-                # Compute denominator for parameterization
-                denom = tangents[i + r - idx] - tangents[i + idx]
-                if denom == 0:
-                    # If degenerate (coincident tangents), use midpoint
-                    left_w = right_w = 0.5
-                else:
-                    # Otherwise, compute weights for linear interpolation
-                    left_w = (tangents[i + r - idx] - tp) / denom
-                    right_w = (tp - tangents[i + idx]) / denom
-                # Weighted average of the two points
-                pt = left_w * points[i] + right_w * points[i + 1]
-                new_points.append(pt)
-            # Move to the next level with the new set of points
-            points = np.array(new_points)
-        # The final point is the interpolated value for this parameter tp
-        out.append(tuple(points[0]))
-    return out
+    # Initialize points for all ts, shape (M, 4, D)
+    points = np.broadcast_to(slice4, (bigm, 4, bigd)).copy()
+
+    # Recursive interpolation, but vectorized across all ts
+    for r in range(1, 4):
+        idx = max(r - 2, 0)
+        denom = tangents[r - idx : 4 - idx] - tangents[idx : 4 - r + idx]
+        denom = np.where(denom == 0, np.finfo(float).eps, denom)  # avoid div 0
+
+        # Compute weights for all parameter values at once
+        left_w = (tangents[r - idx : 4 - idx][None, :] - ts[:, None]) / denom
+        right_w = 1 - left_w
+
+        # Weighted sums between consecutive points
+        points = (
+            left_w[..., None] * points[:, 0 : 4 - r, :]
+            + right_w[..., None] * points[:, 1 : 5 - r, :]
+        )
+
+    # Result is first (and only) point at this level
+    return points[:, 0, :]
 
 
 def _get_coords(

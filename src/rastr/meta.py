@@ -164,7 +164,7 @@ def infer_shape(
 def infer_cell_size(x: np.ndarray, y: np.ndarray) -> float:
     """Infer a suitable cell size based on the spacing of (x, y) data points.
 
-    When points a distributed regularly, this corresponds to roughly half the distance
+    When points are distributed regularly, this corresponds to roughly half the distance
     between neighboring points.
 
     When distributed irregularly, the size is more influenced by the densest clusters of

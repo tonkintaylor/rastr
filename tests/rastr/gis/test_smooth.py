@@ -173,3 +173,4 @@ class TestRecursiveEval:
 
         # Assert
         assert result.shape == (1, 2)
+        assert np.allclose(result, np.array([[0.0, 0.0]]))

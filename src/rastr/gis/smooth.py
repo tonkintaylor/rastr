@@ -130,7 +130,7 @@ def _recursive_eval(slice4: NDArray, tangents: NDArray, ts: NDArray) -> NDArray:
     for r in range(1, 4):
         idx = max(r - 2, 0)
         denom = tangents[r - idx : 4 - idx] - tangents[idx : 4 - r + idx]
-        denom = np.where(denom == 0, np.nan, denom)  # avoid div 0
+        denom = np.where(denom == 0, np.finfo(float).eps, denom)  # avoid div 0
 
         # Compute weights for all parameter values at once
         left_w = (tangents[r - idx : 4 - idx][None, :] - ts[:, None]) / denom

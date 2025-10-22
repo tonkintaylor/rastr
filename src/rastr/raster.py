@@ -726,7 +726,7 @@ class Raster(BaseModel):
 
     def __str__(self) -> str:
         cls = self.__class__
-        mean = np.nanmean(self.arr)
+        mean = self.mean()
         return f"{cls.__name__}(shape={self.arr.shape}, {mean=})"
 
     def __repr__(self) -> str:

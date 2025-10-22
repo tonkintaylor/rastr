@@ -69,7 +69,9 @@
 
 - Use `uv run pytest` for testing, and ensure all tests are passing before committing changes.
 - Do not perform equality checks with floating point values; instead, use `pytest.approx`.
-- Use only one assert statement per test function to ensure clarity and simplicity.
+- Follow an arrange-act-assert structure in test functions with explicit comments separating each section where possible (context managers can force the assert and act sections to be unified).
+- In the assert block of each test, use only one contiguous block of assert statements to ensure clarity and simplicity.
+
 
 ## Documentation & Workflow Management
 

@@ -327,6 +327,8 @@ def raster_from_point_cloud(
         xi=np.column_stack(_get_grid(raster_meta, shape=shape)),
     ).reshape(shape)
 
+    # We only support float rasters for now; we should preserve the input dtype if
+    # possible
     if z.dtype in (np.float16, np.float32, np.float64):
         arr = arr.astype(z.dtype)
     else:

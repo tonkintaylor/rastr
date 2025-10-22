@@ -97,7 +97,7 @@ class RasterMeta(BaseModel, extra="forbid"):
         cell_size: float | None = None,
         crs: CRS,
     ) -> tuple[Self, tuple[int, int]]:
-        """Automatically get recommended raster metadata (and shape) using data bounds.
+        """Automatically get recommended raster metadata (and shape) using data points.
 
         The cell size can be provided, or a heuristic will be used based on the spacing
         of the (x, y) points.

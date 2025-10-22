@@ -1185,7 +1185,7 @@ class TestRaster:
             )
 
             # Act
-            result = raster.replace(0, np.nan)
+            result = raster.replace(to_replace=0, value=np.nan)
 
             # Assert
             np.testing.assert_array_equal(
@@ -1204,7 +1204,7 @@ class TestRaster:
             )
 
             # Act
-            result = raster.replace(np.nan, 0)
+            result = raster.replace(to_replace=np.nan, value=0)
 
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[1, 0], [0, 4]]))
@@ -1221,7 +1221,7 @@ class TestRaster:
             )
 
             # Act
-            result = raster.replace(2, 99)
+            result = raster.replace(to_replace=2, value=99)
 
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[1, 99], [3, 99]]))
@@ -1238,7 +1238,7 @@ class TestRaster:
             )
 
             # Act
-            result = raster.replace(0, 5)
+            result = raster.replace(to_replace=0, value=5)
 
             # Assert
             assert result is not raster
@@ -1256,7 +1256,7 @@ class TestRaster:
             )
 
             # Act
-            _ = raster.replace(0, 5)
+            _ = raster.replace(to_replace=0, value=5)
 
             # Assert
             np.testing.assert_array_equal(raster.arr, original_arr)
@@ -1273,10 +1273,78 @@ class TestRaster:
             )
 
             # Act
-            result = raster.replace(99, 0)
+            result = raster.replace(to_replace=99, value=0)
 
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+
+        def test_replace_dict_multiple_values(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0, 2], [0, -999, 2]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace({0: np.nan, -999: np.nan})
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1, np.nan, 2], [np.nan, np.nan, 2]])
+            )
+
+        def test_replace_dict_with_nan_key(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, np.nan, 0], [np.nan, 2, 0]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace({np.nan: -999, 0: -888})
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1, -999, -888], [-999, 2, -888]])
+            )
+
+        def test_replace_dict_with_value_raises(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act & Assert
+            with pytest.raises(ValueError, match="value must be None"):
+                raster.replace({0: np.nan}, value=5)
+
+        def test_replace_float_without_value_raises(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 0], [0, 4]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act & Assert
+            with pytest.raises(ValueError, match="value must be specified"):
+                raster.replace(to_replace=0)
 
     class TestCopy:
         def test_returns_new_instance(self, example_raster: Raster):

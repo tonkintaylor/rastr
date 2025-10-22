@@ -874,23 +874,56 @@ class Raster(BaseModel):
         new_raster.arr = filled_arr
         return new_raster
 
-    def replace(self, old_value: float, new_value: float) -> Self:
-        """Replace all occurrences of a value in the raster with another value.
+    def replace(
+        self, to_replace: float | dict[float, float], value: float | None = None
+    ) -> Self:
+        """Replace values in the raster with other values.
 
-        Creates a new raster with the specified value replaced. This is useful for
+        Creates a new raster with the specified values replaced. This is useful for
         operations like replacing zeros with NaNs, or vice versa.
 
-        Args:
-            old_value: The value to be replaced.
-            new_value: The value to replace with.
-        """
-        # Handle NaN specially since NaN != NaN
-        if np.isnan(old_value):
-            mask = np.isnan(self.arr)
-        else:
-            mask = self.arr == old_value
+        The method supports two interfaces:
+        1. Single replacement: `raster.replace(to_replace=0, value=np.nan)`
+        2. Multiple replacements using a dictionary:
+           `raster.replace({0: np.nan, -999: np.nan})`
 
-        replaced_arr = np.where(mask, new_value, self.arr)
+        Args:
+            to_replace: Value to be replaced, or a dictionary mapping values to
+                        their replacements.
+            value: Replacement value. Required when to_replace is a float, must be
+                   None when to_replace is a dict.
+
+        Examples:
+            >>> # Replace a single value
+            >>> raster.replace(to_replace=0, value=np.nan)
+            >>> # Replace multiple values
+            >>> raster.replace({0: np.nan, -999: np.nan})
+        """
+        # Determine the replacement map
+        if isinstance(to_replace, dict):
+            if value is not None:
+                msg = "value must be None when to_replace is a dict"
+                raise ValueError(msg)
+            map_ = to_replace
+        else:
+            if value is None:
+                msg = "value must be specified when to_replace is a float"
+                raise ValueError(msg)
+            map_ = {to_replace: value}
+
+        # Start with a copy of the array
+        replaced_arr = self.arr.copy()
+
+        # Apply each replacement
+        for old_val, new_val in map_.items():
+            # Handle NaN specially since NaN != NaN
+            if np.isnan(old_val):
+                mask = np.isnan(replaced_arr)
+            else:
+                mask = replaced_arr == old_val
+
+            replaced_arr = np.where(mask, new_val, replaced_arr)
+
         new_raster = self.model_copy()
         new_raster.arr = replaced_arr
         return new_raster

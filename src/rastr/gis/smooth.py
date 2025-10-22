@@ -85,48 +85,44 @@ def _catmull_rom(
         else:
             ts = np.array([])
 
-        interpolants = _recursive_eval(slice4, tangents, ts)
+        interpolants = _recursive_eval(slice4, np.asarray(tangents), ts)
         new_ls.extend(interpolants)
         new_ls.append(tuple(slice4[2]))
     return new_ls
 
 
-def _recursive_eval(
-    slice4: NDArray, tangents: list[float], ts: NDArray
-) -> list[tuple[float, float]]:
+def _recursive_eval(slice4: NDArray, tangents: NDArray, ts: NDArray) -> NDArray:
     """De Boor/De Casteljau-style recursive linear interpolation over 4 control points.
 
     Parameterized by the non-uniform 'tangents' values.
     """
-    # N.B. comments are LLM-generated
+    slice4 = np.asarray(slice4, dtype=float)
+    tangents = np.asarray(tangents, dtype=float)
+    ts = np.asarray(ts, dtype=float)
+    bigm = ts.shape[0]
+    bigd = slice4.shape[1]
 
-    out = []
-    for tp in ts:
-        # Start with the 4 control points for this segment
-        points = slice4.copy()
-        # Perform 3 levels of linear interpolation (De Casteljau's algorithm)
-        for r in range(1, 4):
-            idx = max(r - 2, 0)
-            new_points = []
-            # Interpolate between points at this level
-            for i in range(4 - r):
-                # Compute denominator for parameterization
-                denom = tangents[i + r - idx] - tangents[i + idx]
-                if denom == 0:
-                    # If degenerate (coincident tangents), use midpoint
-                    left_w = right_w = 0.5
-                else:
-                    # Otherwise, compute weights for linear interpolation
-                    left_w = (tangents[i + r - idx] - tp) / denom
-                    right_w = (tp - tangents[i + idx]) / denom
-                # Weighted average of the two points
-                pt = left_w * points[i] + right_w * points[i + 1]
-                new_points.append(pt)
-            # Move to the next level with the new set of points
-            points = np.array(new_points)
-        # The final point is the interpolated value for this parameter tp
-        out.append(tuple(points[0]))
-    return out
+    # Initialize points for all ts, shape (M, 4, D)
+    points = np.broadcast_to(slice4, (bigm, 4, bigd)).copy()
+
+    # Recursive interpolation, but vectorized across all ts
+    for r in range(1, 4):
+        idx = max(r - 2, 0)
+        denom = tangents[r - idx : 4 - idx] - tangents[idx : 4 - r + idx]
+        denom = np.where(denom == 0, np.nan, denom)  # avoid div 0
+
+        # Compute weights for all parameter values at once
+        left_w = (tangents[r - idx : 4 - idx][None, :] - ts[:, None]) / denom
+        right_w = 1 - left_w
+
+        # Weighted sums between consecutive points
+        points = (
+            left_w[..., None] * points[:, 0 : 4 - r, :]
+            + right_w[..., None] * points[:, 1 : 5 - r, :]
+        )
+
+    # Result is first (and only) point at this level
+    return points[:, 0, :]
 
 
 def _get_coords(

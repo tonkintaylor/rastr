@@ -167,8 +167,9 @@ class TestRecursiveEval:
         # This will force denom == 0 in _recursive_eval for the first segment
 
         # Act
-        result = _recursive_eval(coords, [0.0, 0.0, 1.0, 2.0], np.array([0.0]))
+        result = _recursive_eval(
+            coords, np.asarray([0.0, 0.0, 1.0, 2.0]), np.array([0.0])
+        )
 
         # Assert
-        assert isinstance(result, list)
-        assert all(isinstance(pt, tuple) and len(pt) == 2 for pt in result)
+        assert result.shape == (1, 2)

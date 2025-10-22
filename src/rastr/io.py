@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 import rasterio
@@ -14,28 +14,48 @@ from rastr.raster import Raster
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+R = TypeVar("R", bound=Raster)
+
 
 def read_raster_inmem(
-    raster_path: Path | str, *, crs: CRS | str | None = None
-) -> Raster:
-    """Read raster data from a file and return an in-memory Raster object."""
+    raster_path: Path | str,
+    *,
+    crs: CRS | str | None = None,
+    cls: type[R] = Raster,
+) -> R:
+    """Read raster data from a file and return an in-memory Raster object.
+
+    Args:
+        raster_path: Path to the raster file.
+        crs: Optional CRS to override the raster's native CRS.
+        cls: The Raster subclass to instantiate. This is mostly for internal use,
+             but can be useful if you have a custom `Raster` subclass.
+    """
     crs = CRS.from_user_input(crs) if crs is not None else None
 
     with rasterio.open(raster_path, mode="r") as dst:
         # Read the entire array
-        arr: NDArray[np.float64] = dst.read()
-        arr = arr.squeeze().astype(np.float64)
+        raw_arr: NDArray = dst.read()
+        raw_arr = raw_arr.squeeze()
+
         # Extract metadata
         cell_size = dst.res[0]
         if crs is None:
             crs = CRS.from_user_input(dst.crs)
         transform = dst.transform
         nodata = dst.nodata
+
+        # Cast integers to float16 to handle NaN values
+        if np.issubdtype(raw_arr.dtype, np.integer):
+            arr = raw_arr.astype(np.float16)
+        else:
+            arr = raw_arr
+
         if nodata is not None:
-            arr[arr == nodata] = np.nan
+            arr[raw_arr == nodata] = np.nan
 
     raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
-    raster_obj = Raster(arr=arr, raster_meta=raster_meta)
+    raster_obj = cls(arr=arr, raster_meta=raster_meta)
     return raster_obj
 
 
@@ -81,10 +101,16 @@ def read_raster_mosaic_inmem(
             crs = CRS.from_user_input(sources[0].crs)
 
         nodata = sources[0].nodata
-        if nodata is not None:
-            arr[arr == nodata] = np.nan
+        raw_arr = arr.squeeze()
 
-        arr = arr.squeeze().astype(np.float64)
+        # Cast integers to float16 to handle NaN values
+        if np.issubdtype(raw_arr.dtype, np.integer):
+            arr = raw_arr.astype(np.float16)
+        else:
+            arr = raw_arr
+
+        if nodata is not None:
+            arr[raw_arr == nodata] = np.nan
 
         raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
         raster_obj = Raster(arr=arr, raster_meta=raster_meta)

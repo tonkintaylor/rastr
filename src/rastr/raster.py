@@ -914,15 +914,23 @@ class Raster(BaseModel):
         # Start with a copy of the array
         replaced_arr = self.arr.copy()
 
-        # Apply each replacement
+        # Check if we need to convert to float (if assigning NaN to non-float array)
+        needs_float = any(
+            np.isnan(new_val) for new_val in map_.values()
+        ) and not np.issubdtype(replaced_arr.dtype, np.floating)
+        if needs_float:
+            replaced_arr = replaced_arr.astype(float)
+
+        # Apply each replacement based on the original array values
+        # to prevent chained replacements
         for old_val, new_val in map_.items():
             # Handle NaN specially since NaN != NaN
             if np.isnan(old_val):
-                mask = np.isnan(replaced_arr)
+                mask = np.isnan(self.arr)
             else:
-                mask = replaced_arr == old_val
+                mask = self.arr == old_val
 
-            replaced_arr = np.where(mask, new_val, replaced_arr)
+            replaced_arr[mask] = new_val
 
         new_raster = self.model_copy()
         new_raster.arr = replaced_arr

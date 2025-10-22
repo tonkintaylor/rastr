@@ -1346,6 +1346,23 @@ class TestRaster:
             with pytest.raises(ValueError, match="value must be specified"):
                 raster.replace(to_replace=0)
 
+        def test_replace_dict_with_chained_values(self):
+            # Arrange
+            raster = Raster(
+                arr=np.array([[1, 1], [2, 2]]),
+                raster_meta=RasterMeta(
+                    cell_size=1.0,
+                    crs=CRS.from_epsg(2193),
+                    transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                ),
+            )
+
+            # Act
+            result = raster.replace({1: 2, 2: 3})
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[2, 2], [3, 3]]))
+
     class TestCopy:
         def test_returns_new_instance(self, example_raster: Raster):
             # Act

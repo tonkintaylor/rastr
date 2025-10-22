@@ -94,7 +94,7 @@ def _catmull_rom(
     out_segments = []
     for seg, tang, tvals in zip(segments, tangents, ts, strict=True):
         if tvals.size:
-            out_segments.append(_recursive_eval(seg, tang, tvals))
+            out_segments.append(_recursive_eval(seg, np.asarray(tang), tvals))
     if out_segments:
         all_midpoints = np.vstack(out_segments)
     else:

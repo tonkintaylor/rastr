@@ -92,7 +92,7 @@ def _catmull_rom(
 
     # Vectorize over segments
     out_segments = []
-    for seg, tang, tvals in zip(segments, tangents, ts, strict=False):
+    for seg, tang, tvals in zip(segments, tangents, ts, strict=True):
         if tvals.size:
             out_segments.append(_recursive_eval(seg, tang, tvals))
     if out_segments:

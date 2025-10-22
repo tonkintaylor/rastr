@@ -11,7 +11,9 @@ from affine import Affine
 from pyproj import CRS
 from shapely.geometry import Point
 
+from rastr.gis.crs import get_affine_sign
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
+from rastr.gis.interpolate import interpn_kernel
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
 
@@ -183,9 +185,10 @@ def rasterize_gdf(
     shape = get_point_grid_shape(bounds=expanded_bounds, cell_size=cell_size)
 
     # Create the affine transform for rasterization
+    xs, ys = get_affine_sign(raster_meta.crs)
     transform = Affine.translation(
         expanded_bounds[0], expanded_bounds[3]
-    ) * Affine.scale(cell_size, -cell_size)
+    ) * Affine.scale(xs * cell_size, ys * cell_size)
 
     # Create rasters for each target column using rasterio.features.rasterize
     rasters = []
@@ -312,14 +315,31 @@ def raster_from_point_cloud(
     Raises:
         ValueError: If any (x, y) points are duplicated, or if they are all collinear.
     """
-    from scipy.interpolate import LinearNDInterpolator
-    from scipy.spatial import KDTree, QhullError
-
-    x = np.asarray(x).ravel()
-    y = np.asarray(y).ravel()
-    z = np.asarray(z).ravel()
     crs = CRS.from_user_input(crs)
+    x, y, z = _validate_xyz(
+        np.asarray(x).ravel(), np.asarray(y).ravel(), np.asarray(z).ravel()
+    )
 
+    raster_meta, shape = RasterMeta.infer(x, y, cell_size=cell_size, crs=crs)
+    arr = interpn_kernel(
+        points=np.column_stack((x, y)),
+        values=z,
+        xi=np.column_stack(_get_grid(raster_meta, shape=shape)),
+    ).reshape(shape)
+
+    # We only support float rasters for now; we should preserve the input dtype if
+    # possible
+    if z.dtype in (np.float16, np.float32, np.float64):
+        arr = arr.astype(z.dtype)
+    else:
+        arr = arr.astype(np.float64)
+
+    return Raster(arr=arr, raster_meta=raster_meta)
+
+
+def _validate_xyz(
+    x: np.ndarray, y: np.ndarray, z: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     # Validate input arrays
     if len(x) != len(y) or len(x) != len(z):
         msg = "Length of x, y, and z must be equal."
@@ -343,53 +363,18 @@ def raster_from_point_cloud(
         msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."
         raise ValueError(msg)
 
-    # Heuristic for cell size if not provided
-    if cell_size is None:
-        # Half the 5th percentile of nearest neighbor distances between the (x,y) points
-        tree = KDTree(xy_points)
-        distances, _ = tree.query(xy_points, k=2)
-        distances: np.ndarray
-        cell_size = float(np.percentile(distances[distances > 0], 5)) / 2
+    return x, y, z
 
-    # Compute bounds from data
-    minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
-    # Compute grid shape
-    width = int(np.ceil((maxx - minx) / cell_size))
-    height = int(np.ceil((maxy - miny) / cell_size))
-    shape = (height, width)
-
-    # Compute transform: upper left corner is (minx, maxy)
-    transform = Affine.translation(minx, maxy) * Affine.scale(cell_size, -cell_size)
-
-    # Create grid coordinates for raster cells
+def _get_grid(
+    raster_meta: RasterMeta, *, shape: tuple[int, int]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Get coordinates for raster cell centres based on raster metadata and shape."""
     rows, cols = np.indices(shape)
     xs, ys = rasterio.transform.xy(
-        transform=transform, rows=rows, cols=cols, offset="center"
+        transform=raster_meta.transform, rows=rows, cols=cols, offset="center"
     )
     grid_x = np.array(xs).ravel()
     grid_y = np.array(ys).ravel()
 
-    # Perform interpolation
-    try:
-        interpolator = LinearNDInterpolator(
-            points=xy_points, values=z, fill_value=np.nan
-        )
-    except QhullError as err:
-        msg = (
-            "Failed to interpolate. This may be due to insufficient or "
-            "degenerate input points. Ensure that the (x, y) points are not all "
-            "collinear (i.e. that the convex hull is non-degenerate)."
-        )
-        raise ValueError(msg) from err
-
-    grid_values = np.array(interpolator(np.column_stack((grid_x, grid_y))))
-
-    arr = grid_values.reshape(shape).astype(np.float32)
-
-    raster_meta = RasterMeta(
-        cell_size=cell_size,
-        crs=crs,
-        transform=transform,
-    )
-    return Raster(arr=arr, raster_meta=raster_meta)
+    return grid_x, grid_y

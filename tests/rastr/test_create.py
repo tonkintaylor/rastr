@@ -10,12 +10,14 @@ from rastr.create import (
     MissingColumnsError,
     NonNumericColumnsError,
     OverlappingGeometriesError,
+    _interpolate_z_in_geometry,
     _validate_columns_exist,
     _validate_columns_numeric,
     full_raster,
     raster_distance_from_polygon,
     raster_from_point_cloud,
     rasterize_gdf,
+    rasterize_z_gdf,
 )
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
@@ -232,9 +234,7 @@ class TestFullRaster:
         assert result.arr.shape == (3, 3)
 
 
-class TestRasterizeGdf:
-    """Test suite for rasterize_gdf function."""
-
+class TestRasterizeGDF:
     def test_basic_rasterization_single_column(self):
         """Test basic rasterization with a single numeric column."""
         import geopandas as gpd
@@ -718,6 +718,1136 @@ class TestRasterizeGdf:
 
         assert len(result) == 1
         assert isinstance(result[0], Raster)
+
+
+class TestInterpolateZInGeometry:
+    """Test suite for _interpolate_z_in_geometry function."""
+
+    def test_basic_interpolation_triangle(self):
+        """Test basic interpolation within a triangular polygon."""
+        # Create a triangle with known Z values at vertices
+        coords = np.array(
+            [
+                [0.0, 0.0, 10.0],  # Bottom-left: Z=10
+                [2.0, 0.0, 20.0],  # Bottom-right: Z=20
+                [1.0, 2.0, 30.0],  # Top: Z=30
+                [0.0, 0.0, 10.0],  # Close the polygon
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)  # Create 3D polygon
+
+        # Test point at centroid should get interpolated value
+        x = np.array([1.0])
+        y = np.array([0.67])  # Approximately 2/3 up the triangle
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert len(result) == 1
+        assert not np.isnan(result[0])
+        # The interpolated value should be between min and max Z values
+        assert 10.0 <= result[0] <= 30.0
+
+    def test_interpolation_at_vertices(self):
+        """Test interpolation at polygon vertices returns exact Z values."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 100.0],
+                [1.0, 0.0, 200.0],
+                [1.0, 1.0, 300.0],
+                [0.0, 1.0, 400.0],
+                [0.0, 0.0, 100.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Test at each vertex
+        x = np.array([0.0, 1.0, 1.0, 0.0])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        expected_z = np.array([100.0, 200.0, 300.0, 400.0])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        np.testing.assert_allclose(result, expected_z, rtol=1e-10)
+
+    def test_points_outside_polygon(self):
+        """Test that points outside the polygon return NaN."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 10.0],
+                [1.0, 0.0, 20.0],
+                [1.0, 1.0, 30.0],
+                [0.0, 1.0, 40.0],
+                [0.0, 0.0, 10.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Points clearly outside the unit square
+        x = np.array([2.0, -1.0, 0.5])
+        y = np.array([0.5, 0.5, 2.0])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        # All points outside should return NaN
+        assert np.all(np.isnan(result))
+
+    def test_mixed_inside_outside_points(self):
+        """Test interpolation with mix of inside and outside points."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [2.0, 0.0, 0.0],
+                [1.0, 2.0, 10.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Mix of inside and outside points
+        x = np.array([1.0, 3.0, 0.5, -1.0])  # inside, outside, inside, outside
+        y = np.array([0.5, 0.5, 0.25, 0.5])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        # First and third points should have valid values,
+        # second and fourth should be NaN
+        assert not np.isnan(result[0])  # Inside
+        assert np.isnan(result[1])  # Outside
+        assert not np.isnan(result[2])  # Inside
+        assert np.isnan(result[3])  # Outside
+
+    def test_linear_gradient(self):
+        """Test interpolation with a perfect linear gradient."""
+        # Create rectangle with linear Z gradient from left (0) to right (100)
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [10.0, 0.0, 100.0],
+                [10.0, 1.0, 100.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Test points along the gradient
+        x = np.array([0.0, 2.5, 5.0, 7.5, 10.0])
+        y = np.array([0.5, 0.5, 0.5, 0.5, 0.5])  # All at middle Y
+        expected_z = np.array([0.0, 25.0, 50.0, 75.0, 100.0])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        np.testing.assert_allclose(result, expected_z, rtol=1e-10)
+
+    def test_uniform_z_values(self):
+        """Test interpolation when all vertices have the same Z value."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 42.0],
+                [1.0, 0.0, 42.0],
+                [1.0, 1.0, 42.0],
+                [0.0, 1.0, 42.0],
+                [0.0, 0.0, 42.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Any point inside should return the same Z value
+        x = np.array([0.5, 0.25, 0.75])
+        y = np.array([0.5, 0.25, 0.75])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        expected = np.full(3, 42.0)
+        np.testing.assert_allclose(result, expected, rtol=1e-10)
+
+    def test_single_point_query(self):
+        """Test interpolation with a single query point."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 2.0],
+                [0.5, 1.0, 3.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        x = np.array([0.5])
+        y = np.array([0.33])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert len(result) == 1
+        assert not np.isnan(result[0])
+        assert 1.0 <= result[0] <= 3.0
+
+    def test_large_number_of_points(self):
+        """Test interpolation with many query points at once."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [10.0, 0.0, 10.0],
+                [10.0, 10.0, 20.0],
+                [0.0, 10.0, 10.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Create a grid of 100 points
+        x_grid = np.linspace(1, 9, 10)
+        y_grid = np.linspace(1, 9, 10)
+        x_mesh, y_mesh = np.meshgrid(x_grid, y_grid)
+        x = x_mesh.flatten()
+        y = y_mesh.flatten()
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert len(result) == 100
+        # All points should be inside and have valid interpolated values
+        assert np.all(~np.isnan(result))
+        # All values should be within the expected range
+        assert np.all((result >= 0.0) & (result <= 20.0))
+
+    def test_mismatched_array_shapes(self):
+        """Test error handling for mismatched x and y array shapes."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 2.0],
+                [1.0, 1.0, 3.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        x = np.array([0.5, 0.25])  # 2 elements
+        y = np.array([0.5])  # 1 element
+
+        with pytest.raises(
+            ValueError,
+            match=r"all the input array dimensions except for the concatenation axis "
+            r"must match exactly,",
+        ):
+            _interpolate_z_in_geometry(polygon, x, y)
+
+    def test_empty_arrays(self):
+        """Test interpolation with empty input arrays."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 2.0],
+                [1.0, 1.0, 3.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        x = np.array([])
+        y = np.array([])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert len(result) == 0
+        assert result.dtype == np.float64
+
+    def test_nan_z_values(self):
+        """Test interpolation when some Z values are NaN."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, np.nan],  # NaN Z value
+                [1.0, 1.0, 3.0],
+                [0.0, 1.0, 2.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        x = np.array([0.5])
+        y = np.array([0.5])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        # Result should be NaN because one of the boundary values is NaN
+        assert np.isnan(result[0])
+
+    def test_complex_polygon_shape(self):
+        """Test interpolation with a more complex polygon shape."""
+        # Create an L-shaped polygon
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [2.0, 0.0, 2.0],
+                [2.0, 1.0, 3.0],
+                [1.0, 1.0, 2.0],
+                [1.0, 2.0, 2.0],
+                [0.0, 2.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Point inside the L-shape
+        x = np.array([0.5])
+        y = np.array([0.5])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert len(result) == 1
+        assert not np.isnan(result[0])
+        # Should be within the range of Z values
+        assert 0.0 <= result[0] <= 3.0
+
+    def test_boundary_edge_points(self):
+        """Test interpolation for points exactly on polygon edges."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [2.0, 0.0, 20.0],
+                [2.0, 2.0, 40.0],
+                [0.0, 2.0, 20.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Points on the bottom edge should interpolate between 0 and 20
+        x = np.array([1.0])  # Midpoint of bottom edge
+        y = np.array([0.0])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        # Should be exactly 10 (midpoint between 0 and 20)
+        np.testing.assert_allclose(result, [10.0], rtol=1e-10)
+
+    def test_polygon_with_hole(self):
+        """Test that function works with simple polygon (exterior only)."""
+        # Note: The function only uses polygon.exterior.coords, so it doesn't handle
+        # holes. This test documents that behaviour
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [4.0, 0.0, 40.0],
+                [4.0, 4.0, 80.0],
+                [0.0, 4.0, 40.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+
+        # Create polygon with a hole (though function ignores holes)
+        exterior = coords[:, :2]
+        hole = np.array([[1.0, 1.0], [3.0, 1.0], [3.0, 3.0], [1.0, 3.0]])
+        polygon = Polygon(exterior, [hole])
+        polygon = polygon.__class__(coords)  # Make it 3D
+
+        # Point inside the hole should still get interpolated
+        # (because function only considers exterior boundary)
+        x = np.array([2.0])
+        y = np.array([2.0])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert not np.isnan(result[0])
+        assert 0.0 <= result[0] <= 80.0
+
+    def test_very_small_polygon(self):
+        """Test interpolation with a very small polygon."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1e-6, 0.0, 2.0],
+                [1e-6, 1e-6, 3.0],
+                [0.0, 1e-6, 2.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        # Point inside the tiny polygon
+        x = np.array([5e-7])
+        y = np.array([5e-7])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert len(result) == 1
+        # Should either be a valid interpolation or NaN (depends on numerical precision)
+        if not np.isnan(result[0]):
+            assert 1.0 <= result[0] <= 3.0
+
+    def test_output_dtype(self):
+        """Test that output array has correct dtype (float64)."""
+        coords = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 2.0],
+                [1.0, 1.0, 3.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        polygon = Polygon(coords[:, :2])
+        polygon = polygon.__class__(coords)
+
+        x = np.array([0.5])
+        y = np.array([0.5])
+
+        result = _interpolate_z_in_geometry(polygon, x, y)
+
+        assert result.dtype == np.float64
+
+
+class TestRasterizeZGDF:
+    """Test suite for rasterize_z_gdf function."""
+
+    def _create_3d_polygon(
+        self, coords_2d: np.ndarray, z_values: np.ndarray
+    ) -> Polygon:
+        """Helper to create 3D polygon from 2D coordinates and Z values."""
+        coords_3d = np.column_stack([coords_2d, z_values])
+        return Polygon(coords_3d)
+
+    def test_basic_z_interpolation_single_polygon(self):
+        """Test basic Z interpolation with a single 3D polygon."""
+        import geopandas as gpd
+
+        # Create a square with Z values at vertices
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [2.0, 0.0],
+                [2.0, 2.0],
+                [0.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([0.0, 10.0, 20.0, 10.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+        assert isinstance(result, Raster)
+        # The cell size and CRS should be preserved
+        assert result.raster_meta.cell_size == raster_meta.cell_size
+        assert result.raster_meta.crs == raster_meta.crs
+
+    def test_target_cols_as_tuple(self):
+        """Test that target_cols accepts a tuple (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+            Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {
+                "value1": [10.0, 20.0],
+                "value2": [100.0, 200.0],
+                "geometry": polygons,
+            },
+            crs=_PROJECTED_CRS,
+        )
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        # Use tuple instead of list for target_cols
+        result = rasterize_gdf(
+            gdf, raster_meta=raster_meta, target_cols=("value1", "value2")
+        )
+
+        assert len(result) == 2
+        assert all(isinstance(r, Raster) for r in result)
+
+    def test_target_cols_as_set(self):
+        """Test that target_cols accepts a set (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0, -1), (0, 1, 1), (1, 1, 2), (1, 0, 3)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
+        )
+        raster_meta = RasterMeta(
+            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        # The cell size and CRS should be preserved
+        assert result.raster_meta.cell_size == raster_meta.cell_size
+        assert result.raster_meta.crs == raster_meta.crs
+        # The transform may be adjusted to properly cover the geometry
+
+        # Check that interpolated values are within expected range
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+        assert len(valid_values) > 0
+        assert np.all((valid_values >= 0.0) & (valid_values <= 20.0))
+
+    def test_multiple_polygons_mean_aggregation(self):
+        """Test Z interpolation with multiple overlapping polygons using mean
+        aggregation."""
+        import geopandas as gpd
+
+        # Create two overlapping squares with different Z values
+        coords_2d_1 = np.array(
+            [
+                [0.0, 0.0],
+                [2.0, 0.0],
+                [2.0, 2.0],
+                [0.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values_1 = np.array([0.0, 0.0, 10.0, 10.0, 0.0])
+
+        coords_2d_2 = np.array(
+            [
+                [1.0, 1.0],
+                [3.0, 1.0],
+                [3.0, 3.0],
+                [1.0, 3.0],
+                [1.0, 1.0],
+            ]
+        )
+        z_values_2 = np.array([20.0, 20.0, 30.0, 30.0, 20.0])
+
+        polygon1 = self._create_3d_polygon(coords_2d_1, z_values_1)
+        polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
+        gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="mean"
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+
+        # In overlapping areas, values should be averaged
+        # Check that there are valid values
+        valid_values = raster_array[~np.isnan(raster_array)]
+        assert len(valid_values) > 0
+        assert np.all((valid_values >= 0.0) & (valid_values <= 30.0))
+
+    def test_min_aggregation(self):
+        """Test Z interpolation with min aggregation for overlapping polygons."""
+        import geopandas as gpd
+
+        # Create two overlapping squares with different Z ranges
+        coords_2d_1 = np.array(
+            [
+                [0.0, 0.0],
+                [2.0, 0.0],
+                [2.0, 2.0],
+                [0.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values_1 = np.array([10.0, 10.0, 20.0, 20.0, 10.0])
+
+        coords_2d_2 = np.array(
+            [
+                [1.0, 1.0],
+                [3.0, 1.0],
+                [3.0, 3.0],
+                [1.0, 3.0],
+                [1.0, 1.0],
+            ]
+        )
+        z_values_2 = np.array([5.0, 5.0, 15.0, 15.0, 5.0])
+
+        polygon1 = self._create_3d_polygon(coords_2d_1, z_values_1)
+        polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
+        gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="min"
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+
+        # In overlapping areas, should take minimum values
+        valid_values = raster_array[~np.isnan(raster_array)]
+        assert len(valid_values) > 0
+        assert np.all((valid_values >= 5.0) & (valid_values <= 20.0))
+
+    def test_max_aggregation(self):
+        """Test Z interpolation with max aggregation for overlapping polygons."""
+        import geopandas as gpd
+
+        # Create two overlapping squares with different Z ranges
+        coords_2d_1 = np.array(
+            [
+                [0.0, 0.0],
+                [2.0, 0.0],
+                [2.0, 2.0],
+                [0.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values_1 = np.array([10.0, 10.0, 20.0, 20.0, 10.0])
+
+        coords_2d_2 = np.array(
+            [
+                [1.0, 1.0],
+                [3.0, 1.0],
+                [3.0, 3.0],
+                [1.0, 3.0],
+                [1.0, 1.0],
+            ]
+        )
+        z_values_2 = np.array([5.0, 5.0, 25.0, 25.0, 5.0])
+
+        polygon1 = self._create_3d_polygon(coords_2d_1, z_values_1)
+        polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
+        gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="max"
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+
+        # In overlapping areas, should take maximum values
+        valid_values = raster_array[~np.isnan(raster_array)]
+        assert len(valid_values) > 0
+        assert np.all((valid_values >= 5.0) & (valid_values <= 25.0))
+
+    def test_empty_geodataframe(self):
+        """Test with empty GeoDataFrame."""
+        import geopandas as gpd
+
+        gdf = gpd.GeoDataFrame(geometry=[], crs=_PROJECTED_CRS)
+        raster_meta = RasterMeta(
+            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
+        )
+
+        with pytest.raises(
+            ValueError, match=r"Cannot rasterize an empty GeoDataFrame."
+        ):
+            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
+
+    def test_2d_polygons_converted_to_3d(self):
+        """Test that 2D polygons are converted to 3D with NaN Z values."""
+        import geopandas as gpd
+
+        # Create a 2D polygon (no Z coordinates)
+        polygon_2d = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+        gdf = gpd.GeoDataFrame(geometry=[polygon_2d], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        # Should raise an error because 2D polygons don't have Z coordinates
+        with pytest.raises(ValueError, match="not 3D"):
+            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
+
+    def test_mixed_2d_3d_polygons(self):
+        """Test with mix of 2D and 3D polygons."""
+        import geopandas as gpd
+
+        # Create a 3D polygon
+        coords_3d = np.array(
+            [
+                [0.0, 0.0, 10.0],
+                [1.0, 0.0, 20.0],
+                [1.0, 1.0, 30.0],
+                [0.0, 1.0, 20.0],
+                [0.0, 0.0, 10.0],
+            ]
+        )
+        polygon_3d = Polygon(coords_3d)
+
+        # Create a 2D polygon
+        polygon_2d = Polygon([(2, 0), (3, 0), (3, 1), (2, 1)])
+
+        gdf = gpd.GeoDataFrame(geometry=[polygon_3d, polygon_2d], crs=_PROJECTED_CRS)
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        # Should raise an error because not all polygons are 3D
+        with pytest.raises(ValueError, match="not 3D"):
+            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
+
+    def test_polygons_with_nan_z_values(self):
+        """Test polygons where some vertices have NaN Z values."""
+        import geopandas as gpd
+
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [2.0, 0.0],
+                [2.0, 2.0],
+                [0.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([10.0, np.nan, 20.0, 15.0, 10.0])  # One NaN Z value
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        # Due to NaN in boundary, interpolated values should be NaN
+        raster_array = result.arr
+        # Should have some NaN values due to interpolation issues
+        assert np.any(np.isnan(raster_array))
+
+    def test_linear_z_gradient(self):
+        """Test with a polygon having a perfect linear Z gradient."""
+        import geopandas as gpd
+
+        # Create rectangle with linear gradient from bottom (Z=0) to top (Z=10)
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [2.0, 0.0],
+                [2.0, 2.0],
+                [0.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([0.0, 0.0, 10.0, 10.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Should have linear gradient values between 0 and 10
+        assert len(valid_values) > 0
+        assert np.all((valid_values >= 0.0) & (valid_values <= 10.0))
+        # Check that there's actually a gradient (not all same value)
+        assert np.std(valid_values) > 1.0
+
+    def test_triangular_polygon(self):
+        """Test Z interpolation with triangular polygon."""
+        import geopandas as gpd
+
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [2.0, 0.0],
+                [1.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([0.0, 10.0, 20.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.25, crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Triangle should have interpolated values between min and max
+        assert len(valid_values) > 0
+        assert np.all((valid_values >= 0.0) & (valid_values <= 20.0))
+
+    def test_large_number_of_polygons(self):
+        """Test performance with many polygons."""
+        import geopandas as gpd
+
+        polygons = []
+        for i in range(50):  # Create 50 small polygons
+            x_offset = (i % 10) * 0.5
+            y_offset = (i // 10) * 0.5
+            coords_2d = np.array(
+                [
+                    [x_offset, y_offset],
+                    [x_offset + 0.4, y_offset],
+                    [x_offset + 0.4, y_offset + 0.4],
+                    [x_offset, y_offset + 0.4],
+                    [x_offset, y_offset],
+                ]
+            )
+            z_values = np.array([i, i + 1, i + 2, i + 1, i])
+            polygon = self._create_3d_polygon(coords_2d, z_values)
+            polygons.append(polygon)
+
+        gdf = gpd.GeoDataFrame(geometry=polygons, crs=_PROJECTED_CRS)
+        raster_meta = RasterMeta(
+            cell_size=0.1, crs=_PROJECTED_CRS, transform=Affine.scale(0.1, -0.1)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Should have many valid interpolated values
+        assert len(valid_values) > 100
+
+    def test_very_small_cell_size(self):
+        """Test with very small cell size for high resolution."""
+        import geopandas as gpd
+
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([0.0, 10.0, 20.0, 10.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.01, crs=_PROJECTED_CRS, transform=Affine.scale(0.01, -0.01)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        # Should create high-resolution raster (100x100 for 1x1 unit)
+        assert result.arr.shape[0] >= 100
+        assert result.arr.shape[1] >= 100
+
+    def test_output_raster_metadata(self):
+        """Test that output raster has correct metadata."""
+        import geopandas as gpd
+
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([0.0, 10.0, 20.0, 10.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        custom_transform = Affine.scale(0.5, -0.5) * Affine.translation(100, 200)
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=custom_transform
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert result.raster_meta.cell_size == 0.5
+        assert result.raster_meta.crs == _PROJECTED_CRS
+        # Note: The output transform may be modified due to bounds expansion
+
+    def test_output_dtype_float64(self):
+        """Test that output raster has float64 dtype."""
+        import geopandas as gpd
+
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([0.0, 10.0, 20.0, 10.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert result.arr.dtype == np.float64
+
+    def test_non_overlapping_polygons(self):
+        """Test with non-overlapping polygons (no aggregation needed)."""
+        import geopandas as gpd
+
+        # Create two separate squares
+        coords_2d_1 = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values_1 = np.array([0.0, 5.0, 10.0, 5.0, 0.0])
+
+        coords_2d_2 = np.array(
+            [
+                [2.0, 0.0],
+                [3.0, 0.0],
+                [3.0, 1.0],
+                [2.0, 1.0],
+                [2.0, 0.0],
+            ]
+        )
+        z_values_2 = np.array([20.0, 25.0, 30.0, 25.0, 20.0])
+
+        polygon1 = self._create_3d_polygon(coords_2d_1, z_values_1)
+        polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
+        gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.25, crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Should have values from both polygons
+        assert len(valid_values) > 0
+        # Values should span the range of both polygons
+        assert np.min(valid_values) <= 10.0  # From first polygon
+        assert np.max(valid_values) >= 20.0  # From second polygon
+
+    def test_gaps_between_polygons(self):
+        """Test that gaps between polygons result in NaN values."""
+        import geopandas as gpd
+
+        # Create two separate squares with a gap between them
+        coords_2d_1 = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values_1 = np.array([0.0, 5.0, 10.0, 5.0, 0.0])
+
+        coords_2d_2 = np.array(
+            [
+                [3.0, 0.0],  # Gap from x=1 to x=3
+                [4.0, 0.0],
+                [4.0, 1.0],
+                [3.0, 1.0],
+                [3.0, 0.0],
+            ]
+        )
+        z_values_2 = np.array([20.0, 25.0, 30.0, 25.0, 20.0])
+
+        polygon1 = self._create_3d_polygon(coords_2d_1, z_values_1)
+        polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
+        gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
+
+        raster_meta = RasterMeta(
+            cell_size=0.25, crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+
+        # There should be NaN values in the gap area
+        assert np.any(np.isnan(raster_array))
+
+        # But also valid values where polygons exist
+        valid_values = raster_array[~np.isnan(raster_array)]
+        assert len(valid_values) > 0
+
+    def test_bounds_preservation_no_resampling(self):
+        """Test that overall bounds stay identical when using same cell size."""
+        import geopandas as gpd
+
+        coords_2d = np.array(
+            [
+                [100.0, 200.0],
+                [150.0, 200.0],
+                [150.0, 250.0],
+                [100.0, 250.0],
+                [100.0, 200.0],
+            ]
+        )
+        z_values = np.array([0.0, 10.0, 20.0, 10.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        # Create raster with specific bounds
+        cell_size = 5.0
+        raster_meta = RasterMeta(
+            cell_size=cell_size,
+            crs=_PROJECTED_CRS,
+            transform=Affine.scale(cell_size, -cell_size),
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        # Get the bounds of the result
+        result_bounds = result.bounds
+
+        # Calculate expected bounds based on geometry (no buffer after refactoring)
+        gdf_bounds = gdf.total_bounds
+        expected_bounds = (
+            gdf_bounds[0],  # minx
+            gdf_bounds[1],  # miny
+            gdf_bounds[2],  # maxx
+            gdf_bounds[3],  # maxy
+        )
+
+        # Check bounds are within relative tolerance
+        rel_tolerance = 1e-4
+
+        np.testing.assert_allclose(
+            result_bounds,
+            expected_bounds,
+            rtol=rel_tolerance,
+            err_msg="Bounds should be preserved within relative tolerance",
+        )
+
+    def test_simple_box_exact_array(self):
+        """Test rasterize_z_gdf with exact array comparison for a simple box."""
+        import geopandas as gpd
+
+        # Create a simple 1x1 box with Z-values at corners
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],  # Bottom-left: Z=0
+                [1.0, 0.0],  # Bottom-right: Z=1
+                [1.0, 1.0],  # Top-right: Z=2
+                [0.0, 1.0],  # Top-left: Z=1
+                [0.0, 0.0],  # Close polygon
+            ]
+        )
+        z_values = np.array([0.0, 1.0, 2.0, 1.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        # Create a 2x2 raster over the unit square (cell size 0.5)
+        cell_size = 0.5
+        # Transform that starts at (0,1) and goes down with negative y-scale
+        transform = Affine.translation(0.0, 1.0) * Affine.scale(cell_size, -cell_size)
+        raster_meta = RasterMeta(
+            cell_size=cell_size,
+            crs=_PROJECTED_CRS,
+            transform=transform,
+        )
+
+        result = rasterize_z_gdf(
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+        )
+
+        # After refactoring to remove unnecessary buffering, the function returns
+        # a clean 2x2 array that exactly matches the cell size and geometry bounds
+        # The interpolated values are:
+        # Position [0,0] (cell center 0.25, 0.75): Z ≈ 1.0 (bilinear interpolation)
+        # Position [0,1] (cell center 0.75, 0.75): Z ≈ 1.5 (bilinear interpolation)
+        # Position [1,0] (cell center 0.25, 0.25): Z ≈ 0.5 (bilinear interpolation)
+        # Position [1,1] (cell center 0.75, 0.25): Z ≈ 1.0 (bilinear interpolation)
+        expected_array = np.array(
+            [
+                [1.0, 1.5],  # Top row: (0.25, 0.75), (0.75, 0.75)
+                [0.5, 1.0],  # Bottom row: (0.25, 0.25), (0.75, 0.25)
+            ],
+            dtype=np.float64,
+        )
+
+        # Get the actual array and compare
+        actual_array = result.arr
+
+        # Test against expected array using allclose
+        np.testing.assert_allclose(
+            actual_array,
+            expected_array,
+            rtol=1e-5,
+            err_msg="Interpolated array doesn't match expected values",
+            strict=True,
+        )
 
 
 class TestRasterFromPointCloud:

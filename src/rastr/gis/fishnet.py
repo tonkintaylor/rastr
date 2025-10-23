@@ -7,7 +7,7 @@ from shapely import BufferCapStyle, BufferJoinStyle
 
 if TYPE_CHECKING:
     from geopandas.array import GeometryArray
-    from numpy.typing import NDArray
+    from numpy.typing import ArrayLike, NDArray
 
 
 def create_point_grid(
@@ -36,11 +36,11 @@ def create_point_grid(
 
 
 def get_point_grid_shape(
-    *, bounds: tuple[float, float, float, float], cell_size: float
+    *, bounds: tuple[float, float, float, float] | ArrayLike, cell_size: float
 ) -> tuple[int, int]:
     """Calculate the shape of the point grid based on bounds and cell size."""
 
-    xmin, ymin, xmax, ymax = bounds
+    xmin, ymin, xmax, ymax = np.asarray(bounds)
     ncols_exact = (xmax - xmin) / cell_size
     nrows_exact = (ymax - ymin) / cell_size
 

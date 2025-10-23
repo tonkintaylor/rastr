@@ -359,6 +359,8 @@ def _interpolate_z_in_geometry(
 ) -> NDArray[np.float64]:
     """Vectorized interpolation of Z values in a geometry at multiple (x, y) points.
 
+    Only the boundary is considered (e.g. holes in polygons are ignored).
+
     Parameters:
         geometry: Shapely geometry with Z coordinates (Polygon, LineString, etc.).
         x: Array of X coordinates, shape (N,).
@@ -367,11 +369,7 @@ def _interpolate_z_in_geometry(
     Returns:
         Array of interpolated Z values (NaN if outside convex hull or no boundary).
     """
-    if x.shape != y.shape:
-        msg = "x and y must have the same shape"
-        raise ValueError(msg)
-
-    # Extract coordinates from geometry
+    # Extract coordinates from geometry boundary only
     coords = np.array(geometry.boundary.coords)
 
     try:

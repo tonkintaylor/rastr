@@ -1132,7 +1132,7 @@ class TestRasterizeZGDF:
         import geopandas as gpd
 
         polygons = [
-            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+            Polygon([(0, 0, -1), (0, 1, 1), (1, 1, 2), (1, 0, 3)]),
         ]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS

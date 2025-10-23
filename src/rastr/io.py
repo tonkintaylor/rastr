@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
 import rasterio
@@ -13,6 +13,11 @@ from rastr.raster import Raster
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+try:
+    from rasterio._err import CPLE_BaseError
+except ImportError:
+    CPLE_BaseError = Exception  # Fallback if private module import fails
 
 R = TypeVar("R", bound=Raster)
 
@@ -118,3 +123,55 @@ def read_raster_mosaic_inmem(
     finally:
         for src in sources:
             src.close()
+
+
+def write_raster(raster: Raster, *, path: Path | str, **kwargs: Any) -> None:
+    """Write the raster to a file.
+
+    Args:
+        raster: The Raster object to write.
+        path: Path to output file.
+        **kwargs: Additional keyword arguments to pass to `rasterio.open()`. If
+                    `nodata` is provided, NaN values in the raster will be replaced
+                    with the nodata value.
+    """
+    path = Path(path)
+
+    suffix = path.suffix.lower()
+    if suffix in (".tif", ".tiff"):
+        driver = "GTiff"
+    elif suffix in (".grd"):
+        # https://grapherhelp.goldensoftware.com/subsys/ascii_grid_file_format.htm
+        # e.g. Used by AnAqSim
+        driver = "GSAG"
+    else:
+        msg = f"Unsupported file extension: {suffix}"
+        raise ValueError(msg)
+
+    # Handle nodata: use provided value or default to np.nan
+    if "nodata" in kwargs:
+        # Replace NaN values with the nodata value
+        nodata_value = kwargs.pop("nodata")
+        arr_to_write = np.where(np.isnan(raster.arr), nodata_value, raster.arr)
+    else:
+        nodata_value = np.nan
+        arr_to_write = raster.arr
+
+    with rasterio.open(
+        path,
+        "w",
+        driver=driver,
+        height=raster.arr.shape[0],
+        width=raster.arr.shape[1],
+        count=1,
+        dtype=raster.arr.dtype,
+        crs=raster.raster_meta.crs,
+        transform=raster.raster_meta.transform,
+        nodata=nodata_value,
+        **kwargs,
+    ) as dst:
+        try:
+            dst.write(arr_to_write, 1)
+        except CPLE_BaseError as err:
+            msg = f"Failed to write raster to file: {err}"
+            raise OSError(msg) from err

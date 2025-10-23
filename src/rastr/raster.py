@@ -6,7 +6,6 @@ import importlib.util
 import warnings
 from collections.abc import Collection
 from contextlib import contextmanager
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
@@ -29,6 +28,7 @@ from rastr.meta import RasterMeta
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
+    from pathlib import Path
 
     import geopandas as gpd
     from affine import Affine
@@ -40,11 +40,6 @@ if TYPE_CHECKING:
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from shapely import MultiPolygon
     from typing_extensions import Self
-
-try:
-    from rasterio._err import CPLE_BaseError
-except ImportError:
-    CPLE_BaseError = Exception  # Fallback if private module import fails
 
 
 FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
@@ -673,7 +668,7 @@ class Raster(BaseModel):
         return raster_gdf
 
     def to_file(self, path: Path | str, **kwargs: Any) -> None:
-        """Write the raster to a GeoTIFF file.
+        """Write the raster to a file.
 
         Args:
             path: Path to output file.
@@ -681,47 +676,9 @@ class Raster(BaseModel):
                       `nodata` is provided, NaN values in the raster will be replaced
                       with the nodata value.
         """
+        from rastr.io import write_raster  # noqa: PLC0415
 
-        path = Path(path)
-
-        suffix = path.suffix.lower()
-        if suffix in (".tif", ".tiff"):
-            driver = "GTiff"
-        elif suffix in (".grd"):
-            # https://grapherhelp.goldensoftware.com/subsys/ascii_grid_file_format.htm
-            # e.g. Used by AnAqSim
-            driver = "GSAG"
-        else:
-            msg = f"Unsupported file extension: {suffix}"
-            raise ValueError(msg)
-
-        # Handle nodata: use provided value or default to np.nan
-        if "nodata" in kwargs:
-            # Replace NaN values with the nodata value
-            nodata_value = kwargs.pop("nodata")
-            arr_to_write = np.where(np.isnan(self.arr), nodata_value, self.arr)
-        else:
-            nodata_value = np.nan
-            arr_to_write = self.arr
-
-        with rasterio.open(
-            path,
-            "w",
-            driver=driver,
-            height=self.arr.shape[0],
-            width=self.arr.shape[1],
-            count=1,
-            dtype=self.arr.dtype,
-            crs=self.raster_meta.crs,
-            transform=self.raster_meta.transform,
-            nodata=nodata_value,
-            **kwargs,
-        ) as dst:
-            try:
-                dst.write(arr_to_write, 1)
-            except CPLE_BaseError as err:
-                msg = f"Failed to write raster to file: {err}"
-                raise OSError(msg) from err
+        return write_raster(self, path=path, **kwargs)
 
     def __str__(self) -> str:
         cls = self.__class__

@@ -220,7 +220,8 @@ def rasterize_gdf(
 def rasterize_z_gdf(
     gdf: gpd.GeoDataFrame,
     *,
-    raster_meta: RasterMeta,
+    cell_size: float,
+    crs: CRS | str,
     agg: Literal["mean", "min", "max"] = "mean",
 ) -> RasterModel:
     """Rasterize interpolated Z-values from geometries in a GeoDataFrame.
@@ -232,7 +233,8 @@ def rasterize_z_gdf(
 
     Args:
         gdf: GeoDataFrame containing 3D geometries with Z coordinates.
-        raster_meta: Raster metadata (giving cell size, etc.)
+        cell_size: Desired cell size for the output raster.
+        crs: Coordinate reference system for the output raster.
         agg: Aggregation function to use for overlapping values ("mean", "min", "max").
 
     Returns:
@@ -241,59 +243,25 @@ def rasterize_z_gdf(
     Raises:
         ValueError: If any geometries are not 3D.
     """
-    gdf = gdf.copy()
+    crs = CRS.from_user_input(crs)
 
-    # Handle empty GeoDataFrame early
     if len(gdf) == 0:
-        # Return a minimal raster with NaN values
-        # Use a default 1x1 cell array since there's no geometry to determine bounds
-        arr = np.full((1, 1), np.nan, dtype=np.float32)
-        return RasterModel(arr=arr, raster_meta=raster_meta)
+        msg = "Cannot rasterize an empty GeoDataFrame."
+        raise ValueError(msg)
 
     _validate_geometries_are_3d(gdf)
 
-    # Use the provided raster metadata instead of creating new bounds
-    # This ensures the raster respects the requested grid alignment
-    cell_size = raster_meta.cell_size
-    transform = raster_meta.transform
-
     # Determine the bounds that would encompass the geometry while respecting the grid
     gdf_bounds = gdf.total_bounds
-
-    # Calculate the grid shape needed to cover the geometry bounds
-    shape = get_point_grid_shape(bounds=gdf_bounds, cell_size=cell_size)
-    height, width = shape
-
-    # Create a new transform that aligns with the provided grid but covers the geometry
-    # Start from the top-left corner that would align with the provided grid
-    grid_origin_x = transform.c  # x-offset from original transform
-    grid_origin_y = transform.f  # y-offset from original transform
-
-    # Find the top-left corner of our raster that aligns with the original grid
-    # and covers the geometry bounds
-    cols_to_start = int((gdf_bounds[0] - grid_origin_x) / cell_size)
-    rows_to_start = int((grid_origin_y - gdf_bounds[3]) / cell_size)
-
-    # Calculate the actual bounds of our aligned raster
-    actual_minx = grid_origin_x + cols_to_start * cell_size
-    actual_maxy = grid_origin_y - rows_to_start * cell_size
-
-    # Create the aligned transform
-    x_s, y_s = get_affine_sign(raster_meta.crs)
-    aligned_transform = Affine.translation(actual_minx, actual_maxy) * Affine.scale(
-        x_s * cell_size, y_s * cell_size
-    )
-
-    # Update the raster metadata to use the aligned transform
-    aligned_raster_meta = RasterMeta(
-        cell_size=cell_size, crs=raster_meta.crs, transform=aligned_transform
+    meta, shape = RasterMeta.infer(
+        x=np.array([gdf_bounds[0], gdf_bounds[2]]),
+        y=np.array([gdf_bounds[1], gdf_bounds[3]]),
+        cell_size=cell_size,
+        crs=crs,
     )
 
     # Generate grid coordinates for interpolation
-    rows, cols = np.indices(shape)
-    xs, ys = rasterio.transform.xy(aligned_transform, rows, cols, offset="center")
-    x_coords = np.array(xs).ravel()
-    y_coords = np.array(ys).ravel()
+    x_coords, y_coords = _get_grid(meta, shape=shape)
 
     # Create 2D accumulation arrays
     z_stack = []
@@ -302,8 +270,13 @@ def rasterize_z_gdf(
         z_stack.append(z_vals)
 
     if not z_stack:
-        z_raster = np.full((height, width), np.nan, dtype=np.float32)
-        return RasterModel(arr=z_raster, raster_meta=aligned_raster_meta)
+        msg = (
+            "No valid Z values could be interpolated from the geometries. Raster "
+            "will be entirely NaN-valued."
+        )
+        warnings.warn(msg, stacklevel=2)
+        z_raster = np.full(shape, np.nan, dtype=np.float32)
+        return RasterModel(arr=z_raster, raster_meta=meta)
 
     z_stack = np.array(z_stack)  # Shape: (N, height * width)
 
@@ -324,9 +297,9 @@ def rasterize_z_gdf(
         else:
             assert_never(agg)
 
-    z_raster = np.asarray(z_agg).reshape((height, width)).astype(np.float32)
+    z_raster = np.asarray(z_agg).reshape(shape).astype(np.float64)
 
-    return RasterModel(arr=z_raster, raster_meta=aligned_raster_meta)
+    return RasterModel(arr=z_raster, raster_meta=meta)
 
 
 def _validate_geometries_are_3d(gdf: gpd.GeoDataFrame) -> None:

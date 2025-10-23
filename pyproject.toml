@@ -44,7 +44,6 @@ dependencies = [
   "shapely>=2.1.1",
   "tqdm>=4.67.1",
   "typing-extensions>=4.14.1",
-  "xyzservices>=2025.4.0",
 ]
 
 [dependency-groups]
@@ -62,13 +61,16 @@ dev = [
   "pip>=25.1.1",
   "pre-commit>=4.2.0",
   "pre-commit-update>=0.8.0",
+  "pyinstrument>=5.1.1",
   "pyright[nodejs]>=1.1.403",
-  "ruff>=0.12.5",
+  "ruff>=0.13.2",
   "tqdm>=4.67.1",
   "usethis>=0.15.2",
+  "zizmor>=1.14.2",
 ]
 test = [
   "coverage[toml]>=7.10.1",
+  "detect-test-pollution>=1.2.0",
   "pytest>=8.4.1",
   "pytest-cov>=6.2.1",
   "pytest-emoji>=0.2.0",
@@ -122,7 +124,6 @@ lint.ignore = [
   # In some cases where your code is poorly-performing you might want to enable them again.
   # ##############################
   "PD101",   # Harms readability for a performance optimization.
-  "PD901",   # We often call variables "df" in functions dealing with pandas DataFrames.
   "PERF203", # Too many false positives.
   "PERF401", # This can hurt readability; the performance is not always worth it.
   "PIE804",  # This is controversial, some pandas APIs work better with dict approach.
@@ -174,7 +175,7 @@ lint.per-file-ignores."src/{scripts,notebooks}/**" = [
 ]
 lint.per-file-ignores."tests/**" = [ "INP" ]
 lint.per-file-ignores."tests/**/*.py" = [
-  "ANN",     # We don't need annotations in tests
+  "ANN201",  # We don't need return type annotations in tests
   "D",       # We don't need docstrings in tests
   "FBT001",  # Fine for fixtures
   "INP",     # Tests don't need __init__.py files
@@ -184,6 +185,18 @@ lint.per-file-ignores."tests/**/*.py" = [
 ]
 lint.allowed-confusables = [ "ℹ", "–", "σ" ]
 lint.flake8-tidy-imports.banned-api."pytz".msg = "'zoneinfo' should be preferred to 'pytz' when using Python 3.9 and later, see https://tonkintaylor-sonarqube.azurewebsites.net/coding_rules?open=python%3AS6890&rule_key=python%3AS6890"
+lint.flake8-tidy-imports.banned-module-level-imports = [
+  "branca",
+  "folium",
+  "geopandas",
+  "matplotlib",
+  "mpl_toolkits",
+  "pandas",
+  "scipy",
+  "skimage",
+  "tqdm",
+]
+
 lint.flake8-type-checking.quote-annotations = true
 lint.flake8-type-checking.runtime-evaluated-base-classes = [ "pydantic.BaseModel" ]
 lint.flake8-type-checking.strict = true
@@ -243,7 +256,7 @@ output = "test-reports/coverage.xml"
 
 [tool.uv]
 default-groups = [ "dev", "test", "doc" ]
-required-version = "==0.8.3"              # sync with .pre-commit-config.yaml and release.yml
+required-version = "==0.7.13"             # sync with .pre-commit-config.yaml and release.yml
 link-mode = "symlink"
 
 [tool.importlinter]
@@ -252,6 +265,6 @@ root_packages = [ "rastr" ]
 [[tool.importlinter.contracts]]
 name = "rastr"
 type = "layers"
-layers = [ "create | io", "raster", "meta", "arr | gis", "_version" ]
+layers = [ "create : io : raster", "meta", "arr | gis", "_version" ]
 containers = [ "rastr" ]
 exhaustive = true

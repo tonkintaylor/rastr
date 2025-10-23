@@ -54,7 +54,7 @@ class TestCatmullRomSmooth:
 
     @pytest.mark.parametrize("alpha", [0.0, 0.5, 1.0])
     @pytest.mark.parametrize("subdivs", [2, 5, 10])
-    def test_parameter_variations(self, alpha, subdivs):
+    def test_parameter_variations(self, alpha: float, subdivs: int):
         # Arrange
         ls = LineString([(0, 0), (1, 2), (2, 0)])
         # Act
@@ -146,7 +146,9 @@ class TestCatmullRomSmooth:
             ),
         ],
     )
-    def test_regression(self, alpha, subdivs, expected):
+    def test_regression(
+        self, alpha: float, subdivs: int, expected: list[tuple[float, float]]
+    ):
         # Arrange
         ls = LineString([(0, 0), (1, 1), (2, 0)])
         # Act
@@ -165,8 +167,25 @@ class TestRecursiveEval:
         # This will force denom == 0 in _recursive_eval for the first segment
 
         # Act
-        result = _recursive_eval(coords, [0.0, 0.0, 1.0, 2.0], np.array([0.0]))
+        result = _recursive_eval(
+            coords, np.asarray([0.0, 0.0, 1.0, 2.0]), np.array([0.0])
+        )
 
         # Assert
-        assert isinstance(result, list)
-        assert all(isinstance(pt, tuple) and len(pt) == 2 for pt in result)
+        assert result.shape == (1, 2)
+        assert np.allclose(result, np.array([[0.0, 0.0]]))
+
+    def test_denom_zero_non_edge_point(self):
+        # To address regression in https://github.com/tonkintaylor/rastr/issues/276
+
+        # Arrange
+        coords = np.array([[0.0, 0.0], [1.0, 1.0], [1.0, 1.0], [2.0, 0.0]])
+        # This will force denom == 0 in _recursive_eval for the middle segment
+
+        # Act
+        result = _recursive_eval(
+            coords, np.asarray([0.0, 1.0, 1.0, 2.0]), np.array([0.5])
+        )
+        # Assert
+        assert result.shape == (1, 2)
+        assert np.allclose(result, np.array([[1.0, 0.75]]))

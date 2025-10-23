@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import geopandas as gpd
 import numpy as np
 from shapely import BufferCapStyle, BufferJoinStyle
 
@@ -42,8 +41,20 @@ def get_point_grid_shape(
     """Calculate the shape of the point grid based on bounds and cell size."""
 
     xmin, ymin, xmax, ymax = bounds
-    ncols = int(np.ceil((xmax - xmin) / cell_size))
-    nrows = int(np.ceil((ymax - ymin) / cell_size))
+    ncols_exact = (xmax - xmin) / cell_size
+    nrows_exact = (ymax - ymin) / cell_size
+
+    # Use round for values very close to integers to avoid floating-point
+    # sensitivity while maintaining ceil behavior for truly fractional values
+    if np.isclose(ncols_exact, np.round(ncols_exact)):
+        ncols = int(np.round(ncols_exact))
+    else:
+        ncols = int(np.ceil(ncols_exact))
+
+    if np.isclose(nrows_exact, np.round(nrows_exact)):
+        nrows = int(np.round(nrows_exact))
+    else:
+        nrows = int(np.ceil(nrows_exact))
 
     return nrows, ncols
 
@@ -66,6 +77,8 @@ def create_fishnet(
     Returns:
         Shapely Polygons.
     """
+    import geopandas as gpd
+
     # Use the shared helper function to create the point grid
     xx, yy = create_point_grid(bounds=bounds, cell_size=res)
 

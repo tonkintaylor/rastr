@@ -1,6 +1,5 @@
 import re
 
-import geopandas as gpd
 import numpy as np
 import pytest
 from affine import Affine
@@ -16,11 +15,12 @@ from rastr.create import (
     _validate_columns_numeric,
     full_raster,
     raster_distance_from_polygon,
+    raster_from_point_cloud,
     rasterize_gdf,
     rasterize_z_gdf,
 )
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster
 
 _PROJECTED_CRS = CRS.from_epsg(3857)
 _GEOGRAPHIC_CRS = CRS.from_epsg(4326)
@@ -145,7 +145,7 @@ class TestRasterDistanceFromPolygon:
             cell_size=1, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
         )
         # Non-none snap_raster for testing
-        snap_raster = RasterModel.example()
+        snap_raster = Raster.example()
         err_msg = re.escape(
             "Only one of 'extent_polygon' or 'snap_raster' can be provided."
         )
@@ -169,7 +169,31 @@ class TestRasterDistanceFromPolygon:
             raster_meta=raster_config,
             show_pbar=True,
         )
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
+
+    def test_show_pbar_without_tqdm_warns(self, monkeypatch: pytest.MonkeyPatch):
+        # Arrange
+        monkeypatch.setattr("rastr.create.TQDM_INSTALLED", False)
+
+        polygon = Polygon([(0, 0), (1, 1), (0, 1)])
+        extent_polygon = Polygon([(0, 0), (1, 1), (0, 1)])
+        raster_config = RasterMeta(
+            cell_size=1, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
+        )
+
+        # Act, Assert
+        expected_msg = (
+            "The 'tqdm' package is not installed. Progress bars will not be shown."
+        )
+        with pytest.warns(UserWarning, match=expected_msg):
+            result = raster_distance_from_polygon(
+                polygon,
+                extent_polygon=extent_polygon,
+                raster_meta=raster_config,
+                show_pbar=True,
+            )
+
+        assert isinstance(result, Raster)
 
 
 class TestFullRaster:
@@ -179,9 +203,35 @@ class TestFullRaster:
         )
         bounds = (0, 0, 3, 3)
         result = full_raster(raster_meta, bounds=bounds)
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         assert result.raster_meta == raster_meta
         assert result.arr.shape == (3, 3)  # 3x3 grid for bounds (0,0) to (3,3)
+
+    def test_full_raster_roundtrip_shape(self):
+        """Test that full_raster(r.meta, bounds=r.bounds).shape == r.shape."""
+        # Create a raster
+        transform = Affine.translation(0, 3) * Affine.scale(1.0, -1.0)
+        raster_meta = RasterMeta(cell_size=1.0, crs=_PROJECTED_CRS, transform=transform)
+        arr = np.ones((3, 3))
+        r1 = Raster(arr=arr, raster_meta=raster_meta)
+
+        # Recreate using full_raster with the same bounds
+        r2 = full_raster(r1.raster_meta, bounds=r1.bounds)
+
+        assert r2.shape == r1.shape
+
+    def test_full_raster_floating_point_robustness(self):
+        """Test that full_raster handles floating-point errors in bounds."""
+        raster_meta = RasterMeta(
+            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
+        )
+
+        # Bounds with tiny floating-point error (simulating computational error)
+        bounds_with_fp_error = (0.0, 0.0, 3.0 + 1e-10, 3.0 + 1e-10)
+        result = full_raster(raster_meta, bounds=bounds_with_fp_error)
+
+        # Should still produce a 3x3 raster, not 4x4
+        assert result.arr.shape == (3, 3)
 
 
 class TestRasterizeGdf:
@@ -189,6 +239,8 @@ class TestRasterizeGdf:
 
     def test_basic_rasterization_single_column(self):
         """Test basic rasterization with a single numeric column."""
+        import geopandas as gpd
+
         # Create test polygons
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
@@ -207,7 +259,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         assert result[0].raster_meta == raster_meta
 
         # Check that values are correctly assigned
@@ -217,6 +269,8 @@ class TestRasterizeGdf:
 
     def test_multiple_columns(self):
         """Test rasterization with multiple numeric columns."""
+        import geopandas as gpd
+
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
             Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
@@ -239,11 +293,13 @@ class TestRasterizeGdf:
         )
 
         assert len(result) == 2
-        assert all(isinstance(r, RasterModel) for r in result)
+        assert all(isinstance(r, Raster) for r in result)
         assert all(r.raster_meta == raster_meta for r in result)
 
     def test_empty_geodataframe(self):
         """Test with empty GeoDataFrame."""
+        import geopandas as gpd
+
         gdf = gpd.GeoDataFrame({"value": []}, geometry=[], crs=_PROJECTED_CRS)
         raster_meta = RasterMeta(
             cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
@@ -255,6 +311,8 @@ class TestRasterizeGdf:
 
     def test_missing_target_columns(self):
         """Test error handling when target columns are missing."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -268,6 +326,8 @@ class TestRasterizeGdf:
 
     def test_non_numeric_columns(self):
         """Test error handling when target columns contain non-numeric data."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"text_col": ["abc"], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -281,6 +341,8 @@ class TestRasterizeGdf:
 
     def test_validation_helper_functions(self):
         """Test the validation helper functions directly."""
+        import geopandas as gpd
+
         # Test column existence validation
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
@@ -308,6 +370,8 @@ class TestRasterizeGdf:
 
     def test_nan_handling(self):
         """Test handling of NaN values in numeric columns."""
+        import geopandas as gpd
+
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
             Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
@@ -331,6 +395,8 @@ class TestRasterizeGdf:
         The function should detect overlapping geometries and raise an error
         to prevent potential data loss during rasterization.
         """
+        import geopandas as gpd
+
         # Create overlapping polygons with distinct values
         polygons = [
             Polygon([(0, 0), (0, 2), (2, 2), (2, 0)]),  # Large polygon with value 10
@@ -351,6 +417,8 @@ class TestRasterizeGdf:
 
     def test_touching_but_not_overlapping_polygons(self):
         """Test that touching (but not overlapping) polygons do not raise errors."""
+        import geopandas as gpd
+
         # Create adjacent polygons that share a boundary but don't overlap
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),  # Left square
@@ -366,10 +434,12 @@ class TestRasterizeGdf:
         # Should not raise an error since polygons only touch, don't overlap
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
 
     def test_gaps_become_nan(self):
         """Test that areas without polygons become NaN in the raster."""
+        import geopandas as gpd
+
         # Create polygons that don't cover the entire extent
         polygons = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),  # Only covers part of the area
@@ -388,6 +458,8 @@ class TestRasterizeGdf:
 
     def test_complex_polygon_shapes(self):
         """Test with non-rectangular polygon shapes."""
+        import geopandas as gpd
+
         # Create a triangular polygon
         triangle = Polygon([(0, 0), (2, 0), (1, 2)])
         gdf = gpd.GeoDataFrame(
@@ -405,6 +477,8 @@ class TestRasterizeGdf:
 
     def test_different_data_types(self):
         """Test with different numeric data types."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
 
         gdf = gpd.GeoDataFrame(
@@ -430,6 +504,8 @@ class TestRasterizeGdf:
 
     def test_raster_metadata_preservation(self):
         """Test that raster metadata is correctly preserved."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -448,6 +524,8 @@ class TestRasterizeGdf:
 
     def test_large_cell_size(self):
         """Test with large cell size relative to polygon size."""
+        import geopandas as gpd
+
         # Small polygon with large cell size
         polygons = [Polygon([(0, 0), (0, 0.1), (0.1, 0.1), (0.1, 0)])]
         gdf = gpd.GeoDataFrame(
@@ -464,6 +542,8 @@ class TestRasterizeGdf:
 
     def test_very_small_cell_size(self):
         """Test with very small cell size creating high resolution raster."""
+        import geopandas as gpd
+
         polygons = [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
@@ -482,6 +562,8 @@ class TestRasterizeGdf:
 
     def test_point_geometries(self):
         """Test rasterization with point geometries."""
+        import geopandas as gpd
+
         points = [Point(0.5, 0.5), Point(1.5, 1.5), Point(2.5, 0.5)]
         gdf = gpd.GeoDataFrame(
             {"value": [10.0, 20.0, 30.0], "geometry": points}, crs=_PROJECTED_CRS
@@ -493,7 +575,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         raster_array = result[0].arr
 
         # Points should be rasterized to their containing cells
@@ -508,6 +590,8 @@ class TestRasterizeGdf:
 
     def test_linestring_geometries(self):
         """Test rasterization with LineString geometries."""
+        import geopandas as gpd
+
         lines = [
             LineString([(0, 0), (2, 2)]),  # Diagonal line
             LineString([(0, 1), (3, 1)]),  # Horizontal line
@@ -523,7 +607,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         raster_array = result[0].arr
 
         # Lines should be rasterized across multiple cells
@@ -537,6 +621,8 @@ class TestRasterizeGdf:
 
     def test_mixed_geometry_types(self):
         """Test rasterization with mixed geometry types in the same GeoDataFrame."""
+        import geopandas as gpd
+
         geometries = [
             Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),  # Polygon
             Point(2, 0.5),  # Point
@@ -552,7 +638,7 @@ class TestRasterizeGdf:
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
 
         assert len(result) == 1
-        assert isinstance(result[0], RasterModel)
+        assert isinstance(result[0], Raster)
         raster_array = result[0].arr
 
         # All geometry types should be rasterized
@@ -567,6 +653,8 @@ class TestRasterizeGdf:
 
     def test_point_on_cell_boundary(self):
         """Test point that falls exactly on cell boundaries."""
+        import geopandas as gpd
+
         # Point exactly on grid boundary
         points = [Point(1.0, 1.0)]
         gdf = gpd.GeoDataFrame(
@@ -976,13 +1064,17 @@ class TestInterpolateZInGeometry:
 class TestRasterizeZGDF:
     """Test suite for rasterize_z_gdf function."""
 
-    def _create_3d_polygon(self, coords_2d, z_values):
+    def _create_3d_polygon(
+        self, coords_2d: np.ndarray, z_values: np.ndarray
+    ) -> Polygon:
         """Helper to create 3D polygon from 2D coordinates and Z values."""
         coords_3d = np.column_stack([coords_2d, z_values])
         return Polygon(coords_3d)
 
     def test_basic_z_interpolation_single_polygon(self):
         """Test basic Z interpolation with a single 3D polygon."""
+        import geopandas as gpd
+
         # Create a square with Z values at vertices
         coords_2d = np.array(
             [
@@ -999,12 +1091,59 @@ class TestRasterizeZGDF:
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
         raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+        result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
+        assert isinstance(result, Raster)
+        # The cell size and CRS should be preserved
+        assert result.raster_meta.cell_size == raster_meta.cell_size
+        assert result.raster_meta.crs == raster_meta.crs
+
+    def test_target_cols_as_tuple(self):
+        """Test that target_cols accepts a tuple (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+            Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {
+                "value1": [10.0, 20.0],
+                "value2": [100.0, 200.0],
+                "geometry": polygons,
+            },
+            crs=_PROJECTED_CRS,
+        )
+        raster_meta = RasterMeta(
+            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
+        )
+
+        # Use tuple instead of list for target_cols
+        result = rasterize_gdf(
+            gdf, raster_meta=raster_meta, target_cols=("value1", "value2")
+        )
+
+        assert len(result) == 2
+        assert all(isinstance(r, Raster) for r in result)
+
+    def test_target_cols_as_set(self):
+        """Test that target_cols accepts a set (Collection) instead of just list."""
+        import geopandas as gpd
+
+        polygons = [
+            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
+        )
+        raster_meta = RasterMeta(
             cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
         )
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         # The cell size and CRS should be preserved
         assert result.raster_meta.cell_size == raster_meta.cell_size
         assert result.raster_meta.crs == raster_meta.crs
@@ -1019,6 +1158,8 @@ class TestRasterizeZGDF:
     def test_multiple_polygons_mean_aggregation(self):
         """Test Z interpolation with multiple overlapping polygons using mean
         aggregation."""
+        import geopandas as gpd
+
         # Create two overlapping squares with different Z values
         coords_2d_1 = np.array(
             [
@@ -1052,7 +1193,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta, agg="mean")
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
 
         # In overlapping areas, values should be averaged
@@ -1063,6 +1204,8 @@ class TestRasterizeZGDF:
 
     def test_min_aggregation(self):
         """Test Z interpolation with min aggregation for overlapping polygons."""
+        import geopandas as gpd
+
         # Create two overlapping squares with different Z ranges
         coords_2d_1 = np.array(
             [
@@ -1096,7 +1239,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta, agg="min")
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
 
         # In overlapping areas, should take minimum values
@@ -1106,6 +1249,8 @@ class TestRasterizeZGDF:
 
     def test_max_aggregation(self):
         """Test Z interpolation with max aggregation for overlapping polygons."""
+        import geopandas as gpd
+
         # Create two overlapping squares with different Z ranges
         coords_2d_1 = np.array(
             [
@@ -1139,7 +1284,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta, agg="max")
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
 
         # In overlapping areas, should take maximum values
@@ -1149,6 +1294,8 @@ class TestRasterizeZGDF:
 
     def test_empty_geodataframe(self):
         """Test with empty GeoDataFrame."""
+        import geopandas as gpd
+
         gdf = gpd.GeoDataFrame(geometry=[], crs=_PROJECTED_CRS)
         raster_meta = RasterMeta(
             cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
@@ -1157,7 +1304,7 @@ class TestRasterizeZGDF:
         # Empty GeoDataFrame should return a raster with NaN values
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         # Should have NaN values since there's no data to interpolate
         assert np.all(np.isnan(result.arr))
         # Should have minimal size since no geometry defines bounds
@@ -1165,6 +1312,8 @@ class TestRasterizeZGDF:
 
     def test_2d_polygons_converted_to_3d(self):
         """Test that 2D polygons are converted to 3D with NaN Z values."""
+        import geopandas as gpd
+
         # Create a 2D polygon (no Z coordinates)
         polygon_2d = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
         gdf = gpd.GeoDataFrame(geometry=[polygon_2d], crs=_PROJECTED_CRS)
@@ -1179,6 +1328,8 @@ class TestRasterizeZGDF:
 
     def test_mixed_2d_3d_polygons(self):
         """Test with mix of 2D and 3D polygons."""
+        import geopandas as gpd
+
         # Create a 3D polygon
         coords_3d = np.array(
             [
@@ -1205,6 +1356,8 @@ class TestRasterizeZGDF:
 
     def test_polygons_with_nan_z_values(self):
         """Test polygons where some vertices have NaN Z values."""
+        import geopandas as gpd
+
         coords_2d = np.array(
             [
                 [0.0, 0.0],
@@ -1225,7 +1378,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         # Due to NaN in boundary, interpolated values should be NaN
         raster_array = result.arr
         # Should have some NaN values due to interpolation issues
@@ -1233,6 +1386,8 @@ class TestRasterizeZGDF:
 
     def test_linear_z_gradient(self):
         """Test with a polygon having a perfect linear Z gradient."""
+        import geopandas as gpd
+
         # Create rectangle with linear gradient from bottom (Z=0) to top (Z=10)
         coords_2d = np.array(
             [
@@ -1254,7 +1409,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
         valid_values = raster_array[~np.isnan(raster_array)]
 
@@ -1266,6 +1421,8 @@ class TestRasterizeZGDF:
 
     def test_triangular_polygon(self):
         """Test Z interpolation with triangular polygon."""
+        import geopandas as gpd
+
         coords_2d = np.array(
             [
                 [0.0, 0.0],
@@ -1285,7 +1442,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
         valid_values = raster_array[~np.isnan(raster_array)]
 
@@ -1295,6 +1452,8 @@ class TestRasterizeZGDF:
 
     def test_large_number_of_polygons(self):
         """Test performance with many polygons."""
+        import geopandas as gpd
+
         polygons = []
         for i in range(50):  # Create 50 small polygons
             x_offset = (i % 10) * 0.5
@@ -1319,7 +1478,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
         valid_values = raster_array[~np.isnan(raster_array)]
 
@@ -1328,6 +1487,8 @@ class TestRasterizeZGDF:
 
     def test_very_small_cell_size(self):
         """Test with very small cell size for high resolution."""
+        import geopandas as gpd
+
         coords_2d = np.array(
             [
                 [0.0, 0.0],
@@ -1348,13 +1509,15 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         # Should create high-resolution raster (100x100 for 1x1 unit)
         assert result.arr.shape[0] >= 100
         assert result.arr.shape[1] >= 100
 
     def test_output_raster_metadata(self):
         """Test that output raster has correct metadata."""
+        import geopandas as gpd
+
         coords_2d = np.array(
             [
                 [0.0, 0.0],
@@ -1382,6 +1545,8 @@ class TestRasterizeZGDF:
 
     def test_output_dtype_float32(self):
         """Test that output raster has float32 dtype."""
+        import geopandas as gpd
+
         coords_2d = np.array(
             [
                 [0.0, 0.0],
@@ -1406,6 +1571,8 @@ class TestRasterizeZGDF:
 
     def test_non_overlapping_polygons(self):
         """Test with non-overlapping polygons (no aggregation needed)."""
+        import geopandas as gpd
+
         # Create two separate squares
         coords_2d_1 = np.array(
             [
@@ -1439,7 +1606,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
         valid_values = raster_array[~np.isnan(raster_array)]
 
@@ -1451,6 +1618,8 @@ class TestRasterizeZGDF:
 
     def test_gaps_between_polygons(self):
         """Test that gaps between polygons result in NaN values."""
+        import geopandas as gpd
+
         # Create two separate squares with a gap between them
         coords_2d_1 = np.array(
             [
@@ -1484,7 +1653,7 @@ class TestRasterizeZGDF:
 
         result = rasterize_z_gdf(gdf, raster_meta=raster_meta)
 
-        assert isinstance(result, RasterModel)
+        assert isinstance(result, Raster)
         raster_array = result.arr
 
         # There should be NaN values in the gap area
@@ -1496,6 +1665,8 @@ class TestRasterizeZGDF:
 
     def test_bounds_preservation_no_resampling(self):
         """Test that overall bounds stay identical when using same cell size."""
+        import geopandas as gpd
+
         coords_2d = np.array(
             [
                 [100.0, 200.0],
@@ -1544,6 +1715,8 @@ class TestRasterizeZGDF:
 
     def test_simple_box_exact_array(self):
         """Test rasterize_z_gdf with exact array comparison for a simple box."""
+        import geopandas as gpd
+
         # Create a simple 1x1 box with Z-values at corners
         coords_2d = np.array(
             [
@@ -1596,3 +1769,273 @@ class TestRasterizeZGDF:
             rtol=1e-5,
             err_msg="Interpolated array doesn't match expected values",
         )
+        # Use set instead of list for target_cols
+        result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols={"value"})
+
+        assert len(result) == 1
+        assert isinstance(result[0], Raster)
+
+
+class TestRasterFromPointCloud:
+    def test_square(self):
+        """Test rasterization from a simple square point cloud.
+
+        (0,1,20)            (1,1,40)
+           ┌─────────┬─────────┐
+           │         │         │
+           │         │         │
+           │    x    │    x    │
+           │         │         │
+           │         │         │
+           ├─────────┼─────────┤
+           │         │         │
+           │         │         │
+           │    x    │    x    │
+           │         │         │
+           │         │         │
+           └─────────└─────────┘
+        (0,0,10)            (1,0,30)
+
+        The three nearest points to (0.5, 1.5) are (0,0), (0,1), and (1,1), as shown
+        below:
+
+        (0,1,20)            (1,1,40)
+            ┌─────────┬─────────┐
+            │\\       │   //////│
+            │  \\   //│///      │
+            │    x//  │    x    │
+            │   /     │         │
+            │   /     │         │
+            ├─────────┼─────────┤
+            │  /      │         │
+            │  /      │         │
+            │ /  x    │    x    │
+            │ /       │         │
+            │/        │         │
+            └─────────└─────────┘
+        (0,0,10)            (1,0,30)
+
+        In barycentric coordinates of the triangle formed by these points, (0.5, 1.5)
+        is (1/4, 1/2, 1/4). Thus, the interpolated value is:
+        1/4*10 + 1/2*20 + 1/4*40 = 2.5 + 10 + 10 = 22.5.
+        """
+
+        # Arrange
+        x = [0, 0, 1, 1]
+        y = [0, 1, 0, 1]
+        z = [10, 20, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, Raster)
+        assert raster.arr.shape == (2, 2)
+        expected_array = np.array(
+            [
+                [0.25 * 10 + 0.5 * 20 + 0.25 * 40, 0.25 * 30 + 0.5 * 40 + 0.25 * 20],
+                [0.25 * 20 + 0.5 * 10 + 0.25 * 30, 0.25 * 10 + 0.5 * 30 + 0.25 * 40],
+            ]
+        )
+        np.testing.assert_array_equal(raster.arr, expected_array)
+
+    def test_cell_size_heuristic(self):
+        """Test that the cell size heuristic works as expected."""
+        # Arrange
+        x = [0, 0, 1, 1]
+        y = [0, 1, 0, 1]
+        z = [10, 20, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, Raster)
+        assert raster.arr.shape == (2, 2)
+
+    class TestLengthMismatch:
+        def test_xy(self):
+            # Arrange
+            x = [0, 0, 1]
+            y = [0, 1, 0, 1]
+            z = [10, 20, 30]
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError, match=r"Length of x, y, and z must be equal\."
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        def test_xz(self):
+            # Arrange
+            x = [0, 0, 1]
+            y = [0, 1, 0]
+            z = [10, 20, 30, 40]
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError, match=r"Length of x, y, and z must be equal\."
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    def test_random_point_cloud(self):
+        # Arrange
+        rng = np.random.default_rng(42)
+        x = rng.uniform(0, 100, size=1000)
+        y = rng.uniform(0, 100, size=1000)
+        z = rng.uniform(0, 1000, size=1000)
+
+        # Act
+        raster = raster_from_point_cloud(
+            x=x, y=y, z=z, crs="EPSG:2193", cell_size=5.0
+        ).extrapolate()  # Fill NaNs at the edges
+
+        # Assert
+        assert isinstance(raster, Raster)
+        assert raster.arr.shape == (20, 20)
+        assert np.all(raster.arr >= 0)  # All values should be non-negative
+        assert np.all(raster.arr <= 1000)  # All values should be within z range
+        assert 450 < raster.arr.mean() < 550  # Mean should be roughly accurate
+
+    def test_same_xy_different_z(self):
+        # Arrange
+        x = [0, 0, 0, 1, 1]
+        y = [0, 0, 1, 0, 1]
+        z = [10, 15, 20, 30, 40]  # Two points at (0,0) with different z
+
+        # Act
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Duplicate (x, y) points found. Each (x, y) point must be unique."
+            ),
+        ):
+            raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    def test_collinear_points(self):
+        # Arrange
+        x = [0, 1, 2]
+        y = [0, 0, 0]  # All points are collinear along y=0
+        z = [10, 20, 30]
+
+        # Act / Assert
+        with pytest.raises(
+            ValueError,
+            match=re.escape("Failed to interpolate."),
+        ):
+            raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    class TestInsufficientPoints:
+        def test_empty_inputs(self):
+            # Arrange
+            x: list[float] = []
+            y: list[float] = []
+            z: list[float] = []
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError,
+                match=re.escape("At least three valid (x, y, z) points are required"),
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        def test_only_two_points(self):
+            # Arrange
+            x = [0, 1]
+            y = [0, 1]
+            z = [10, 20]
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError,
+                match=re.escape("At least three valid (x, y, z) points are required"),
+            ):
+                raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+    def test_2d_arrays(self):
+        # Arrange
+        x = np.array([[0, 0], [1, 1]])
+        y = np.array([[0, 1], [0, 1]])
+        z = np.array([[10, 20], [30, 40]])
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, Raster)
+        assert raster.arr.shape == (2, 2)
+
+    def test_xy_are_nan_warns(self):
+        # Arrange
+        x = [0, 0, np.nan, 1, 3]
+        y = [0, 1, 0, np.nan, 2]
+        z = [10, 20, 30, 40, 50]
+
+        # Act
+        with pytest.warns(
+            UserWarning,
+            match=re.escape(
+                "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+            ),
+        ):
+            raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, Raster)
+
+    def test_xy_are_infinite_warns(self):
+        # Arrange
+        x = [0, 0, np.inf, 1, 3]
+        y = [0, 1, 0, -np.inf, 2]
+        z = [10, 20, 30, 40, 50]
+
+        # Act
+        with pytest.warns(
+            UserWarning,
+            match=re.escape(
+                "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+            ),
+        ):
+            raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+        # Assert
+        assert isinstance(raster, Raster)
+
+    def test_z_is_nan(self):
+        # This works fine, it just means any concave
+        # area with NaN z values will be NaN in the output
+
+        # Arrange
+        x = [0, 0, 1, 1]
+        y = [0, 1, 0, 1]
+        z = [10, np.nan, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, Raster)
+
+    def test_less_than_three_valid_points_due_to_nan(self):
+        # We want a good error message if there are
+
+        # Arrange
+        x = [0, np.nan, 1]
+        y = [0, 1, np.nan]
+        z = [10, 20, 30]
+
+        # Act / Assert
+        with (
+            pytest.raises(
+                ValueError,
+                match=re.escape("At least three valid (x, y, z) points are required"),
+            ),
+            pytest.warns(
+                UserWarning,
+                match=re.escape(
+                    "Some (x,y) points are NaN-valued or non-finite. "
+                    "These will be ignored."
+                ),
+            ),
+        ):
+            raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")

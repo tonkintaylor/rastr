@@ -1,32 +1,34 @@
 name: CI
 permissions:
   contents: read
-  pull-requests: write
 on:
   workflow_dispatch:
   push:
-    branches: ['master', 'develop']
+    branches: ["master", "develop"]
     paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - 'mkdocs.yml'
+      - "docs/**"
+      - "**/*.md"
+      - "mkdocs.yml"
   pull_request:
-    branches: ['master', 'develop']
+    branches: ["master", "develop"]
     paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - 'mkdocs.yml'
+      - "docs/**"
+      - "**/*.md"
+      - "mkdocs.yml"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   tests:
+    name: Run Tests and Checks
     runs-on: ${{ matrix.os }}
     env:
       PYTHONIOENCODING: utf-8
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Setup git user config
         run: |
@@ -36,35 +38,41 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.3.1
         with:
-          version: "0.8.3" # Sync with pyproject.toml
+          version: "0.7.13" # Sync with pyproject.toml
           enable-cache: true
 
-      - name: Set up Python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-        with:
-          python-version: ${{ matrix.python-version }}
-        
-      - name: Setup dependencies
+      - name: Setup Python
         run: |
-          uv python pin ${{ matrix.python-version }}
-          uv export --no-managed-python --no-group doc --resolution ${{ matrix.resolution }} > ci-requirements.txt 
-          uv pip install --system -r ci-requirements.txt
+          uv python pin ${PYTHON_VERSION}
+          uv python install
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
 
       - name: Run pre-commit
         if: matrix.checks
         run: |
-          uv run --frozen pre-commit run --all-files
+          uv run pre-commit run --all-files
 
       - name: Run pyright
         if: matrix.checks
         run: |
           uv run pyright
 
+      - name: Run zizmor
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: |
+          uv run zizmor --no-progress --pedantic .github/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run pytest
         uses: pavelzw/pytest-action@510c5e90c360a185039bea56ce8b3e7e51a16507 # v2.2.0
         if: matrix.pytest
         with:
+          custom-pytest: uv run pytest
           custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
+        env:
+          MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434
 
       - name: Create test reports directory
         if: matrix.pytest && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
@@ -95,25 +103,28 @@ jobs:
     name: Analyse Code Quality
     runs-on: ubuntu-latest
     needs: tests
+    permissions:
+      pull-requests: write # SonarQube needs to post comments on PRs
     if: always() && needs.tests.result == 'success'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for better relevancy of analysis
-      
+          fetch-depth: 0 # Shallow clones should be disabled for better relevancy of analysis
+          persist-credentials: false
+
       - name: Download coverage reports
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           name: coverage-reports
           path: test-reports/
         continue-on-error: true
-      
+
       - name: Create SonarQube properties
         run: |
           cat > sonar-project.properties << EOF
-          sonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+          sonar.projectKey=${SONAR_PROJECT_KEY}
           sonar.language=py
           sonar.python.version=3.13
           sonar.sources=./src
@@ -122,9 +133,11 @@ jobs:
           sonar.exclusions=**/Dockerfile,**/notebooks/**,**/scripts/**
           sonar.verbose=false
           EOF
-      
+        env:
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+
       - name: Run SonarQube analysis
-        uses: SonarSource/sonarqube-scan-action@884b79409bbd464b2a59edc326a4b77dc56b2195 # v3.1.0
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}

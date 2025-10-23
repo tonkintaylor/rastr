@@ -1,28 +1,35 @@
 from __future__ import annotations
 
+import importlib.util
 import warnings
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 import numpy as np
-import pandas as pd
 import rasterio.features
 import rasterio.transform
 from affine import Affine
-from scipy.interpolate import LinearNDInterpolator
-from scipy.spatial import ConvexHull, QhullError
+from pyproj import CRS
 from shapely.geometry import Point
-from tqdm.notebook import tqdm
 from typing_extensions import assert_never
 
+from rastr.gis.crs import get_affine_sign
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
+from rastr.gis.interpolate import interpn_kernel
 from rastr.meta import RasterMeta
-from rastr.raster import RasterModel
+from rastr.raster import Raster, RasterModel
 
 if TYPE_CHECKING:
+    from collections.abc import Collection, Iterable
+
     import geopandas as gpd
-    from numpy.typing import NDArray
+    from numpy.typing import ArrayLike, NDArray
     from shapely.geometry import Polygon
     from shapely.geometry.base import BaseGeometry
+
+
+TQDM_INSTALLED = importlib.util.find_spec("tqdm") is not None
+
+_T = TypeVar("_T")
 
 
 class MissingColumnsError(ValueError):
@@ -46,9 +53,9 @@ def raster_distance_from_polygon(
     *,
     raster_meta: RasterMeta,
     extent_polygon: Polygon | None = None,
-    snap_raster: RasterModel | None = None,
+    snap_raster: Raster | None = None,
     show_pbar: bool = False,
-) -> RasterModel:
+) -> Raster:
     """Make a raster where each cell's value is its centre's distance to a polygon.
 
     The raster should use a projected coordinate system.
@@ -72,6 +79,11 @@ def raster_distance_from_polygon(
     Raises:
         ValueError: If the provided CRS is geographic (lat/lon).
     """
+    if show_pbar and not TQDM_INSTALLED:
+        msg = "The 'tqdm' package is not installed. Progress bars will not be shown."
+        warnings.warn(msg, UserWarning, stacklevel=2)
+        show_pbar = False
+
     # Check if the provided CRS is projected (cartesian)
     if raster_meta.crs.is_geographic:
         err_msg = (
@@ -99,18 +111,22 @@ def raster_distance_from_polygon(
     else:
         raise AssertionError
 
-    points = [Point(x, y) for x, y in zip(x.flatten(), y.flatten(), strict=True)]
+    pts = [Point(x, y) for x, y in zip(x.flatten(), y.flatten(), strict=True)]
 
-    _points = tqdm(points, desc="Finding points within extent") if show_pbar else points
-    mask = [distance_extent.intersects(point) for point in _points]
+    _pts = _pbar(pts, desc="Finding points within extent") if show_pbar else pts
+    mask = [distance_extent.intersects(pt) for pt in _pts]
 
-    _points = tqdm(points, desc="Calculating distances") if show_pbar else points
-    distances = np.where(
-        mask, np.array([polygon.distance(point) for point in _points]), np.nan
-    )
+    _pts = _pbar(pts, desc="Calculating distances") if show_pbar else pts
+    distances = np.where(mask, np.array([polygon.distance(pt) for pt in _pts]), np.nan)
     distance_raster = distances.reshape(x.shape)
 
-    return RasterModel(arr=distance_raster, raster_meta=raster_meta)
+    return Raster(arr=distance_raster, raster_meta=raster_meta)
+
+
+def _pbar(iterable: Iterable[_T], *, desc: str | None = None) -> Iterable[_T]:
+    from tqdm import tqdm
+
+    return tqdm(iterable, desc=desc)
 
 
 def full_raster(
@@ -118,19 +134,19 @@ def full_raster(
     *,
     bounds: tuple[float, float, float, float],
     fill_value: float = np.nan,
-) -> RasterModel:
+) -> Raster:
     """Create a raster with a specified fill value for all cells."""
     shape = get_point_grid_shape(bounds=bounds, cell_size=raster_meta.cell_size)
     arr = np.full(shape, fill_value, dtype=np.float32)
-    return RasterModel(arr=arr, raster_meta=raster_meta)
+    return Raster(arr=arr, raster_meta=raster_meta)
 
 
 def rasterize_gdf(
     gdf: gpd.GeoDataFrame,
     *,
     raster_meta: RasterMeta,
-    target_cols: list[str],
-) -> list[RasterModel]:
+    target_cols: Collection[str],
+) -> list[Raster]:
     """Rasterize geometries from a GeoDataFrame.
 
     Supports polygons, points, linestrings, and other geometry types.
@@ -171,9 +187,10 @@ def rasterize_gdf(
     shape = get_point_grid_shape(bounds=expanded_bounds, cell_size=cell_size)
 
     # Create the affine transform for rasterization
+    xs, ys = get_affine_sign(raster_meta.crs)
     transform = Affine.translation(
         expanded_bounds[0], expanded_bounds[3]
-    ) * Affine.scale(cell_size, -cell_size)
+    ) * Affine.scale(xs * cell_size, ys * cell_size)
 
     # Create rasters for each target column using rasterio.features.rasterize
     rasters = []
@@ -193,8 +210,8 @@ def rasterize_gdf(
             dtype=np.float32,
         )
 
-        # Create RasterModel
-        raster = RasterModel(arr=raster_array, raster_meta=raster_meta)
+        # Create Raster
+        raster = Raster(arr=raster_array, raster_meta=raster_meta)
         rasters.append(raster)
 
     return rasters
@@ -401,6 +418,8 @@ def _is_valid_for_interpolation(geometry: BaseGeometry, coords: np.ndarray) -> b
 
 def _can_interpolate_points(xy_boundary: NDArray) -> bool:
     """Check if points can be used for interpolation."""
+    from scipy.spatial import ConvexHull, QhullError
+
     # If all points are coplanar in XY space, interpolation will fail
     if len(np.unique(xy_boundary, axis=0)) < 3:
         return False
@@ -424,6 +443,9 @@ def _perform_interpolation(
     y: NDArray,
 ) -> NDArray:
     """Perform the actual interpolation."""
+    from scipy.interpolate import LinearNDInterpolator
+    from scipy.spatial import QhullError
+
     try:
         interpolator = LinearNDInterpolator(xy_boundary, z_boundary, fill_value=np.nan)
         xy_query = np.column_stack((x, y))  # Shape: (N, 2)
@@ -434,7 +456,9 @@ def _perform_interpolation(
         return np.full_like(x, np.nan, dtype=np.float64)
 
 
-def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> None:
+def _validate_columns_exist(
+    gdf: gpd.GeoDataFrame, target_cols: Collection[str]
+) -> None:
     """Validate that all target columns exist in the GeoDataFrame.
 
     Args:
@@ -450,7 +474,9 @@ def _validate_columns_exist(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> No
         raise MissingColumnsError(msg)
 
 
-def _validate_columns_numeric(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> None:
+def _validate_columns_numeric(
+    gdf: gpd.GeoDataFrame, target_cols: Collection[str]
+) -> None:
     """Validate that all target columns contain numeric data.
 
     Args:
@@ -460,6 +486,8 @@ def _validate_columns_numeric(gdf: gpd.GeoDataFrame, target_cols: list[str]) -> 
     Raises:
         NonNumericColumnsError: If any columns contain non-numeric data.
     """
+    import pandas as pd
+
     non_numeric_cols = []
     for col in target_cols:
         if not pd.api.types.is_numeric_dtype(gdf[col]):
@@ -497,3 +525,97 @@ def _validate_no_overlapping_geometries(gdf: gpd.GeoDataFrame) -> None:
                     "Overlapping geometries can lead to data loss during rasterization."
                 )
                 raise OverlappingGeometriesError(msg)
+
+
+def raster_from_point_cloud(
+    x: ArrayLike,
+    y: ArrayLike,
+    z: ArrayLike,
+    *,
+    crs: CRS | str,
+    cell_size: float | None = None,
+) -> Raster:
+    """Create a raster from a point cloud via interpolation.
+
+    Interpolation is only possible within the convex hull of the points. Outside of
+    this, cells will be NaN-valued.
+
+    All (x,y) points must be unique.
+
+    Args:
+        x: X coordinates of points.
+        y: Y coordinates of points.
+        z: Values at each (x, y) point to assign the raster.
+        crs: Coordinate reference system for the (x, y) coordinates.
+        cell_size: Desired cell size for the raster. If None, a heuristic is used based
+                   on the spacing between (x, y) points.
+
+    Returns:
+        Raster containing the interpolated values.
+
+    Raises:
+        ValueError: If any (x, y) points are duplicated, or if they are all collinear.
+    """
+    crs = CRS.from_user_input(crs)
+    x, y, z = _validate_xyz(
+        np.asarray(x).ravel(), np.asarray(y).ravel(), np.asarray(z).ravel()
+    )
+
+    raster_meta, shape = RasterMeta.infer(x, y, cell_size=cell_size, crs=crs)
+    arr = interpn_kernel(
+        points=np.column_stack((x, y)),
+        values=z,
+        xi=np.column_stack(_get_grid(raster_meta, shape=shape)),
+    ).reshape(shape)
+
+    # We only support float rasters for now; we should preserve the input dtype if
+    # possible
+    if z.dtype in (np.float16, np.float32, np.float64):
+        arr = arr.astype(z.dtype)
+    else:
+        arr = arr.astype(np.float64)
+
+    return Raster(arr=arr, raster_meta=raster_meta)
+
+
+def _validate_xyz(
+    x: np.ndarray, y: np.ndarray, z: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    # Validate input arrays
+    if len(x) != len(y) or len(x) != len(z):
+        msg = "Length of x, y, and z must be equal."
+        raise ValueError(msg)
+    xy_finite_mask = np.isfinite(x) & np.isfinite(y)
+    if np.any(~xy_finite_mask):
+        msg = "Some (x,y) points are NaN-valued or non-finite. These will be ignored."
+        warnings.warn(msg, stacklevel=2)
+        x = x[xy_finite_mask]
+        y = y[xy_finite_mask]
+        z = z[xy_finite_mask]
+    if len(x) < 3:
+        msg = (
+            "At least three valid (x, y, z) points are required to triangulate a "
+            "surface."
+        )
+        raise ValueError(msg)
+    # Check for duplicate (x, y) points
+    xy_points = np.column_stack((x, y))
+    if len(xy_points) != len(np.unique(xy_points, axis=0)):
+        msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."
+        raise ValueError(msg)
+
+    return x, y, z
+
+
+def _get_grid(
+    raster_meta: RasterMeta, *, shape: tuple[int, int]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Get coordinates for raster cell centres based on raster metadata and shape."""
+    rows, cols = np.indices(shape)
+    xs, ys = rasterio.transform.xy(
+        transform=raster_meta.transform, rows=rows, cols=cols, offset="center"
+    )
+    grid_x = np.array(xs).ravel()
+    grid_y = np.array(ys).ravel()
+
+    return grid_x, grid_y

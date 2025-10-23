@@ -275,8 +275,8 @@ def rasterize_z_gdf(
             "will be entirely NaN-valued."
         )
         warnings.warn(msg, stacklevel=2)
-        z_raster = np.full(shape, np.nan, dtype=np.float32)
-        return RasterModel(arr=z_raster, raster_meta=meta)
+        arr = np.full(shape, np.nan, dtype=np.float64)
+        return RasterModel(arr=arr, raster_meta=meta)
 
     z_stack = np.array(z_stack)  # Shape: (N, height * width)
 
@@ -297,9 +297,9 @@ def rasterize_z_gdf(
         else:
             assert_never(agg)
 
-    z_raster = np.asarray(z_agg).reshape(shape).astype(np.float64)
+    arr = np.asarray(z_agg, dtype=np.float64).reshape(shape)
 
-    return RasterModel(arr=z_raster, raster_meta=meta)
+    return RasterModel(arr=arr, raster_meta=meta)
 
 
 def _validate_geometries_are_3d(gdf: gpd.GeoDataFrame) -> None:

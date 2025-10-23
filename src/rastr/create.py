@@ -387,7 +387,7 @@ def _interpolate_z_in_geometry(
     if not _can_interpolate_points(xy_boundary):
         return np.full_like(x, np.nan, dtype=np.float64)
 
-    return _perform_interpolation(xy_boundary, z_boundary, x, y)
+    return interpn_kernel(xy_boundary, z_boundary, xi=np.column_stack((x, y)))
 
 
 def _extract_coords_from_geometry(geometry: BaseGeometry) -> np.ndarray | None:
@@ -434,26 +434,6 @@ def _can_interpolate_points(xy_boundary: NDArray) -> bool:
         return False
     else:
         return hull.volume >= 1e-10  # Very small area indicates collinear points
-
-
-def _perform_interpolation(
-    xy_boundary: NDArray,
-    z_boundary: NDArray,
-    x: NDArray,
-    y: NDArray,
-) -> NDArray:
-    """Perform the actual interpolation."""
-    from scipy.interpolate import LinearNDInterpolator
-    from scipy.spatial import QhullError
-
-    try:
-        interpolator = LinearNDInterpolator(xy_boundary, z_boundary, fill_value=np.nan)
-        xy_query = np.column_stack((x, y))  # Shape: (N, 2)
-        z_vals = interpolator(xy_query)
-        return z_vals.astype(np.float64)
-    except (QhullError, ValueError):
-        # If interpolation fails for any reason, return NaN
-        return np.full_like(x, np.nan, dtype=np.float64)
 
 
 def _validate_columns_exist(

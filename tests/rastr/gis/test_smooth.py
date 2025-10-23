@@ -174,3 +174,18 @@ class TestRecursiveEval:
         # Assert
         assert result.shape == (1, 2)
         assert np.allclose(result, np.array([[0.0, 0.0]]))
+
+    def test_denom_zero_non_edge_point(self):
+        # To address regression in https://github.com/tonkintaylor/rastr/issues/276
+
+        # Arrange
+        coords = np.array([[0.0, 0.0], [1.0, 1.0], [1.0, 1.0], [2.0, 0.0]])
+        # This will force denom == 0 in _recursive_eval for the middle segment
+
+        # Act
+        result = _recursive_eval(
+            coords, np.asarray([0.0, 1.0, 1.0, 2.0]), np.array([0.5])
+        )
+        # Assert
+        assert result.shape == (1, 2)
+        assert np.allclose(result, np.array([[1.0, 0.75]]))

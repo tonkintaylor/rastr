@@ -1834,7 +1834,7 @@ class TestRasterizeZGDF:
                 [1.0, 1.5],  # Top row: (0.25, 0.75), (0.75, 0.75)
                 [0.5, 1.0],  # Bottom row: (0.25, 0.25), (0.75, 0.25)
             ],
-            dtype=np.float32,
+            dtype=np.float64,
         )
 
         # Get the actual array and compare
@@ -1846,6 +1846,7 @@ class TestRasterizeZGDF:
             expected_array,
             rtol=1e-5,
             err_msg="Interpolated array doesn't match expected values",
+            strict=True,
         )
 
 

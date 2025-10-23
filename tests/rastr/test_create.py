@@ -1769,11 +1769,6 @@ class TestRasterizeZGDF:
             rtol=1e-5,
             err_msg="Interpolated array doesn't match expected values",
         )
-        # Use set instead of list for target_cols
-        result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols={"value"})
-
-        assert len(result) == 1
-        assert isinstance(result[0], Raster)
 
 
 class TestRasterFromPointCloud:

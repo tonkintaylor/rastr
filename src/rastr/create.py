@@ -259,13 +259,9 @@ def rasterize_z_gdf(
 
     # Determine the bounds that would encompass the geometry while respecting the grid
     gdf_bounds = gdf.total_bounds
-    minx_geom, miny_geom, maxx_geom, maxy_geom = gdf_bounds
-
-    # Use geometry bounds directly without extra buffering
-    geom_bounds = (minx_geom, miny_geom, maxx_geom, maxy_geom)
 
     # Calculate the grid shape needed to cover the geometry bounds
-    shape = get_point_grid_shape(bounds=geom_bounds, cell_size=cell_size)
+    shape = get_point_grid_shape(bounds=gdf_bounds, cell_size=cell_size)
     height, width = shape
 
     # Create a new transform that aligns with the provided grid but covers the geometry
@@ -275,16 +271,17 @@ def rasterize_z_gdf(
 
     # Find the top-left corner of our raster that aligns with the original grid
     # and covers the geometry bounds
-    cols_to_start = int((geom_bounds[0] - grid_origin_x) / cell_size)
-    rows_to_start = int((grid_origin_y - geom_bounds[3]) / cell_size)
+    cols_to_start = int((gdf_bounds[0] - grid_origin_x) / cell_size)
+    rows_to_start = int((grid_origin_y - gdf_bounds[3]) / cell_size)
 
     # Calculate the actual bounds of our aligned raster
     actual_minx = grid_origin_x + cols_to_start * cell_size
     actual_maxy = grid_origin_y - rows_to_start * cell_size
 
     # Create the aligned transform
+    x_s, y_s = get_affine_sign(raster_meta.crs)
     aligned_transform = Affine.translation(actual_minx, actual_maxy) * Affine.scale(
-        cell_size, -cell_size
+        x_s * cell_size, y_s * cell_size
     )
 
     # Update the raster metadata to use the aligned transform

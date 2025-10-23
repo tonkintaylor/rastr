@@ -372,7 +372,7 @@ def _interpolate_z_in_geometry(
         raise ValueError(msg)
 
     # Extract coordinates from geometry
-    coords = _extract_coords_from_geometry(geometry)
+    coords = np.array(geometry.boundary.coords)
     if coords is None:
         return np.full_like(x, np.nan, dtype=np.float64)
 
@@ -388,22 +388,6 @@ def _interpolate_z_in_geometry(
         return np.full_like(x, np.nan, dtype=np.float64)
 
     return interpn_kernel(xy_boundary, z_boundary, xi=np.column_stack((x, y)))
-
-
-def _extract_coords_from_geometry(geometry: BaseGeometry) -> np.ndarray | None:
-    """Extract coordinates from a geometry object."""
-    if hasattr(geometry, "exterior"):
-        # Polygon - use exterior ring
-        return np.array(geometry.exterior.coords)
-    elif hasattr(geometry, "coords"):
-        # LineString or Point
-        return np.array(geometry.coords)
-    else:
-        # For other geometry types, try to get coords from the boundary
-        try:
-            return np.array(geometry.boundary.coords)
-        except (AttributeError, NotImplementedError):
-            return None
 
 
 def _is_valid_for_interpolation(geometry: BaseGeometry, coords: np.ndarray) -> bool:

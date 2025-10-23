@@ -348,8 +348,8 @@ def _validate_geometries_are_3d(gdf: gpd.GeoDataFrame) -> None:
         # Check if geometry has Z coordinates
         if not geom.has_z:
             msg = (
-                f"Geometry at index {idx} is not 3D. All geometries must have "
-                "Z coordinates for interpolation to work."
+                f"Geometry at index {idx} is not 3D. Z-coordinates are required since "
+                "they give the cell values during rasterization."
             )
             raise ValueError(msg)
 

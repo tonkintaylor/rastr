@@ -15,7 +15,6 @@ import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
-import skimage.measure
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import Transformer
 from pyproj.crs.crs import CRS
@@ -983,6 +982,7 @@ class Raster(BaseModel):
                        contours will be returned without any smoothing.
         """
         import geopandas as gpd
+        import skimage.measure
 
         all_levels = []
         all_geoms = []
@@ -1031,6 +1031,27 @@ class Raster(BaseModel):
 
         # Dissolve contours by level to merge all contour lines of the same level
         return contour_gdf.dissolve(by="level", as_index=False)
+
+    def sobel(self) -> Self:
+        """Compute the Sobel gradient magnitude of the raster.
+
+        This is effectively a discrete differentiation operator, computing an
+        approximation of the magnitude of the gradient of the image intensity function.
+
+        Borders are treated using half-sample symmetric sampling, i.e. repeating the
+        border values. Be aware that this can lead to edge artifacts and under-estimate
+        the gradient along the border pixels.
+
+        Returns:
+            New raster containing the gradient magnitude in units of raster cell units
+            per unit distance (e.g. per meter).
+        """
+        from skimage import filters
+
+        new_raster = self.model_copy()
+        # Scale by cell size to convert to per unit distance
+        new_raster.arr = filters.sobel(self.arr) / self.cell_size
+        return new_raster
 
     def blur(self, sigma: float, *, preserve_nan: bool = True) -> Self:
         """Apply a Gaussian blur to the raster data.

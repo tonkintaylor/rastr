@@ -193,6 +193,7 @@ lint.flake8-tidy-imports.banned-module-level-imports = [
   "mpl_toolkits",
   "pandas",
   "scipy",
+  "skimage",
   "tqdm",
 ]
 

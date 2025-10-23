@@ -373,30 +373,11 @@ def _interpolate_z_in_geometry(
 
     # Extract coordinates from geometry
     coords = np.array(geometry.boundary.coords)
-    if coords is None:
-        return np.full_like(x, np.nan, dtype=np.float64)
-
-    # Validate geometry for interpolation
-    if not _is_valid_for_interpolation(geometry, coords):
-        return np.full_like(x, np.nan, dtype=np.float64)
-
-    xy_boundary = coords[:, :2]
-    z_boundary = coords[:, 2]
 
     try:
-        return interpn_kernel(xy_boundary, z_boundary, xi=np.column_stack((x, y)))
+        return interpn_kernel(coords[:, :2], coords[:, 2], xi=np.column_stack((x, y)))
     except InterpolationError:
         return np.full_like(x, np.nan, dtype=np.float64)
-
-
-def _is_valid_for_interpolation(geometry: BaseGeometry, coords: np.ndarray) -> bool:
-    """Check if geometry is valid for interpolation."""
-    # Need at least 3 points for interpolation (except for Point geometries)
-    if len(coords) < 3 and geometry.geom_type != "Point":
-        return False
-
-    # For Point geometries, we can't interpolate
-    return geometry.geom_type != "Point"
 
 
 def _validate_columns_exist(

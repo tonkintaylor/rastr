@@ -39,9 +39,8 @@ pip install rastr
 ```python
 from pyproj.crs.crs import CRS
 from rasterio.transform import from_origin
+from rastr import Raster, RasterMeta
 from rastr.create import full_raster
-from rastr.meta import RasterMeta
-from rastr.raster import Raster
 
 # Read a raster from a file
 raster = Raster.read_file("path/to/raster.tif")

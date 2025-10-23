@@ -137,7 +137,9 @@ def _recursive_eval(slice4: NDArray, tangents: NDArray, ts: NDArray) -> NDArray:
         with np.errstate(divide="ignore", invalid="ignore"):
             left_w = (tangents[r - idx : 4 - idx][None, :] - ts[:, None]) / denom
 
-        left_w[:, denom == 0] = 0.5  # Use 0.5 (midpoint) when points are identical (zero denominator)
+        left_w[:, denom == 0] = (
+            0.5  # Use 0.5 (midpoint) when points are identical (zero denominator)
+        )
         right_w = 1 - left_w
 
         # Weighted sums between consecutive points

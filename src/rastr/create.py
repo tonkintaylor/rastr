@@ -14,7 +14,7 @@ from typing_extensions import assert_never
 
 from rastr.gis.crs import get_affine_sign
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
-from rastr.gis.interpolate import interpn_kernel
+from rastr.gis.interpolate import InterpolationError, interpn_kernel
 from rastr.meta import RasterMeta
 from rastr.raster import Raster, RasterModel
 
@@ -383,11 +383,10 @@ def _interpolate_z_in_geometry(
     xy_boundary = coords[:, :2]
     z_boundary = coords[:, 2]
 
-    # Check for degenerate cases before attempting interpolation
-    if not _can_interpolate_points(xy_boundary):
+    try:
+        return interpn_kernel(xy_boundary, z_boundary, xi=np.column_stack((x, y)))
+    except InterpolationError:
         return np.full_like(x, np.nan, dtype=np.float64)
-
-    return interpn_kernel(xy_boundary, z_boundary, xi=np.column_stack((x, y)))
 
 
 def _is_valid_for_interpolation(geometry: BaseGeometry, coords: np.ndarray) -> bool:
@@ -398,26 +397,6 @@ def _is_valid_for_interpolation(geometry: BaseGeometry, coords: np.ndarray) -> b
 
     # For Point geometries, we can't interpolate
     return geometry.geom_type != "Point"
-
-
-def _can_interpolate_points(xy_boundary: NDArray) -> bool:
-    """Check if points can be used for interpolation."""
-    from scipy.spatial import ConvexHull, QhullError
-
-    # If all points are coplanar in XY space, interpolation will fail
-    if len(np.unique(xy_boundary, axis=0)) < 3:
-        return False
-
-    # Check if points are collinear or nearly collinear
-    # Calculate the area of the convex hull - if it's too small,
-    # points are nearly collinear
-    try:
-        hull = ConvexHull(xy_boundary)
-    except (QhullError, ValueError):
-        # If ConvexHull fails, the points are likely degenerate
-        return False
-    else:
-        return hull.volume >= 1e-10  # Very small area indicates collinear points
 
 
 def _validate_columns_exist(

@@ -234,9 +234,7 @@ class TestFullRaster:
         assert result.arr.shape == (3, 3)
 
 
-class TestRasterizeGdf:
-    """Test suite for rasterize_gdf function."""
-
+class TestRasterizeGDF:
     def test_basic_rasterization_single_column(self):
         """Test basic rasterization with a single numeric column."""
         import geopandas as gpd

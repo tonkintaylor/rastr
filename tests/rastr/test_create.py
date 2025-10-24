@@ -1986,6 +1986,33 @@ class TestRasterFromPointCloud:
         ):
             raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
 
+    def test_same_xyz_triples(self):
+        # Arrange - duplicate (x,y,z) triples should be accepted and deduplicated
+        x = [0, 0, 0, 1, 1]
+        y = [0, 0, 1, 0, 1]
+        z = [10, 10, 20, 30, 40]  # Two identical points at (0,0,10)
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, Raster)
+        # Should successfully create a raster with deduplicated points
+        assert raster.arr.shape == (2, 2)
+
+    def test_multiple_xyz_duplicates(self):
+        # Arrange - multiple duplicate (x,y,z) triples should all be deduplicated
+        x = [0, 0, 0, 1, 1, 1, 1]
+        y = [0, 1, 1, 0, 1, 1, 1]
+        z = [10, 20, 20, 30, 40, 40, 40]  # (0,1,20) duplicated, (1,1,40) tripled
+
+        # Act
+        raster = raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193", cell_size=0.5)
+
+        # Assert
+        assert isinstance(raster, Raster)
+        assert raster.arr.shape == (2, 2)
+
     def test_collinear_points(self):
         # Arrange
         x = [0, 1, 2]

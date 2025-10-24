@@ -432,7 +432,8 @@ def raster_from_point_cloud(
     Interpolation is only possible within the convex hull of the points. Outside of
     this, cells will be NaN-valued.
 
-    All (x,y) points must be unique.
+    Duplicate (x, y, z) triples are silently deduplicated. However, duplicate (x, y)
+    points with different z values will raise an error.
 
     Args:
         x: X coordinates of points.
@@ -446,7 +447,8 @@ def raster_from_point_cloud(
         Raster containing the interpolated values.
 
     Raises:
-        ValueError: If any (x, y) points are duplicated, or if they are all collinear.
+        ValueError: If any (x, y) points have different z values, or if they are all
+                    collinear.
     """
     crs = CRS.from_user_input(crs)
     x, y, z = _validate_xyz(
@@ -490,7 +492,21 @@ def _validate_xyz(
             "surface."
         )
         raise ValueError(msg)
-    # Check for duplicate (x, y) points
+    # Check for duplicate (x, y, z) triples and deduplicate them
+    xyz_points = np.column_stack((x, y, z))
+    unique_xyz, first_occurrence_indices = np.unique(
+        xyz_points, axis=0, return_index=True
+    )
+
+    # If we have duplicate (x, y, z) triples, deduplicate them
+    if len(unique_xyz) < len(xyz_points):
+        x = x[first_occurrence_indices]
+        y = y[first_occurrence_indices]
+        z = z[first_occurrence_indices]
+
+    # Check for duplicate (x, y) points with different z values
+    # After deduplication, if there are still duplicate (x,y) points, they must have
+    # different z values
     xy_points = np.column_stack((x, y))
     if len(xy_points) != len(np.unique(xy_points, axis=0)):
         msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."

@@ -180,7 +180,7 @@ def write_raster(raster: Raster, *, path: Path | str, **kwargs: Any) -> None:
 
 
 def read_cad_gdf(path: Path | str, crs: CRS | str | None = None) -> gpd.GeoDataFrame:
-    """Read a raster from a DXF/CAD file with warnings suppression and CRS handling.
+    """Read a GeoDataFrame from a DXF/CAD file with warning suppression.
 
     This is useful in tandem with `Raster.clip` and `rastr.create.rasterize_z_gdf` to
     create rasters from CAD files. Often CAD files represent surfaces which for GIS
@@ -189,7 +189,7 @@ def read_cad_gdf(path: Path | str, crs: CRS | str | None = None) -> gpd.GeoDataF
     rasterize them, and then spatially join with a clean vector representation
     developed separately.
 
-    DXF files often have messy geometries that can trigger warnings during reading.
+    DXF files often have large geometries that can trigger warnings during reading.
     This function suppresses those warnings and ensures proper CRS handling.
 
     Supports any format supported by `geopandas.read_file` which provides 3D geometries.

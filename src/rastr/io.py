@@ -225,10 +225,7 @@ def read_cad_gdf(path: Path | str, crs: CRS | str | None = None) -> gpd.GeoDataF
     # Handle CRS logic
     crs = CRS.from_user_input(crs) if crs is not None else None
     if crs is None:
-        if gdf.crs is not None:
-            # Use CRS from file
-            crs = gdf.crs
-        else:
+        if gdf.crs is None:
             msg = (
                 f"No CRS found in CAD file {path} and no CRS provided. "
                 "Please provide a CRS parameter."

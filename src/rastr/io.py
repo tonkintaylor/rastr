@@ -200,7 +200,7 @@ def read_cad_gdf(path: Path | str, crs: CRS | str | None = None) -> gpd.GeoDataF
              CAD file.
 
     Returns:
-        Raster: Rasterized CAD data.
+        GeoDataFrame: The CAD data as a GeoDataFrame.
 
     Raises:
         ValueError: If CRS is missing from CAD file and not provided, or if CRS is

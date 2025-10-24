@@ -492,17 +492,21 @@ def _validate_xyz(
             "surface."
         )
         raise ValueError(msg)
-    # Check for duplicate (x, y, z) triples
+    # Check for duplicate (x, y, z) triples and deduplicate them
     xyz_points = np.column_stack((x, y, z))
-    unique_xyz, unique_indices = np.unique(xyz_points, axis=0, return_index=True)
+    unique_xyz, first_occurrence_indices = np.unique(
+        xyz_points, axis=0, return_index=True
+    )
 
     # If we have duplicate (x, y, z) triples, deduplicate them
     if len(unique_xyz) < len(xyz_points):
-        x = x[unique_indices]
-        y = y[unique_indices]
-        z = z[unique_indices]
+        x = x[first_occurrence_indices]
+        y = y[first_occurrence_indices]
+        z = z[first_occurrence_indices]
 
     # Check for duplicate (x, y) points with different z values
+    # After deduplication, if there are still duplicate (x,y) points, they must have
+    # different z values
     xy_points = np.column_stack((x, y))
     if len(xy_points) != len(np.unique(xy_points, axis=0)):
         msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."

@@ -1469,10 +1469,10 @@ class Bounds(NamedTuple):
     """Bounding box coordinates for a raster.
 
     Attributes:
-        xmin: The minimum x-coordinate (western edge).
-        ymin: The minimum y-coordinate (southern edge).
-        xmax: The maximum x-coordinate (eastern edge).
-        ymax: The maximum y-coordinate (northern edge).
+        xmin: The minimum x-coordinate.
+        ymin: The minimum y-coordinate.
+        xmax: The maximum x-coordinate.
+        ymax: The maximum y-coordinate.
     """
 
     xmin: float

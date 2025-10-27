@@ -1,8 +1,7 @@
 from rastr.meta import RasterMeta
-from rastr.raster import Bounds, Raster
+from rastr.raster import Raster
 
 __all__ = [
-    "Bounds",
     "Raster",
     "RasterMeta",
 ]

@@ -6,7 +6,7 @@ import importlib.util
 import warnings
 from collections.abc import Collection
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, overload
 
 import numpy as np
 import numpy.ma
@@ -411,8 +411,8 @@ class Raster(BaseModel):
         return raster_values
 
     @property
-    def bounds(self) -> tuple[float, float, float, float]:
-        """Bounding box of the raster as (xmin, ymin, xmax, ymax)"""
+    def bounds(self) -> Bounds:
+        """Bounding box of the raster as a named tuple with left, bottom, right, top."""
         x1, y1, x2, y2 = rasterio.transform.array_bounds(
             height=self.arr.shape[0],
             width=self.arr.shape[1],
@@ -420,7 +420,7 @@ class Raster(BaseModel):
         )
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
-        return (xmin, ymin, xmax, ymax)
+        return Bounds(left=xmin, bottom=ymin, right=xmax, top=ymax)
 
     @property
     def bbox(self) -> Polygon:
@@ -1463,3 +1463,19 @@ def _get_vmin_vmax(
 
 
 RasterModel = Raster
+
+
+class Bounds(NamedTuple):
+    """Bounding box coordinates for a raster.
+
+    Attributes:
+        left: The minimum x-coordinate (western edge).
+        bottom: The minimum y-coordinate (southern edge).
+        right: The maximum x-coordinate (eastern edge).
+        top: The maximum y-coordinate (northern edge).
+    """
+
+    left: float
+    bottom: float
+    right: float
+    top: float

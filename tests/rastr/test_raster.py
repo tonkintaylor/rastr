@@ -386,6 +386,36 @@ class TestRaster:
         def test_bounds_neg_scaled(self, example_neg_scaled_raster: Raster):
             assert example_neg_scaled_raster.bounds == (0.0, -4.0, 4.0, 0.0)
 
+        def test_bounds_named_attributes(self, example_raster: Raster):
+            # Arrange & Act
+            bounds = example_raster.bounds
+
+            # Assert - named attributes work
+            assert bounds.left == 0.0
+            assert bounds.bottom == 0.0
+            assert bounds.right == 4.0
+            assert bounds.top == 4.0
+
+        def test_bounds_tuple_unpacking(self, example_raster: Raster):
+            # Arrange & Act
+            xmin, ymin, xmax, ymax = example_raster.bounds
+
+            # Assert - tuple unpacking still works
+            assert xmin == 0.0
+            assert ymin == 0.0
+            assert xmax == 4.0
+            assert ymax == 4.0
+
+        def test_bounds_indexing(self, example_raster: Raster):
+            # Arrange & Act
+            bounds = example_raster.bounds
+
+            # Assert - indexing still works
+            assert bounds[0] == 0.0
+            assert bounds[1] == 0.0
+            assert bounds[2] == 4.0
+            assert bounds[3] == 4.0
+
     class TestAsGeoDataFrame:
         def test_as_geodataframe(self, example_raster: Raster):
             import geopandas as gpd

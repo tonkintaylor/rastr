@@ -412,7 +412,7 @@ class Raster(BaseModel):
 
     @property
     def bounds(self) -> Bounds:
-        """Bounding box of the raster as a named tuple with left, bottom, right, top."""
+        """Bounding box of the raster as a named tuple with xmin, ymin, xmax, ymax."""
         x1, y1, x2, y2 = rasterio.transform.array_bounds(
             height=self.arr.shape[0],
             width=self.arr.shape[1],
@@ -420,7 +420,7 @@ class Raster(BaseModel):
         )
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
-        return Bounds(left=xmin, bottom=ymin, right=xmax, top=ymax)
+        return Bounds(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
 
     @property
     def bbox(self) -> Polygon:
@@ -1469,13 +1469,13 @@ class Bounds(NamedTuple):
     """Bounding box coordinates for a raster.
 
     Attributes:
-        left: The minimum x-coordinate (western edge).
-        bottom: The minimum y-coordinate (southern edge).
-        right: The maximum x-coordinate (eastern edge).
-        top: The maximum y-coordinate (northern edge).
+        xmin: The minimum x-coordinate (western edge).
+        ymin: The minimum y-coordinate (southern edge).
+        xmax: The maximum x-coordinate (eastern edge).
+        ymax: The maximum y-coordinate (northern edge).
     """
 
-    left: float
-    bottom: float
-    right: float
-    top: float
+    xmin: float
+    ymin: float
+    xmax: float
+    ymax: float

@@ -391,10 +391,10 @@ class TestRaster:
             bounds = example_raster.bounds
 
             # Assert - named attributes work
-            assert bounds.left == 0.0
-            assert bounds.bottom == 0.0
-            assert bounds.right == 4.0
-            assert bounds.top == 4.0
+            assert bounds.xmin == 0.0
+            assert bounds.ymin == 0.0
+            assert bounds.xmax == 4.0
+            assert bounds.ymax == 4.0
 
         def test_bounds_tuple_unpacking(self, example_raster: Raster):
             # Arrange & Act

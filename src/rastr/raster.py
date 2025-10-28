@@ -574,8 +574,8 @@ class Raster(BaseModel):
             suppressed: Values to suppress from the plot (i.e. not display). This can be
                         useful for zeroes especially.
             **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
-                      This includes parameters like `alpha` for transparency, `vmin` and
-                      `vmax` for controlling the color scale limits.
+                      This includes parameters like `alpha` for transparency, and `vmin`
+                      and `vmax` for controlling the color scale limits.
         """
         if not MATPLOTLIB_INSTALLED:
             msg = "The 'matplotlib' package is required for 'plot()'."

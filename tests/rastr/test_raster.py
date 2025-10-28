@@ -865,8 +865,8 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
             assert result.raster_meta == raster_meta
-            assert result.raster_meta.cell_size == 2.5
-            assert result.raster_meta.crs == CRS.from_epsg(4326)
+            assert result.raster_meta.cell_size == 1.0
+            assert result.raster_meta.crs == CRS.from_epsg(2193)
 
         def test_preserves_dtype_float32(self, float32_raster: Raster):
             """Test that abs() preserves float32."""

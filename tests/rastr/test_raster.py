@@ -846,6 +846,217 @@ class TestRaster:
             result = -float32_raster
             assert result.arr.dtype == np.float32
 
+    class TestAbs:
+        def test_basic_positive_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1, 2], [3, 4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+
+        def test_basic_negative_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[-1, -2], [-3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+
+        def test_mixed_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[-1, 2], [3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+
+        def test_zero_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[0, -0], [0.0, -0.0]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[0, 0], [0, 0]]))
+
+        def test_with_nan_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[-1, np.nan], [3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            assert result.arr[0, 0] == 1
+            assert np.isnan(result.arr[0, 1])
+            assert result.arr[1, 0] == 3
+            assert result.arr[1, 1] == 4
+
+        def test_with_infinity(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[-np.inf, np.inf], [-1, 1]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            assert result.arr[0, 0] == np.inf
+            assert result.arr[0, 1] == np.inf
+            assert result.arr[1, 0] == 1
+            assert result.arr[1, 1] == 1
+
+        def test_returns_new_instance(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[-1, -2], [-3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            assert result is not raster
+
+        def test_original_raster_unchanged(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            original_arr = np.array([[-1, -2], [-3, -4]], dtype=float)
+            raster = Raster(
+                arr=original_arr.copy(),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            _ = raster.abs()
+
+            # Assert
+            np.testing.assert_array_equal(raster.arr, original_arr)
+
+        def test_preserves_metadata(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=2.5,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(1.0, 0.0, 5.0, 0.0, -1.0, 10.0),
+            )
+            raster = Raster(
+                arr=np.array([[-1, -2], [-3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            assert result.raster_meta == raster_meta
+            assert result.raster_meta.cell_size == 2.5
+            assert result.raster_meta.crs == CRS.from_epsg(4326)
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that abs() preserves float32."""
+            negative_raster = -float32_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that abs() preserves float64."""
+            negative_raster = -float64_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float64
+
+        def test_preserves_dtype_float16(self, float16_raster: Raster):
+            """Test that abs() preserves float16."""
+            negative_raster = -float16_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float16
+
+        def test_subclass_return_type(self):
+            # Arrange
+            class MyRaster(Raster):
+                pass
+
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = MyRaster(
+                arr=np.array([[-1, -2], [-3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            assert isinstance(result, MyRaster)
+
     class TestApply:
         def test_sine(self, example_raster: Raster):
             # Act

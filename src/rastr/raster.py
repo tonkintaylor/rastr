@@ -49,6 +49,22 @@ MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 CONTOUR_PERTURB_EPS = 1e-10
 
 
+@contextmanager
+def suppress_slice_warning() -> Generator[None, None, None]:
+    """Context manager to suppress all-NaN slice warnings from numpy operations.
+
+    NumPy's nan-aware functions (nanmax, nanmin, nanmean, etc.) emit RuntimeWarnings
+    when encountering all-NaN arrays. This context manager suppresses those warnings
+    since returning NaN is the expected and documented behavior.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=RuntimeWarning,
+        )
+        yield
+
+
 class RasterCellArrayShapeError(ValueError):
     """Custom error for invalid raster cell array shapes."""
 
@@ -774,12 +790,7 @@ class Raster(BaseModel):
         Returns:
             The maximum value in the raster. Returns NaN if all values are NaN.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="All-NaN slice encountered",
-                category=RuntimeWarning,
-            )
+        with suppress_slice_warning():
             return float(np.nanmax(self.arr))
 
     def min(self) -> float:
@@ -788,12 +799,7 @@ class Raster(BaseModel):
         Returns:
             The minimum value in the raster. Returns NaN if all values are NaN.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="All-NaN slice encountered",
-                category=RuntimeWarning,
-            )
+        with suppress_slice_warning():
             return float(np.nanmin(self.arr))
 
     def mean(self) -> float:
@@ -802,11 +808,7 @@ class Raster(BaseModel):
         Returns:
             The mean value in the raster. Returns NaN if all values are NaN.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=RuntimeWarning,
-            )
+        with suppress_slice_warning():
             return float(np.nanmean(self.arr))
 
     def std(self) -> float:
@@ -815,11 +817,7 @@ class Raster(BaseModel):
         Returns:
             The standard deviation of the raster. Returns NaN if all values are NaN.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=RuntimeWarning,
-            )
+        with suppress_slice_warning():
             return float(np.nanstd(self.arr))
 
     def quantile(self, q: float) -> float:
@@ -831,12 +829,7 @@ class Raster(BaseModel):
         Returns:
             The quantile value. Returns NaN if all values are NaN.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="All-NaN slice encountered",
-                category=RuntimeWarning,
-            )
+        with suppress_slice_warning():
             return float(np.nanquantile(self.arr, q))
 
     def median(self) -> float:
@@ -847,12 +840,7 @@ class Raster(BaseModel):
         Returns:
             The median value in the raster. Returns NaN if all values are NaN.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="All-NaN slice encountered",
-                category=RuntimeWarning,
-            )
+        with suppress_slice_warning():
             return float(np.nanmedian(self.arr))
 
     def fillna(self, value: float) -> Self:

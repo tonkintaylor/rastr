@@ -446,6 +446,19 @@ class TestRaster:
                 "Not all expected polygons match the geometries in the GeoDataFrame"
             )
 
+        def test_gdf_alias(self, example_raster: Raster):
+            import geopandas as gpd
+
+            # Test that gdf() is an alias for as_geodataframe()
+            raster_gdf_via_alias = example_raster.gdf(name="test")
+            raster_gdf_via_method = example_raster.as_geodataframe(name="test")
+
+            # Check that the result is a GeoDataFrame
+            assert isinstance(raster_gdf_via_alias, gpd.GeoDataFrame)
+
+            # Check that both methods produce identical results
+            assert raster_gdf_via_alias.equals(raster_gdf_via_method)
+
     class TestAdd:
         def test_basic(self):
             # Arrange

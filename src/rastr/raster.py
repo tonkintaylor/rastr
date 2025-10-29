@@ -668,6 +668,13 @@ class Raster(BaseModel):
 
         return raster_gdf
 
+    def gdf(self, name: str = "value") -> gpd.GeoDataFrame:
+        """Create a GeoDataFrame representation of the raster.
+
+        Alias for `as_geodataframe()`.
+        """
+        return self.as_geodataframe(name=name)
+
     def to_file(self, path: Path | str, **kwargs: Any) -> None:
         """Write the raster to a file.
 

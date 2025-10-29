@@ -3438,7 +3438,7 @@ class TestRasterStatistics:
 
         # Act (no warning)
         method = getattr(all_nan_slice_raster, method_name)
-        result = method()
+        method()
 
     def test_quantile_all_nan_raster_no_warning(self) -> None:
         """Test that quantile doesn't raise warnings with all-NaN rasters."""
@@ -3453,7 +3453,7 @@ class TestRasterStatistics:
         all_nan_slice_raster = tiny_raster.pad(width=10.0, value=np.nan)
 
         # Act (no warning)
-        result = all_nan_slice_raster.quantile(0.8)
+        all_nan_slice_raster.quantile(0.8)
 
 
 class TestNormalize:

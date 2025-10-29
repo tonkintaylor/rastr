@@ -243,6 +243,18 @@ class Raster(BaseModel):
         cls = self.__class__
         return cls(arr=-self.arr, raster_meta=self.raster_meta)
 
+    def abs(self) -> Self:
+        """Compute the absolute value of the raster.
+
+        Returns a new raster with the absolute value of each cell. The original raster
+        is not modified.
+
+        Returns:
+            A new Raster instance with the absolute values.
+        """
+        cls = self.__class__
+        return cls(arr=np.abs(self.arr), raster_meta=self.raster_meta)
+
     @property
     def cell_centre_coords(self) -> NDArray[np.float64]:
         """Get the coordinates of the cell centres in the raster."""

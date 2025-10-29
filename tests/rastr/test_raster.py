@@ -876,6 +876,67 @@ class TestRaster:
             result = -float32_raster
             assert result.arr.dtype == np.float32
 
+    class TestAbs:
+        def test_mixed_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[-1, 2], [3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+            assert result.raster_meta == raster_meta
+            assert result.raster_meta.cell_size == 1.0
+            assert result.raster_meta.crs == CRS.from_epsg(2193)
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that abs() preserves float32."""
+            negative_raster = -float32_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that abs() preserves float64."""
+            negative_raster = -float64_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float64
+
+        def test_preserves_dtype_float16(self, float16_raster: Raster):
+            """Test that abs() preserves float16."""
+            negative_raster = -float16_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float16
+
+        def test_subclass_return_type(self):
+            # Arrange
+            class MyRaster(Raster):
+                pass
+
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = MyRaster(
+                arr=np.array([[-1, -2], [-3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            assert isinstance(result, MyRaster)
+
     class TestApply:
         def test_sine(self, example_raster: Raster):
             # Act

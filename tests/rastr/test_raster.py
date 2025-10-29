@@ -3427,7 +3427,7 @@ class TestRasterStatistics:
     )
     def test_all_nan_slice_raster_no_warning(self, method_name: str) -> None:
         # Arrange
-        tiny_arr = np.array([[1]])
+        tiny_arr = np.array([[1.0]])
         tiny_meta = RasterMeta(
             cell_size=1.0,
             crs=CRS.from_epsg(2193),
@@ -3443,7 +3443,7 @@ class TestRasterStatistics:
     def test_quantile_all_nan_raster_no_warning(self) -> None:
         """Test that quantile doesn't raise warnings with all-NaN rasters."""
         # Arrange
-        tiny_arr = np.array([[1]])
+        tiny_arr = np.array([[1.0]])
         tiny_meta = RasterMeta(
             cell_size=1.0,
             crs=CRS.from_epsg(2193),

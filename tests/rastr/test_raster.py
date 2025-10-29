@@ -2341,6 +2341,38 @@ class TestClip:
         )
         np.testing.assert_array_equal(clipped.arr, expected_array)
 
+    def test_accepts_basegeometry_polygon(self, base_raster: Raster):
+        # Arrange - bbox returns a Polygon which is a BaseGeometry
+        polygon = base_raster.bbox
+
+        # Act - should work with BaseGeometry type hint
+        clipped = base_raster.clip(polygon)
+
+        # Assert
+        assert clipped == base_raster
+
+    def test_rejects_non_polygon_geometry(self, base_raster: Raster):
+        # Arrange
+        point = Point(0, 0)
+
+        # Act & Assert
+        with pytest.raises(
+            TypeError,
+            match="Only Polygon and MultiPolygon geometries are supported for clipping",
+        ):
+            base_raster.clip(point)
+
+    def test_rejects_linestring_geometry(self, base_raster: Raster):
+        # Arrange
+        line = LineString([(0, 0), (1, 1)])
+
+        # Act & Assert
+        with pytest.raises(
+            TypeError,
+            match="Only Polygon and MultiPolygon geometries are supported for clipping",
+        ):
+            base_raster.clip(line)
+
 
 class TestTrimNaN:
     def test_no_nan_values_unchanged(self, base_raster: Raster):

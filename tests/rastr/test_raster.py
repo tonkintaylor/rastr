@@ -3421,6 +3421,53 @@ class TestRasterStatistics:
             expected_result_with_nans
         )
 
+    @pytest.mark.parametrize(
+        "method_name",
+        ["min", "max", "mean", "std", "median"],
+    )
+    def test_all_nan_raster_no_warning(self, method_name: str) -> None:
+        """Test that statistical methods don't raise warnings with all-NaN rasters.
+
+        This test creates a raster with all NaN values using the pad() method,
+        and verifies that calling statistical methods returns NaN without raising
+        "All-NaN slice encountered" warnings.
+        """
+        # Arrange - Create an all-NaN raster by padding with a large width
+        # First create a tiny raster, then pad it so the original data is negligible
+        tiny_arr = np.array([[np.nan]])
+        tiny_meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        tiny_raster = Raster(arr=tiny_arr, raster_meta=tiny_meta)
+        all_nan_raster = tiny_raster.pad(width=10.0, value=np.nan)
+
+        # Act
+        method = getattr(all_nan_raster, method_name)
+        result = method()
+
+        # Assert
+        assert np.isnan(result)
+
+    def test_quantile_all_nan_raster_no_warning(self) -> None:
+        """Test that quantile doesn't raise warnings with all-NaN rasters."""
+        # Arrange - Create an all-NaN raster
+        tiny_arr = np.array([[np.nan]])
+        tiny_meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        tiny_raster = Raster(arr=tiny_arr, raster_meta=tiny_meta)
+        all_nan_raster = tiny_raster.pad(width=10.0, value=np.nan)
+
+        # Act
+        result = all_nan_raster.quantile(0.5)
+
+        # Assert
+        assert np.isnan(result)
+
 
 class TestNormalize:
     def test_example(self, example_raster: Raster):

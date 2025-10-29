@@ -1111,6 +1111,19 @@ class TestRaster:
             assert ax is not None
             plt.close(fig)
 
+        def test_plot_with_vmin_vmax_kwargs(self, example_raster_with_zeros: Raster):
+            import matplotlib.pyplot as plt
+
+            # Arrange
+            fig, ax = plt.subplots()
+
+            # Act - passing vmin and vmax to control color scale
+            ax = example_raster_with_zeros.plot(vmin=0.0, vmax=5.0, ax=ax)
+
+            # Assert
+            assert ax is not None
+            plt.close(fig)
+
     class TestExample:
         def test_example(self):
             # Act

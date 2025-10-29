@@ -1276,8 +1276,7 @@ class Raster(BaseModel):
         retains cells whose centres fall within the polygon.
 
         Args:
-            polygon: A shapely BaseGeometry (Polygon or MultiPolygon) defining the area
-                     to clip to. Only Polygon and MultiPolygon geometries are supported.
+            polygon: A shapely Polygon or MultiPolygon defining the area to clip to.
             strategy: The clipping strategy to use. Currently only 'centres' is
                       supported, which retains cells whose centres fall within the
                       polygon.

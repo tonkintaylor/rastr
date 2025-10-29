@@ -51,15 +51,20 @@ CONTOUR_PERTURB_EPS = 1e-10
 
 @contextmanager
 def suppress_slice_warning() -> Generator[None, None, None]:
-    """Context manager to suppress all-NaN slice warnings from numpy operations.
+    """Context manager to suppress all-NaN slice warnings from NumPy operations.
 
-    NumPy's nan-aware functions (nanmax, nanmin, nanmean, etc.) emit RuntimeWarnings
-    when encountering all-NaN arrays. This context manager suppresses those warnings
-    since returning NaN is the expected and documented behavior.
+    An all-NaN slice is a row or a column of an array where every value is NaN.
+    This is common for rasters around the edges, and is almost always a false
+    positive.
+
+    Note that even .trim_nan() won't even guarantee there aren't NaN slices,
+    since that method only applies around the edges of a raster, whereas there
+    might be NaN slices in between non-NaN data in the middle.
     """
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
+            message="All-NaN slice encountered",
             category=RuntimeWarning,
         )
         yield

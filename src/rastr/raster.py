@@ -19,7 +19,7 @@ from pyproj import Transformer
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
-    from shapely import MultiPolygon
+    from shapely.geometry.base import BaseGeometry
     from typing_extensions import Self
 
 
@@ -1284,7 +1284,7 @@ class Raster(BaseModel):
 
     def clip(
         self,
-        polygon: Polygon | MultiPolygon,
+        polygon: BaseGeometry,
         *,
         strategy: Literal["centres"] = "centres",
     ) -> Self:
@@ -1302,7 +1302,17 @@ class Raster(BaseModel):
 
         Returns:
             A new Raster with cells outside the polygon set to NaN.
+
+        Raises:
+            TypeError: If the provided geometry is not a Polygon or MultiPolygon.
         """
+        if not isinstance(polygon, Polygon | MultiPolygon):
+            msg = (
+                f"Only Polygon and MultiPolygon geometries are supported for clipping, "
+                f"got {type(polygon).__name__}"
+            )
+            raise TypeError(msg)
+
         if strategy != "centres":
             msg = f"Unsupported clipping strategy: {strategy}"
             raise NotImplementedError(msg)

@@ -3527,6 +3527,40 @@ class TestRasterStatistics:
             expected_result_with_nans
         )
 
+    @pytest.mark.parametrize(
+        "method_name",
+        ["min", "max", "mean", "std", "median"],
+    )
+    def test_all_nan_slice_raster_no_warning(self, method_name: str) -> None:
+        # Arrange
+        tiny_arr = np.array([[1.0]])
+        tiny_meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        tiny_raster = Raster(arr=tiny_arr, raster_meta=tiny_meta)
+        all_nan_slice_raster = tiny_raster.pad(width=10.0, value=np.nan)
+
+        # Act (no warning)
+        method = getattr(all_nan_slice_raster, method_name)
+        method()
+
+    def test_quantile_all_nan_raster_no_warning(self) -> None:
+        """Test that quantile doesn't raise warnings with all-NaN rasters."""
+        # Arrange
+        tiny_arr = np.array([[1.0]])
+        tiny_meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        tiny_raster = Raster(arr=tiny_arr, raster_meta=tiny_meta)
+        all_nan_slice_raster = tiny_raster.pad(width=10.0, value=np.nan)
+
+        # Act (no warning)
+        all_nan_slice_raster.quantile(0.8)
+
 
 class TestNormalize:
     def test_example(self, example_raster: Raster):

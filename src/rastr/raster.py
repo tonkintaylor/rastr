@@ -49,6 +49,27 @@ MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 CONTOUR_PERTURB_EPS = 1e-10
 
 
+@contextmanager
+def suppress_slice_warning() -> Generator[None, None, None]:
+    """Context manager to suppress all-NaN slice warnings from NumPy operations.
+
+    An all-NaN slice is a row or a column of an array where every value is NaN.
+    This is common for rasters around the edges, and is almost always a false
+    positive.
+
+    Note that even .trim_nan() won't even guarantee there aren't NaN slices,
+    since that method only applies around the edges of a raster, whereas there
+    might be NaN slices in between non-NaN data in the middle.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="All-NaN slice encountered",
+            category=RuntimeWarning,
+        )
+        yield
+
+
 class RasterCellArrayShapeError(ValueError):
     """Custom error for invalid raster cell array shapes."""
 
@@ -793,7 +814,8 @@ class Raster(BaseModel):
         Returns:
             The maximum value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmax(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmax(self.arr))
 
     def min(self) -> float:
         """Get the minimum value in the raster, ignoring NaN values.
@@ -801,7 +823,8 @@ class Raster(BaseModel):
         Returns:
             The minimum value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmin(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmin(self.arr))
 
     def mean(self) -> float:
         """Get the mean value in the raster, ignoring NaN values.
@@ -809,7 +832,8 @@ class Raster(BaseModel):
         Returns:
             The mean value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmean(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmean(self.arr))
 
     def std(self) -> float:
         """Get the standard deviation of values in the raster, ignoring NaN values.
@@ -817,7 +841,8 @@ class Raster(BaseModel):
         Returns:
             The standard deviation of the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanstd(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanstd(self.arr))
 
     def quantile(self, q: float) -> float:
         """Get the specified quantile value in the raster, ignoring NaN values.
@@ -828,7 +853,8 @@ class Raster(BaseModel):
         Returns:
             The quantile value. Returns NaN if all values are NaN.
         """
-        return float(np.nanquantile(self.arr, q))
+        with suppress_slice_warning():
+            return float(np.nanquantile(self.arr, q))
 
     def median(self) -> float:
         """Get the median value in the raster, ignoring NaN values.
@@ -838,7 +864,8 @@ class Raster(BaseModel):
         Returns:
             The median value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmedian(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmedian(self.arr))
 
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
@@ -1474,20 +1501,14 @@ def _get_vmin_vmax(
 
     Allows for custom over-ride vmin and vmax values to be provided.
     """
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message="All-NaN slice encountered",
-            category=RuntimeWarning,
-        )
-        if vmin is None:
-            _vmin = float(raster.min())
-        else:
-            _vmin = vmin
-        if vmax is None:
-            _vmax = float(raster.max())
-        else:
-            _vmax = vmax
+    if vmin is None:
+        _vmin = float(raster.min())
+    else:
+        _vmin = vmin
+    if vmax is None:
+        _vmax = float(raster.max())
+    else:
+        _vmax = vmax
 
     return _vmin, _vmax
 

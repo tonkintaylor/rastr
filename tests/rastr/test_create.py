@@ -4,17 +4,20 @@ import numpy as np
 import pytest
 from affine import Affine
 from pyproj.crs.crs import CRS
+from shapely import GeometryCollection, MultiLineString, MultiPoint, MultiPolygon
 from shapely.geometry import LineString, Point, Polygon
 
 from rastr.create import (
     MissingColumnsError,
     NonNumericColumnsError,
     OverlappingGeometriesError,
+    _extract_coords,
     _interpolate_z_in_geometry,
     _validate_columns_exist,
     _validate_columns_numeric,
     full_raster,
     raster_distance_from_polygon,
+    raster_from_contours,
     raster_from_point_cloud,
     rasterize_gdf,
     rasterize_z_gdf,
@@ -2140,3 +2143,293 @@ class TestRasterFromPointCloud:
             ),
         ):
             raster_from_point_cloud(x=x, y=y, z=z, crs="EPSG:2193")
+
+
+class TestRasterFromContours:
+    def test_linear_contours(self):
+        line_bottom = LineString([(0.0, 0.0), (3.0, 0.0)])
+        line_top = LineString([(0.0, 3.0), (3.0, 3.0)])
+
+        values = [0.0, 30.0]
+        geometry = [line_bottom, line_top]
+
+        # expected values based on linear interpolation between 0 (bottom) and 30 (top)
+        expected = np.array([[25.0, 25.0, 25.0], [15.0, 15.0, 15.0], [5.0, 5.0, 5.0]])
+
+        result = raster_from_contours(
+            values=values, geometry=geometry, crs=_PROJECTED_CRS, cell_size=1.0
+        )
+
+        # Check metadata
+        assert isinstance(result, Raster)
+        assert result.cell_size == 1.0
+        assert result.crs == _PROJECTED_CRS
+
+        # Check that raster is as expected
+        raster_array = result.arr
+        np.testing.assert_array_almost_equal(raster_array, expected)
+
+    def test_mismatched_lengths(self):
+        line1 = LineString([(0.0, 0.0), (1.0, 1.0)])
+        line2 = LineString([(1.0, 0.0), (2.0, 1.0)])
+
+        values = [10.0, 20.0, 30.0]  # 3 values
+        geometry = [line1, line2]  # 2 geometries
+
+        with pytest.raises(
+            ValueError, match="Values and geometry must have the same length"
+        ):
+            raster_from_contours(
+                values=values,
+                geometry=geometry,
+                crs=_PROJECTED_CRS,
+                cell_size=1.0,
+            )
+
+    def test_length_zero_arrays(self):
+        values = []
+        geometry = []
+
+        with pytest.raises(
+            ValueError, match="At least two distinct contour values are required"
+        ):
+            raster_from_contours(
+                values=values,
+                geometry=geometry,
+                crs=_PROJECTED_CRS,
+                cell_size=1.0,
+            )
+
+    def test_single_value_only(self):
+        line = LineString([(0.0, 0.0), (1.0, 1.0)])
+        values = [10.0]  # Only 1 value
+        geometry = [line]
+
+        with pytest.raises(
+            ValueError, match="At least two distinct contour values are required"
+        ):
+            raster_from_contours(
+                values=values,
+                geometry=geometry,
+                crs=_PROJECTED_CRS,
+                cell_size=1.0,
+            )
+
+    def test_three_identical_values(self):
+        line1 = LineString([(0.0, 0.0), (1.0, 1.0)])
+        line2 = LineString([(1.0, 0.0), (2.0, 1.0)])
+        line3 = LineString([(2.0, 0.0), (3.0, 1.0)])
+
+        values = [5.0, 5.0, 5.0]  # All same value
+        geometry = [line1, line2, line3]
+
+        with pytest.raises(
+            ValueError, match="At least two distinct contour values are required"
+        ):
+            raster_from_contours(
+                values=values,
+                geometry=geometry,
+                crs=_PROJECTED_CRS,
+                cell_size=1.0,
+            )
+
+    def test_duplicate_values(self):
+        # Two separate circles with the same value
+        line1 = LineString([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)])
+        line2 = LineString([(2.0, 0.0), (3.0, 0.0), (3.0, 1.0), (2.0, 1.0), (2.0, 0.0)])
+        line3 = LineString([(4.0, 0.0), (5.0, 0.0), (5.0, 1.0), (4.0, 1.0), (4.0, 0.0)])
+
+        values = [15.0, 15.0, 20.0]  # Two contours with same value
+        geometry = [line1, line2, line3]
+
+        # Should not raise an error despite having duplicate values in geometry
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=0.5,
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # All valid values should be between 15.0 and 20.0
+        assert len(valid_values) > 0
+        assert np.min(valid_values) >= 15.0
+        assert np.max(valid_values) <= 20.0
+
+    def test_self_intersecting(self):
+        # This is a bowtie shape that intersects itself
+        self_intersecting = LineString(
+            [(0.0, 0.0), (2.0, 2.0), (2.0, 0.0), (0.0, 2.0), (0.0, 0.0)]
+        )
+        line2 = LineString([(3.0, 0.0), (4.0, 1.0), (3.0, 2.0)])
+
+        values = [25.0, 35.0]
+        geometry = [self_intersecting, line2]
+
+        # Should not raise an error
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=0.5,
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Values should fall in expected range
+        assert len(valid_values) > 0
+        assert np.min(valid_values) >= 25.0
+        assert np.max(valid_values) <= 35.0
+
+    def test_polygonal_contours(self):
+        # Use Polygon geometries instead of LineString
+        polygon1 = Polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
+        polygon2 = Polygon([(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)])
+
+        values = [12.0, 24.0]
+        geometry = [polygon1, polygon2]
+
+        # Should not raise an error with Polygon geometries
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=0.5,
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Values should fall in expected range
+        assert len(valid_values) > 0
+        assert np.min(valid_values) >= 12.0
+        assert np.max(valid_values) <= 24.0
+
+    def test_multilinestring(self):
+        # Create MultiLineString with two separate line segments
+        line1a = LineString([(0.0, 0.0), (1.0, 0.0)])
+        line1b = LineString([(0.0, 1.0), (1.0, 1.0)])
+        multi_line1 = MultiLineString([line1a, line1b])
+
+        line2a = LineString([(2.0, 0.0), (3.0, 0.0)])
+        line2b = LineString([(2.0, 1.0), (3.0, 1.0)])
+        multi_line2 = MultiLineString([line2a, line2b])
+
+        values = [18.0, 32.0]
+        geometry = [multi_line1, multi_line2]
+
+        # Should not raise an error with MultiLineString geometries
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=0.5,
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Values should fall in expected range
+        assert len(valid_values) > 0
+        assert np.min(valid_values) >= 18.0
+        assert np.max(valid_values) <= 32.0
+
+    def test_kissing_contours(self):
+        # Arrange
+        # Create two contours that touch at a single point
+        line1 = LineString([(0.0, 0.0), (2.0, 2.0)])
+        line2 = LineString([(2.0, 2.0), (4.0, 0.0)])
+        values = [10.0, 20.0]
+        geometry = [line1, line2]
+        # Act
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=0.5,
+        )
+        # Assert
+        assert isinstance(result, Raster)
+
+
+class TestExtractCoords:
+    def test_linestring_2d(self):
+        line = LineString([(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)])
+        coords = list(_extract_coords(line))
+
+        expected = [(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)]
+        assert coords == expected
+
+    def test_polygon_2d(self):
+        polygon = Polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+        coords = list(_extract_coords(polygon))
+
+        expected = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)]
+        assert coords == expected
+
+    def test_point_2d(self):
+        point = Point(1.0, 2.0)
+        coords = list(_extract_coords(point))
+
+        expected = [(1.0, 2.0)]
+        assert coords == expected
+
+    def test_multilinestring_2d(self):
+        line1 = LineString([(0.0, 0.0), (1.0, 1.0)])
+        line2 = LineString([(2.0, 0.0), (3.0, 1.0)])
+        multi_line = MultiLineString([line1, line2])
+
+        coords = list(_extract_coords(multi_line))
+
+        expected = [(0.0, 0.0), (1.0, 1.0), (2.0, 0.0), (3.0, 1.0)]
+        assert coords == expected
+
+    def test_multipolygon_2d(self):
+        poly1 = Polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+        poly2 = Polygon([(2.0, 0.0), (3.0, 0.0), (3.0, 1.0), (2.0, 1.0)])
+        multi_poly = MultiPolygon([poly1, poly2])
+
+        coords = list(_extract_coords(multi_poly))
+
+        # Each polygon's exterior includes closing point
+        assert len(coords) == 10
+        assert coords[0] == (0.0, 0.0)
+        assert coords[4] == (0.0, 0.0)  # First polygon closes
+        assert coords[5] == (2.0, 0.0)  # Second polygon starts
+
+    def test_multipoint_2d(self):
+        point1 = Point(0.0, 0.0)
+        point2 = Point(1.0, 1.0)
+        point3 = Point(2.0, 0.0)
+        multi_point = MultiPoint([point1, point2, point3])
+
+        coords = list(_extract_coords(multi_point))
+
+        expected = [(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)]
+        assert coords == expected
+
+    def test_multipoint_3d(self):
+        point1 = Point(0.0, 0.0, 100.0)
+        point2 = Point(1.0, 1.0, 200.0)
+        point3 = Point(2.0, 0.0, 150.0)
+        multi_point = MultiPoint([point1, point2, point3])
+
+        coords = list(_extract_coords(multi_point))
+
+        expected = [(0.0, 0.0, 100.0), (1.0, 1.0, 200.0), (2.0, 0.0, 150.0)]
+        assert coords == expected
+
+    def test_unsupported_geometry_type(self):
+        geom_collection = GeometryCollection(
+            [LineString([(0, 0), (1, 1)]), Point(2, 2)]
+        )
+
+        with pytest.raises(NotImplementedError):
+            list(_extract_coords(geom_collection))

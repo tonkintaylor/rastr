@@ -9,7 +9,14 @@ import rasterio.features
 import rasterio.transform
 from affine import Affine
 from pyproj import CRS
-from shapely.geometry import Point
+from shapely.geometry import (
+    LineString,
+    MultiLineString,
+    MultiPoint,
+    MultiPolygon,
+    Point,
+    Polygon,
+)
 from typing_extensions import assert_never
 
 from rastr.gis.crs import get_affine_sign
@@ -23,11 +30,11 @@ if TYPE_CHECKING:
 
     import geopandas as gpd
     from numpy.typing import ArrayLike, NDArray
-    from shapely.geometry import Polygon
     from shapely.geometry.base import BaseGeometry
 
-
+GEOPANDAS_INSTALLED = importlib.util.find_spec("geopandas") is not None
 TQDM_INSTALLED = importlib.util.find_spec("tqdm") is not None
+
 
 _T = TypeVar("_T")
 
@@ -527,3 +534,110 @@ def _get_grid(
     grid_y = np.array(ys).ravel()
 
     return grid_x, grid_y
+
+
+def raster_from_contours(
+    values: Collection[float],
+    *,
+    geometry: Collection[BaseGeometry] | gpd.GeoSeries,
+    crs: CRS | str | None = None,
+    cell_size: float | None = None,
+) -> Raster:
+    """Create a raster from contour geometries with associated values.
+
+    If differently-valued contours intersect, the mean value at the intersection points
+    is used.
+
+    Args:
+        values: Collection of contour values.
+        geometry: Collection contour geometries (e.g., LineStrings).
+        crs: Coordinate reference system for the (x, y) coordinates.
+        cell_size: Desired cell size for the raster. If None, a heuristic is used based
+                   on the spacing between (x, y) points.
+
+    Returns:
+        Raster containing the rasterized contour values.
+    """
+    # Determine CRS
+    if GEOPANDAS_INSTALLED:
+        import geopandas as gpd
+
+        if isinstance(geometry, gpd.GeoSeries):
+            if crs is None:
+                crs = geometry.crs
+                if crs is None:
+                    msg = "CRS must be provided if geometry has no CRS."
+                    raise ValueError(msg)
+            else:
+                geometry = geometry.to_crs(crs)
+
+    crs = CRS.from_user_input(crs)
+
+    # Check that values and geometry have the same length
+    if len(values) != len(geometry):
+        msg = "Values and geometry must have the same length."
+        raise ValueError(msg)
+
+    # Check that there are at least two distinct contour values
+    if len(set(values)) < 2:
+        msg = "At least two distinct contour values are required."
+        raise ValueError(msg)
+
+    coords: list[tuple[float, ...]] = []
+    z_values: list[float] = []
+    # Extract (x, y, z) points from contour geometries
+    # Repeat each contour value for all coordinates in that contour
+    for value, geom in zip(values, geometry, strict=True):
+        geom_coords = list(_extract_coords(geom))
+        coords.extend(geom_coords)
+        z_values.extend([value] * len(geom_coords))
+
+    coord_arr = np.asarray(coords)
+
+    x, y = coord_arr[:, 0], coord_arr[:, 1]  # ignore z-coords from geometry
+    z = np.asarray(z_values)
+
+    # Contours sometimes touch at a single point, and thus have same (x, y) with
+    # different z. We need to mean these before rasterizing.
+    # assume x, y, z are numpy arrays
+    # This is basically a groupby operation on (x, y) with mean aggregation on z, but
+    # using pure numpy.
+    points = np.column_stack((x, y))
+    unique_points, inverse_idx = np.unique(points, axis=0, return_inverse=True)
+    x, y = unique_points[:, 0], unique_points[:, 1]
+    z = np.bincount(inverse_idx, weights=z) / np.bincount(inverse_idx)
+
+    return raster_from_point_cloud(x=x, y=y, z=z, crs=crs, cell_size=cell_size)
+
+
+def _extract_coords(geometry: BaseGeometry) -> Iterable[tuple[float, ...]]:
+    """Extract coordinates from a geometry.
+
+    Args:
+        geometry: A shapely geometry object (LineString, Polygon,
+                  MultiLineString, etc.).
+
+    Returns:
+        A numpy array of shape (n, d) containing coordinates, where d is either 2 or 3.
+
+    Raises:
+        NotImplementedError: If the geometry type is not supported.
+    """
+    if isinstance(geometry, LineString):
+        return geometry.coords
+    elif isinstance(geometry, Polygon):
+        return geometry.exterior.coords
+    elif isinstance(geometry, Point):
+        return geometry.coords
+    elif isinstance(geometry, MultiLineString | MultiPolygon | MultiPoint):
+        coords = []
+        for part in geometry.geoms:
+            coords.extend(_extract_coords(part))
+        return coords
+    else:
+        msg = (
+            f"Unsupported geometry type: {type(geometry).__name__}. "
+            "Supported types: LineString, Polygon, MultiLineString, MultiPolygon, "
+            "Point, MultiPoint."
+        )
+        raise NotImplementedError(msg)

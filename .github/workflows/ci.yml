@@ -130,7 +130,7 @@ jobs:
           sonar.sources=./
           sonar.tests=./tests
           sonar.python.coverage.reportPaths=./test-reports/coverage.xml
-          sonar.exclusions=./tests,**/Dockerfile,**/notebooks/**,**/scripts/**
+          sonar.exclusions=./tests/**,**/Dockerfile,**/notebooks/**,**/scripts/**
           sonar.verbose=false
           EOF
         env:

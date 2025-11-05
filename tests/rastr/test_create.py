@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import re
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -24,6 +27,9 @@ from rastr.create import (
 )
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _PROJECTED_CRS = CRS.from_epsg(3857)
 _GEOGRAPHIC_CRS = CRS.from_epsg(4326)
@@ -2357,6 +2363,41 @@ class TestRasterFromContours:
         )
         # Assert
         assert isinstance(result, Raster)
+
+    def test_float_speckling(self, assets_dir: Path):
+        """When interpolating between contours, we can get whole areas which all get
+        their cell value imputed from the same contour line when we're in a 'pocket',
+        e.g. in a horse-shoe shaped contour. However, since we often want to compare
+        our raster with the original contours, this can cause a problem where these
+        cells which are _meant_ to be the same, actually vary slightly due to floating
+        point precision issues, and so when compared against the contour threshold
+        lead to speckling effects/noise for visualization.
+
+        This test ensures that we apply a floating point rounding step to the contours
+        at a level of precision determined by the input contour values, to ensure that
+        such speckling does not occur.
+        """
+        import geopandas as gpd
+
+        # Arrange
+        contour_gdf = gpd.read_parquet(assets_dir / "contour_speckle.parquet")
+
+        # Act
+        result = raster_from_contours(
+            values=contour_gdf["Contour"],
+            geometry=contour_gdf.geometry,
+            cell_size=1.0,
+        )
+
+        # Assert
+        # All values in the horseshow pocket (above a y-threshold) should be identical
+        y_thresh = 5918541.61
+        _x, y = result.get_xy()
+        pocket_mask = y > y_thresh
+
+        pocket_values = result.arr[pocket_mask]
+        unique_values = np.unique(pocket_values[~np.isnan(pocket_values)])
+        assert len(unique_values) == 1
 
 
 class TestExtractCoords:

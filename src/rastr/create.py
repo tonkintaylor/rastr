@@ -563,13 +563,14 @@ def raster_from_contours(
         import geopandas as gpd
 
         if isinstance(geometry, gpd.GeoSeries):
-            if crs is None:
-                crs = geometry.crs
-                if crs is None:
-                    msg = "CRS must be provided if geometry has no CRS."
-                    raise ValueError(msg)
-            else:
+            if crs is not None:
                 geometry = geometry.to_crs(crs)
+            else:
+                crs = geometry.crs
+
+    if crs is None:
+        msg = "CRS must be provided if geometry has no CRS."
+        raise ValueError(msg)
 
     crs = CRS.from_user_input(crs)
 
@@ -579,7 +580,8 @@ def raster_from_contours(
         raise ValueError(msg)
 
     # Check that there are at least two distinct contour values
-    if len(set(values)) < 2:
+    distinct_values = set(values)
+    if len(distinct_values) < 2:
         msg = "At least two distinct contour values are required."
         raise ValueError(msg)
 
@@ -607,7 +609,15 @@ def raster_from_contours(
     x, y = unique_points[:, 0], unique_points[:, 1]
     z = np.bincount(inverse_idx, weights=z) / np.bincount(inverse_idx)
 
-    return raster_from_point_cloud(x=x, y=y, z=z, crs=crs, cell_size=cell_size)
+    raster = raster_from_point_cloud(x=x, y=y, z=z, crs=crs, cell_size=cell_size)
+
+    # Clamp to the nearest contour values to avoid floating point effects when
+    # visualizing/thresholding the raster at the contour values
+    for value in distinct_values:
+        mask = np.isclose(raster.arr, value)
+        raster.arr[mask] = value
+
+    return raster
 
 
 def _extract_coords(geometry: BaseGeometry) -> Iterable[tuple[float, ...]]:

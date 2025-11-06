@@ -1726,6 +1726,39 @@ class TestRaster:
             # Assert - NaNs should spread into data
             assert np.all(np.isnan(blurred.arr))
 
+    class TestDilate:
+        def test_happy_path(self):
+            # Arrange
+            arr = np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 0, 1, 0],
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 0, 1, 0],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 0, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+            # Act
+            result = raster.dilate(radius=2)
+            # Assert
+            expected = np.array(
+                [
+                    [1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1],
+                ],
+                dtype=np.float64,
+            )
+            np.testing.assert_array_equal(result.arr, expected)
+            assert result.meta == raster_meta
+
     class TestExtrapolate:
         class TestNearest:
             def test_no_nas_stays_the_same(self, example_raster: Raster):

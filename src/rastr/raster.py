@@ -1344,17 +1344,10 @@ class Raster(BaseModel):
             msg = f"Unsupported clipping strategy: {strategy}"
             raise NotImplementedError(msg)
 
+        mask_raster = self._polygon_indicator(polygon)
+
         raster = self.model_copy()
-
-        mask = rasterio.features.rasterize(
-            [(polygon, 1)],
-            fill=0,
-            out_shape=self.shape,
-            transform=self.meta.transform,
-            dtype=np.uint8,
-        )
-
-        raster.arr = np.where(mask, raster.arr, np.nan)
+        raster.arr = np.where(mask_raster.arr, raster.arr, np.nan)
 
         return raster
 
@@ -1467,6 +1460,99 @@ class Raster(BaseModel):
             )
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)
+
+    def replace_polygon(
+        self,
+        polygon: BaseGeometry | dict[BaseGeometry, float],
+        value: float | None = None,
+    ) -> Self:
+        """Replace values within the specified polygon(s) with other values.
+
+        Creates a new raster with the specified values replaced. This is useful for
+        operations like masking or setting regions to NaN.
+
+        The method supports two interfaces:
+        1. Single replacement: `raster.replace_polygon(polygon1, value=np.nan)`
+        2. Multiple replacements using a dictionary:
+           `raster.replace_polygon({polygon1: 0, polygon2: 1})`
+
+        Args:
+            polygon: Geometry to replace, or dict mapping geometries to values.
+            value: Replacement value. Required if polygon is a geometry, None if polygon
+                   is a dict.
+
+        Examples:
+            >>> # Replace a single polygon
+            >>> raster.replace_polygon(polygon1, value=np.nan)
+            >>> # Replace multiple polygons
+            >>> raster.replace_polygon({polygon1: 0, polygon2: 1})
+        """
+        # Normalize input to dict format
+        if isinstance(polygon, dict):
+            if value is not None:
+                msg = "value must be None when polygon is a dict"
+                raise ValueError(msg)
+            replacements = polygon
+        else:
+            if value is None:
+                msg = "value must be specified when polygon is a geometry"
+                raise ValueError(msg)
+            replacements = {polygon: value}
+
+        # Validate all geometries upfront
+        for geom in replacements.keys():
+            if not isinstance(geom, Polygon | MultiPolygon):
+                msg = (
+                    f"Only Polygon and MultiPolygon geometries are supported, "
+                    f"got {type(geom).__name__}"
+                )
+                raise TypeError(msg)
+
+        # Create copy and convert to float if needed
+        raster = self.model_copy()
+        needs_float = any(
+            isinstance(v, float) or (v is not None and np.isnan(v))
+            for v in replacements.values()
+        )
+        if needs_float and not np.issubdtype(raster.arr.dtype, np.floating):
+            raster.arr = raster.arr.astype(float)
+
+        # Apply all replacements
+        for geom, val in replacements.items():
+            mask_raster = self._polygon_indicator(geom)
+            raster.arr = np.where(mask_raster.arr, val, raster.arr)
+
+        return raster
+
+    def _polygon_indicator(self, geom: BaseGeometry) -> Self:
+        """Create a binary mask with 1 inside the polygon, 0 outside.
+
+        The mask has the same shape and transform as the raster.
+
+        Args:
+            geom:
+                A shapely geometry (typically Polygon or MultiPolygon)
+                to rasterize.
+
+        Returns:
+            Raster:
+                A new Raster where cells inside the geometry are 1,
+                and outside are 0.
+        """
+
+        arr = rasterio.features.rasterize(
+            [(geom, 1)],
+            fill=0,
+            out_shape=self.shape,
+            transform=self.meta.transform,
+            dtype=np.uint8,
+        )
+
+        # Create a new raster with the binary mask array
+        raster = self.model_copy()
+        raster.arr = arr
+
+        return raster
 
 
 def _map_colorbar(

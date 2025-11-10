@@ -276,6 +276,30 @@ class Raster(BaseModel):
         cls = self.__class__
         return cls(arr=np.abs(self.arr), raster_meta=self.raster_meta)
 
+    def log(self) -> Self:
+        """Compute the natural logarithm of the raster.
+
+        Returns a new raster with the natural logarithm of each cell. The original
+        raster is not modified.
+
+        Returns:
+            A new Raster instance with the natural logarithm values.
+        """
+        cls = self.__class__
+        return cls(arr=np.log(self.arr), raster_meta=self.raster_meta)
+
+    def exp(self) -> Self:
+        """Compute the exponential of the raster.
+
+        Returns a new raster with the exponential (e^x) of each cell. The original
+        raster is not modified.
+
+        Returns:
+            A new Raster instance with the exponential values.
+        """
+        cls = self.__class__
+        return cls(arr=np.exp(self.arr), raster_meta=self.raster_meta)
+
     @property
     def cell_centre_coords(self) -> NDArray[np.float64]:
         """Get the coordinates of the cell centres in the raster."""

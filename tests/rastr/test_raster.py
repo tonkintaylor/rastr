@@ -950,6 +950,158 @@ class TestRaster:
             # Assert
             assert isinstance(result, MyRaster)
 
+    class TestLog:
+        def test_basic_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1, np.e], [np.e**2, np.e**3]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.log()
+
+            # Assert
+            np.testing.assert_allclose(result.arr, np.array([[0, 1], [2, 3]]))
+            assert result.raster_meta == raster_meta
+            assert result.raster_meta.cell_size == 1.0
+            assert result.raster_meta.crs == CRS.from_epsg(2193)
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that log() preserves float32."""
+            result = float32_raster.log()
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that log() preserves float64."""
+            result = float64_raster.log()
+            assert result.arr.dtype == np.float64
+
+        def test_preserves_dtype_float16(self, float16_raster: Raster):
+            """Test that log() preserves float16."""
+            result = float16_raster.log()
+            assert result.arr.dtype == np.float16
+
+        def test_subclass_return_type(self):
+            # Arrange
+            class MyRaster(Raster):
+                pass
+
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = MyRaster(
+                arr=np.array([[1, 2], [3, 4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.log()
+
+            # Assert
+            assert isinstance(result, MyRaster)
+
+        def test_original_raster_unchanged(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            original_arr = np.array([[1, 2], [3, 4]], dtype=float)
+            raster = Raster(arr=original_arr.copy(), raster_meta=raster_meta)
+
+            # Act
+            result = raster.log()
+
+            # Assert
+            np.testing.assert_array_equal(raster.arr, original_arr)
+            assert result is not raster
+
+    class TestExp:
+        def test_basic_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[0, 1], [2, 3]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.exp()
+
+            # Assert
+            np.testing.assert_allclose(
+                result.arr, np.array([[1, np.e], [np.e**2, np.e**3]])
+            )
+            assert result.raster_meta == raster_meta
+            assert result.raster_meta.cell_size == 1.0
+            assert result.raster_meta.crs == CRS.from_epsg(2193)
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that exp() preserves float32."""
+            result = float32_raster.exp()
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that exp() preserves float64."""
+            result = float64_raster.exp()
+            assert result.arr.dtype == np.float64
+
+        def test_preserves_dtype_float16(self, float16_raster: Raster):
+            """Test that exp() preserves float16."""
+            result = float16_raster.exp()
+            assert result.arr.dtype == np.float16
+
+        def test_subclass_return_type(self):
+            # Arrange
+            class MyRaster(Raster):
+                pass
+
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = MyRaster(
+                arr=np.array([[1, 2], [3, 4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.exp()
+
+            # Assert
+            assert isinstance(result, MyRaster)
+
+        def test_original_raster_unchanged(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            original_arr = np.array([[1, 2], [3, 4]], dtype=float)
+            raster = Raster(arr=original_arr.copy(), raster_meta=raster_meta)
+
+            # Act
+            result = raster.exp()
+
+            # Assert
+            np.testing.assert_array_equal(raster.arr, original_arr)
+            assert result is not raster
+
     class TestApply:
         def test_sine(self, example_raster: Raster):
             # Act

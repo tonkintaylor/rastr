@@ -1474,7 +1474,7 @@ class Raster(BaseModel):
         The method supports two interfaces:
         1. Single replacement: `raster.replace_polygon(polygon1, value=np.nan)`
         2. Multiple replacements using a dictionary:
-           `raster.replace_polygon({polygon1: np.nan, polygon2: np.nan})`
+           `raster.replace_polygon({polygon1: 0, polygon2: 1})`
 
         Args:
             polygon: Geometry to replace, or dict mapping geometries to values.
@@ -1485,7 +1485,7 @@ class Raster(BaseModel):
             >>> # Replace a single polygon
             >>> raster.replace_polygon(polygon1, value=np.nan)
             >>> # Replace multiple polygons
-            >>> raster.replace_polygon({polygon1: np.nan, polygon2: np.nan})
+            >>> raster.replace_polygon({polygon1: 0, polygon2: 1})
         """
         # Normalize input to dict format
         if isinstance(polygon, dict):

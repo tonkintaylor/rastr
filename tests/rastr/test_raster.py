@@ -3285,6 +3285,111 @@ class TestResample:
         assert result.arr.dtype == np.float64
 
 
+class TestReplacePolygon:
+    def test_single_polygon_full_extent_of_raster(self, example_raster: Raster):
+        # Arrange
+        value = 99.0
+        polygon1 = Polygon([(0, 0), (0, 4), (4, 4), (4, 0)])
+
+        # Act
+        result = example_raster.replace_polygon(polygon1, value=value)
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.all(result.arr == value)
+
+    def test_single_polygon_partial_extent_of_raster(self, example_raster: Raster):
+        # Arrange
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        value = 99.0
+        expected_result = np.array([[99, 2], [3, 4]], dtype=float)
+
+        # Act
+        result = example_raster.replace_polygon(polygon1, value=value)
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.allclose(result.arr, expected_result)
+
+    def test_dict_multiple_polygons_and_values(self, example_raster: Raster):
+        # Arrange
+        value1, value2 = 10.0, 20.0
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        polygon2 = Polygon([(2, 2), (2, 4), (4, 4), (4, 2)])
+        polygons = {polygon1: value1, polygon2: value2}
+        expected_result = np.array([[10, 2], [3, 20]], dtype=float)
+
+        # Act
+        result = example_raster.replace_polygon(polygons)  # pyright: ignore[reportArgumentType]
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.allclose(result.arr, expected_result)
+
+    def test_needs_float_true(self, example_raster: Raster):
+        # Arrange
+        int_raster = example_raster.model_copy()
+        int_raster.arr = np.array([[1, 2], [3, 4]], dtype=int)
+        polygon1 = Polygon([(0, 0), (0, 4), (4, 4), (4, 0)])
+        value = np.nan
+        expected_result = np.array([[np.nan, np.nan], [np.nan, np.nan]], dtype=float)
+
+        # Act
+        result = int_raster.replace_polygon(polygon1, value=value)
+
+        # Assert
+        assert result.arr.dtype == float
+        assert np.allclose(result.arr, expected_result, equal_nan=True)
+
+    def test_multipolygon(self, example_raster: Raster):
+        # Arrange
+        value = 42.0
+        expected_result = np.array([[42, 2], [3, 42]], dtype=float)
+        multipolygon = MultiPolygon(
+            [
+                Polygon([(0, 0), (0, 2), (2, 2), (2, 0)]),
+                Polygon([(2, 2), (2, 4), (4, 4), (4, 2)]),
+            ]
+        )
+
+        # Act
+        result = example_raster.replace_polygon(multipolygon, value=value)
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.allclose(result.arr, expected_result)
+        assert np.allclose(result.arr, expected_result)
+
+    def test_unimplemented_geometry_type(self, example_raster: Raster):
+        # Arrange
+        linestring = LineString([(0, 0), (1, 1)])
+        msg = "Only Polygon and MultiPolygon geometries are supported, got LineString"
+
+        # Act & Assert
+        with pytest.raises(TypeError, match=msg):
+            example_raster.replace_polygon(linestring, value=5.0)
+
+    def test_value_not_none_with_dict_raises(self, example_raster: Raster):
+        # Arrange
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        polygon2 = Polygon([(2, 0), (2, 2), (4, 2), (4, 0)])
+        polygons = {polygon1: 10.0, polygon2: 20.0}
+        msg = "value must be None when polygon is a dict"
+
+        # Act & Assert
+        with pytest.raises(ValueError, match=msg):
+            example_raster.replace_polygon(polygons, value=5.0)  # pyright: ignore[reportArgumentType]
+
+    def test_value_none_with_geometry_raises(self, example_raster: Raster):
+        # Arrange
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        msg = "value must be specified when polygon is a geometry"
+
+        # Act & Assert
+        with pytest.raises(ValueError, match=msg):
+            example_raster.replace_polygon(polygon1, value=None)
+
+
 class TestExplore:
     @pytest.fixture
     def explore_map(self):

@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import numpy as np
 import pytest
 import rasterio.transform
 from affine import Affine
 from pyproj.crs.crs import CRS
+from shapely import Polygon
 
-from rastr.io import read_raster_inmem, read_raster_mosaic_inmem
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from rastr.io import read_cad_gdf, read_raster_inmem, read_raster_mosaic_inmem
 
 _WGS84_CRS = CRS.from_epsg(4326)
 
@@ -277,3 +275,52 @@ class TestReadRasterMosaicInMem:
 
         # Assert
         assert raster.arr.dtype == np.float16
+
+
+class TestReadRasterFromCAD:
+    def test_with_nztm_crs(self, monkeypatch: pytest.MonkeyPatch):
+        import geopandas as gpd
+
+        # Create a mock GeoDataFrame with NZTM CRS
+        mock_gdf = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0, 0), (1, 0, 1), (1, 1, 2), (0, 1, 1)])]},
+            crs=CRS.from_epsg(2193),
+        )
+
+        monkeypatch.setattr("geopandas.read_file", lambda *_, **__: mock_gdf)
+
+        result = read_cad_gdf(path=Path("dummy.dxf"))
+        assert isinstance(result, gpd.GeoDataFrame)
+        assert mock_gdf.equals(result)
+
+    def test_missing_crs_error(self, monkeypatch: pytest.MonkeyPatch):
+        import geopandas as gpd
+
+        # Create a mock GeoDataFrame with no CRS
+        mock_gdf = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0, 0), (1, 0, 1), (1, 1, 2), (0, 1, 1)])]},
+            crs=None,
+        )
+
+        monkeypatch.setattr("geopandas.read_file", lambda *_, **__: mock_gdf)
+
+        with pytest.raises(ValueError, match="No CRS found in CAD file"):
+            read_cad_gdf(path=Path("dummy.dxf"))
+
+    def test_crs_reprojection(self, monkeypatch: pytest.MonkeyPatch):
+        import geopandas as gpd
+
+        # Create a mock GeoDataFrame with WGS84 CRS
+        mock_gdf = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0, 0), (1, 0, 1), (1, 1, 2), (0, 1, 1)])]},
+            crs=CRS.from_epsg(4326),
+        )
+
+        target_crs = CRS.from_epsg(2193)
+
+        monkeypatch.setattr("geopandas.read_file", lambda *_, **__: mock_gdf)
+
+        result = read_cad_gdf(path=Path("dummy.dxf"), crs=target_crs)
+
+        assert result.crs is not None
+        assert result.crs.to_epsg() == target_crs.to_epsg()

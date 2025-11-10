@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import warnings
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 import numpy as np
 import rasterio.features
@@ -10,19 +10,21 @@ import rasterio.transform
 from affine import Affine
 from pyproj import CRS
 from shapely.geometry import Point
+from typing_extensions import assert_never
 
 from rastr.gis.crs import get_affine_sign
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
-from rastr.gis.interpolate import interpn_kernel
+from rastr.gis.interpolate import InterpolationError, interpn_kernel
 from rastr.meta import RasterMeta
-from rastr.raster import Raster
+from rastr.raster import Raster, RasterModel
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
     import geopandas as gpd
-    from numpy.typing import ArrayLike
+    from numpy.typing import ArrayLike, NDArray
     from shapely.geometry import Polygon
+    from shapely.geometry.base import BaseGeometry
 
 
 TQDM_INSTALLED = importlib.util.find_spec("tqdm") is not None
@@ -215,6 +217,137 @@ def rasterize_gdf(
     return rasters
 
 
+def rasterize_z_gdf(
+    gdf: gpd.GeoDataFrame,
+    *,
+    cell_size: float,
+    crs: CRS | str,
+    agg: Literal["mean", "min", "max"] = "mean",
+) -> RasterModel:
+    """Rasterize interpolated Z-values from geometries in a GeoDataFrame.
+
+    Handles overlapping geometries by aggregating values using a specified method.
+    All geometries must be 3D (have Z coordinates) for interpolation to work.
+
+    The Z-value for each cell is interpolated at the cell center.
+
+    Args:
+        gdf: GeoDataFrame containing 3D geometries with Z coordinates.
+        cell_size: Desired cell size for the output raster.
+        crs: Coordinate reference system for the output raster.
+        agg: Aggregation function to use for overlapping values ("mean", "min", "max").
+
+    Returns:
+        A raster of interpolated Z values.
+
+    Raises:
+        ValueError: If any geometries are not 3D.
+    """
+    crs = CRS.from_user_input(crs)
+
+    if len(gdf) == 0:
+        msg = "Cannot rasterize an empty GeoDataFrame."
+        raise ValueError(msg)
+
+    _validate_geometries_are_3d(gdf)
+
+    # Determine the bounds that would encompass the geometry while respecting the grid
+    gdf_bounds = gdf.total_bounds
+    meta, shape = RasterMeta.infer(
+        x=np.array([gdf_bounds[0], gdf_bounds[2]]),
+        y=np.array([gdf_bounds[1], gdf_bounds[3]]),
+        cell_size=cell_size,
+        crs=crs,
+    )
+
+    # Generate grid coordinates for interpolation
+    x_coords, y_coords = _get_grid(meta, shape=shape)
+
+    # Create 2D accumulation arrays
+    z_stack = []
+    for geom in gdf.geometry:
+        z_vals = _interpolate_z_in_geometry(geom, x_coords, y_coords)
+        z_stack.append(z_vals)
+
+    if not z_stack:
+        msg = (
+            "No valid Z values could be interpolated from the geometries. Raster "
+            "will be entirely NaN-valued."
+        )
+        warnings.warn(msg, stacklevel=2)
+        arr = np.full(shape, np.nan, dtype=np.float64)
+        return RasterModel(arr=arr, raster_meta=meta)
+
+    z_stack = np.array(z_stack)  # Shape: (N, height * width)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning, message="All-NaN slice encountered"
+        )
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning, message="Mean of empty slice"
+        )
+
+        if agg == "mean":
+            z_agg = np.nanmean(z_stack, axis=0)
+        elif agg == "min":
+            z_agg = np.nanmin(z_stack, axis=0)
+        elif agg == "max":
+            z_agg = np.nanmax(z_stack, axis=0)
+        else:
+            assert_never(agg)
+
+    arr = np.asarray(z_agg, dtype=np.float64).reshape(shape)
+
+    return RasterModel(arr=arr, raster_meta=meta)
+
+
+def _validate_geometries_are_3d(gdf: gpd.GeoDataFrame) -> None:
+    """Validate that all geometries have 3D coordinates (Z values).
+
+    Args:
+        gdf: The GeoDataFrame to check for 3D geometries.
+
+    Raises:
+        ValueError: If any geometries are not 3D.
+    """
+    for idx, geom in enumerate(gdf.geometry):
+        if geom is None or geom.is_empty:
+            continue
+
+        # Check if geometry has Z coordinates
+        if not geom.has_z:
+            msg = (
+                f"Geometry at index {idx} is not 3D. Z-coordinates are required since "
+                "they give the cell values during rasterization."
+            )
+            raise ValueError(msg)
+
+
+def _interpolate_z_in_geometry(
+    geometry: BaseGeometry, x: NDArray, y: NDArray
+) -> NDArray[np.float64]:
+    """Vectorized interpolation of Z values in a geometry at multiple (x, y) points.
+
+    Only the boundary is considered (e.g. holes in polygons are ignored).
+
+    Parameters:
+        geometry: Shapely geometry with Z coordinates (Polygon, LineString, etc.).
+        x: Array of X coordinates, shape (N,).
+        y: Array of Y coordinates, shape (N,).
+
+    Returns:
+        Array of interpolated Z values (NaN if outside convex hull or no boundary).
+    """
+    # Extract coordinates from geometry boundary only
+    coords = np.array(geometry.boundary.coords)
+
+    try:
+        return interpn_kernel(coords[:, :2], coords[:, 2], xi=np.column_stack((x, y)))
+    except InterpolationError:
+        return np.full_like(x, np.nan, dtype=np.float64)
+
+
 def _validate_columns_exist(
     gdf: gpd.GeoDataFrame, target_cols: Collection[str]
 ) -> None:
@@ -299,7 +432,8 @@ def raster_from_point_cloud(
     Interpolation is only possible within the convex hull of the points. Outside of
     this, cells will be NaN-valued.
 
-    All (x,y) points must be unique.
+    Duplicate (x, y, z) triples are silently deduplicated. However, duplicate (x, y)
+    points with different z values will raise an error.
 
     Args:
         x: X coordinates of points.
@@ -313,7 +447,8 @@ def raster_from_point_cloud(
         Raster containing the interpolated values.
 
     Raises:
-        ValueError: If any (x, y) points are duplicated, or if they are all collinear.
+        ValueError: If any (x, y) points have different z values, or if they are all
+                    collinear.
     """
     crs = CRS.from_user_input(crs)
     x, y, z = _validate_xyz(
@@ -357,7 +492,21 @@ def _validate_xyz(
             "surface."
         )
         raise ValueError(msg)
-    # Check for duplicate (x, y) points
+    # Check for duplicate (x, y, z) triples and deduplicate them
+    xyz_points = np.column_stack((x, y, z))
+    unique_xyz, first_occurrence_indices = np.unique(
+        xyz_points, axis=0, return_index=True
+    )
+
+    # If we have duplicate (x, y, z) triples, deduplicate them
+    if len(unique_xyz) < len(xyz_points):
+        x = x[first_occurrence_indices]
+        y = y[first_occurrence_indices]
+        z = z[first_occurrence_indices]
+
+    # Check for duplicate (x, y) points with different z values
+    # After deduplication, if there are still duplicate (x,y) points, they must have
+    # different z values
     xy_points = np.column_stack((x, y))
     if len(xy_points) != len(np.unique(xy_points, axis=0)):
         msg = "Duplicate (x, y) points found. Each (x, y) point must be unique."

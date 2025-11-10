@@ -6,8 +6,7 @@ import importlib.util
 import warnings
 from collections.abc import Collection
 from contextlib import contextmanager
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, overload
 
 import numpy as np
 import numpy.ma
@@ -15,13 +14,12 @@ import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
-import skimage.measure
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import Transformer
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
 from rastr.gis.fishnet import create_fishnet
@@ -30,6 +28,7 @@ from rastr.meta import RasterMeta
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
+    from pathlib import Path
 
     import geopandas as gpd
     from affine import Affine
@@ -39,13 +38,8 @@ if TYPE_CHECKING:
     from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
-    from shapely import MultiPolygon
+    from shapely.geometry.base import BaseGeometry
     from typing_extensions import Self
-
-try:
-    from rasterio._err import CPLE_BaseError
-except ImportError:
-    CPLE_BaseError = Exception  # Fallback if private module import fails
 
 
 FOLIUM_INSTALLED = importlib.util.find_spec("folium") is not None
@@ -53,6 +47,27 @@ BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 CONTOUR_PERTURB_EPS = 1e-10
+
+
+@contextmanager
+def suppress_slice_warning() -> Generator[None, None, None]:
+    """Context manager to suppress all-NaN slice warnings from NumPy operations.
+
+    An all-NaN slice is a row or a column of an array where every value is NaN.
+    This is common for rasters around the edges, and is almost always a false
+    positive.
+
+    Note that even .trim_nan() won't even guarantee there aren't NaN slices,
+    since that method only applies around the edges of a raster, whereas there
+    might be NaN slices in between non-NaN data in the middle.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="All-NaN slice encountered",
+            category=RuntimeWarning,
+        )
+        yield
 
 
 class RasterCellArrayShapeError(ValueError):
@@ -249,6 +264,18 @@ class Raster(BaseModel):
         cls = self.__class__
         return cls(arr=-self.arr, raster_meta=self.raster_meta)
 
+    def abs(self) -> Self:
+        """Compute the absolute value of the raster.
+
+        Returns a new raster with the absolute value of each cell. The original raster
+        is not modified.
+
+        Returns:
+            A new Raster instance with the absolute values.
+        """
+        cls = self.__class__
+        return cls(arr=np.abs(self.arr), raster_meta=self.raster_meta)
+
     @property
     def cell_centre_coords(self) -> NDArray[np.float64]:
         """Get the coordinates of the cell centres in the raster."""
@@ -417,8 +444,8 @@ class Raster(BaseModel):
         return raster_values
 
     @property
-    def bounds(self) -> tuple[float, float, float, float]:
-        """Bounding box of the raster as (xmin, ymin, xmax, ymax)"""
+    def bounds(self) -> Bounds:
+        """Bounding box of the raster as a named tuple with xmin, ymin, xmax, ymax."""
         x1, y1, x2, y2 = rasterio.transform.array_bounds(
             height=self.arr.shape[0],
             width=self.arr.shape[1],
@@ -426,7 +453,7 @@ class Raster(BaseModel):
         )
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
-        return (xmin, ymin, xmax, ymax)
+        return Bounds(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
 
     @property
     def bbox(self) -> Polygon:
@@ -580,7 +607,8 @@ class Raster(BaseModel):
             suppressed: Values to suppress from the plot (i.e. not display). This can be
                         useful for zeroes especially.
             **kwargs: Additional keyword arguments to pass to `rasterio.plot.show()`.
-                      This includes parameters like `alpha` for transparency.
+                      This includes parameters like `alpha` for transparency, and `vmin`
+                      and `vmax` for controlling the color scale limits.
         """
         if not MATPLOTLIB_INSTALLED:
             msg = "The 'matplotlib' package is required for 'plot()'."
@@ -673,8 +701,15 @@ class Raster(BaseModel):
 
         return raster_gdf
 
+    def gdf(self, name: str = "value") -> gpd.GeoDataFrame:
+        """Create a GeoDataFrame representation of the raster.
+
+        Alias for `as_geodataframe()`.
+        """
+        return self.as_geodataframe(name=name)
+
     def to_file(self, path: Path | str, **kwargs: Any) -> None:
-        """Write the raster to a GeoTIFF file.
+        """Write the raster to a file.
 
         Args:
             path: Path to output file.
@@ -682,47 +717,9 @@ class Raster(BaseModel):
                       `nodata` is provided, NaN values in the raster will be replaced
                       with the nodata value.
         """
+        from rastr.io import write_raster  # noqa: PLC0415
 
-        path = Path(path)
-
-        suffix = path.suffix.lower()
-        if suffix in (".tif", ".tiff"):
-            driver = "GTiff"
-        elif suffix in (".grd"):
-            # https://grapherhelp.goldensoftware.com/subsys/ascii_grid_file_format.htm
-            # e.g. Used by AnAqSim
-            driver = "GSAG"
-        else:
-            msg = f"Unsupported file extension: {suffix}"
-            raise ValueError(msg)
-
-        # Handle nodata: use provided value or default to np.nan
-        if "nodata" in kwargs:
-            # Replace NaN values with the nodata value
-            nodata_value = kwargs.pop("nodata")
-            arr_to_write = np.where(np.isnan(self.arr), nodata_value, self.arr)
-        else:
-            nodata_value = np.nan
-            arr_to_write = self.arr
-
-        with rasterio.open(
-            path,
-            "w",
-            driver=driver,
-            height=self.arr.shape[0],
-            width=self.arr.shape[1],
-            count=1,
-            dtype=self.arr.dtype,
-            crs=self.raster_meta.crs,
-            transform=self.raster_meta.transform,
-            nodata=nodata_value,
-            **kwargs,
-        ) as dst:
-            try:
-                dst.write(arr_to_write, 1)
-            except CPLE_BaseError as err:
-                msg = f"Failed to write raster to file: {err}"
-                raise OSError(msg) from err
+        return write_raster(self, path=path, **kwargs)
 
     def __str__(self) -> str:
         cls = self.__class__
@@ -817,7 +814,8 @@ class Raster(BaseModel):
         Returns:
             The maximum value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmax(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmax(self.arr))
 
     def min(self) -> float:
         """Get the minimum value in the raster, ignoring NaN values.
@@ -825,7 +823,8 @@ class Raster(BaseModel):
         Returns:
             The minimum value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmin(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmin(self.arr))
 
     def mean(self) -> float:
         """Get the mean value in the raster, ignoring NaN values.
@@ -833,7 +832,8 @@ class Raster(BaseModel):
         Returns:
             The mean value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmean(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmean(self.arr))
 
     def std(self) -> float:
         """Get the standard deviation of values in the raster, ignoring NaN values.
@@ -841,7 +841,8 @@ class Raster(BaseModel):
         Returns:
             The standard deviation of the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanstd(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanstd(self.arr))
 
     def quantile(self, q: float) -> float:
         """Get the specified quantile value in the raster, ignoring NaN values.
@@ -852,7 +853,8 @@ class Raster(BaseModel):
         Returns:
             The quantile value. Returns NaN if all values are NaN.
         """
-        return float(np.nanquantile(self.arr, q))
+        with suppress_slice_warning():
+            return float(np.nanquantile(self.arr, q))
 
     def median(self) -> float:
         """Get the median value in the raster, ignoring NaN values.
@@ -862,7 +864,8 @@ class Raster(BaseModel):
         Returns:
             The median value in the raster. Returns NaN if all values are NaN.
         """
-        return float(np.nanmedian(self.arr))
+        with suppress_slice_warning():
+            return float(np.nanmedian(self.arr))
 
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
@@ -983,6 +986,7 @@ class Raster(BaseModel):
                        contours will be returned without any smoothing.
         """
         import geopandas as gpd
+        import skimage.measure
 
         all_levels = []
         all_geoms = []
@@ -1031,6 +1035,27 @@ class Raster(BaseModel):
 
         # Dissolve contours by level to merge all contour lines of the same level
         return contour_gdf.dissolve(by="level", as_index=False)
+
+    def sobel(self) -> Self:
+        """Compute the Sobel gradient magnitude of the raster.
+
+        This is effectively a discrete differentiation operator, computing an
+        approximation of the magnitude of the gradient of the image intensity function.
+
+        Borders are treated using half-sample symmetric sampling, i.e. repeating the
+        border values. Be aware that this can lead to edge artifacts and under-estimate
+        the gradient along the border pixels.
+
+        Returns:
+            New raster containing the gradient magnitude in units of raster cell units
+            per unit distance (e.g. per meter).
+        """
+        from skimage import filters
+
+        new_raster = self.model_copy()
+        # Scale by cell size to convert to per unit distance
+        new_raster.arr = filters.sobel(self.arr) / self.cell_size
+        return new_raster
 
     def blur(self, sigma: float, *, preserve_nan: bool = True) -> Self:
         """Apply a Gaussian blur to the raster data.
@@ -1286,7 +1311,7 @@ class Raster(BaseModel):
 
     def clip(
         self,
-        polygon: Polygon | MultiPolygon,
+        polygon: BaseGeometry,
         *,
         strategy: Literal["centres"] = "centres",
     ) -> Self:
@@ -1304,22 +1329,25 @@ class Raster(BaseModel):
 
         Returns:
             A new Raster with cells outside the polygon set to NaN.
+
+        Raises:
+            TypeError: If the provided geometry is not a Polygon or MultiPolygon.
         """
+        if not isinstance(polygon, Polygon | MultiPolygon):
+            msg = (
+                f"Only Polygon and MultiPolygon geometries are supported for clipping, "
+                f"got {type(polygon).__name__}"
+            )
+            raise TypeError(msg)
+
         if strategy != "centres":
             msg = f"Unsupported clipping strategy: {strategy}"
             raise NotImplementedError(msg)
 
+        mask_raster = self._polygon_indicator(polygon)
+
         raster = self.model_copy()
-
-        mask = rasterio.features.rasterize(
-            [(polygon, 1)],
-            fill=0,
-            out_shape=self.shape,
-            transform=self.meta.transform,
-            dtype=np.uint8,
-        )
-
-        raster.arr = np.where(mask, raster.arr, np.nan)
+        raster.arr = np.where(mask_raster.arr, raster.arr, np.nan)
 
         return raster
 
@@ -1433,6 +1461,99 @@ class Raster(BaseModel):
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)
 
+    def replace_polygon(
+        self,
+        polygon: BaseGeometry | dict[BaseGeometry, float],
+        value: float | None = None,
+    ) -> Self:
+        """Replace values within the specified polygon(s) with other values.
+
+        Creates a new raster with the specified values replaced. This is useful for
+        operations like masking or setting regions to NaN.
+
+        The method supports two interfaces:
+        1. Single replacement: `raster.replace_polygon(polygon1, value=np.nan)`
+        2. Multiple replacements using a dictionary:
+           `raster.replace_polygon({polygon1: 0, polygon2: 1})`
+
+        Args:
+            polygon: Geometry to replace, or dict mapping geometries to values.
+            value: Replacement value. Required if polygon is a geometry, None if polygon
+                   is a dict.
+
+        Examples:
+            >>> # Replace a single polygon
+            >>> raster.replace_polygon(polygon1, value=np.nan)
+            >>> # Replace multiple polygons
+            >>> raster.replace_polygon({polygon1: 0, polygon2: 1})
+        """
+        # Normalize input to dict format
+        if isinstance(polygon, dict):
+            if value is not None:
+                msg = "value must be None when polygon is a dict"
+                raise ValueError(msg)
+            replacements = polygon
+        else:
+            if value is None:
+                msg = "value must be specified when polygon is a geometry"
+                raise ValueError(msg)
+            replacements = {polygon: value}
+
+        # Validate all geometries upfront
+        for geom in replacements.keys():
+            if not isinstance(geom, Polygon | MultiPolygon):
+                msg = (
+                    f"Only Polygon and MultiPolygon geometries are supported, "
+                    f"got {type(geom).__name__}"
+                )
+                raise TypeError(msg)
+
+        # Create copy and convert to float if needed
+        raster = self.model_copy()
+        needs_float = any(
+            isinstance(v, float) or (v is not None and np.isnan(v))
+            for v in replacements.values()
+        )
+        if needs_float and not np.issubdtype(raster.arr.dtype, np.floating):
+            raster.arr = raster.arr.astype(float)
+
+        # Apply all replacements
+        for geom, val in replacements.items():
+            mask_raster = self._polygon_indicator(geom)
+            raster.arr = np.where(mask_raster.arr, val, raster.arr)
+
+        return raster
+
+    def _polygon_indicator(self, geom: BaseGeometry) -> Self:
+        """Create a binary mask with 1 inside the polygon, 0 outside.
+
+        The mask has the same shape and transform as the raster.
+
+        Args:
+            geom:
+                A shapely geometry (typically Polygon or MultiPolygon)
+                to rasterize.
+
+        Returns:
+            Raster:
+                A new Raster where cells inside the geometry are 1,
+                and outside are 0.
+        """
+
+        arr = rasterio.features.rasterize(
+            [(geom, 1)],
+            fill=0,
+            out_shape=self.shape,
+            transform=self.meta.transform,
+            dtype=np.uint8,
+        )
+
+        # Create a new raster with the binary mask array
+        raster = self.model_copy()
+        raster.arr = arr
+
+        return raster
+
 
 def _map_colorbar(
     *,
@@ -1466,22 +1587,32 @@ def _get_vmin_vmax(
 
     Allows for custom over-ride vmin and vmax values to be provided.
     """
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message="All-NaN slice encountered",
-            category=RuntimeWarning,
-        )
-        if vmin is None:
-            _vmin = float(raster.min())
-        else:
-            _vmin = vmin
-        if vmax is None:
-            _vmax = float(raster.max())
-        else:
-            _vmax = vmax
+    if vmin is None:
+        _vmin = float(raster.min())
+    else:
+        _vmin = vmin
+    if vmax is None:
+        _vmax = float(raster.max())
+    else:
+        _vmax = vmax
 
     return _vmin, _vmax
 
 
 RasterModel = Raster
+
+
+class Bounds(NamedTuple):
+    """Bounding box coordinates for a raster.
+
+    Attributes:
+        xmin: The minimum x-coordinate.
+        ymin: The minimum y-coordinate.
+        xmax: The maximum x-coordinate.
+        ymax: The maximum y-coordinate.
+    """
+
+    xmin: float
+    ymin: float
+    xmax: float
+    ymax: float

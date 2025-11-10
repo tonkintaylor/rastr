@@ -8,6 +8,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
+class InterpolationError(ValueError):
+    """Exception for interpolation-related errors."""
+
+
 def interpn_kernel(
     points: np.ndarray,
     values: np.ndarray,
@@ -44,7 +48,7 @@ def interpn_kernel(
             "degenerate input points. Ensure that the (x, y) points are not all "
             "collinear (i.e. that the convex hull is non-degenerate)."
         )
-        raise ValueError(msg) from err
+        raise InterpolationError(msg) from err
 
     grid_values = np.array(interpolator(xi))
     return grid_values

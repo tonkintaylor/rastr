@@ -6,6 +6,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import rasterio
+import rasterio.transform
 from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
@@ -385,6 +386,36 @@ class TestRaster:
         def test_bounds_neg_scaled(self, example_neg_scaled_raster: Raster):
             assert example_neg_scaled_raster.bounds == (0.0, -4.0, 4.0, 0.0)
 
+        def test_bounds_named_attributes(self, example_raster: Raster):
+            # Arrange & Act
+            bounds = example_raster.bounds
+
+            # Assert - named attributes work
+            assert bounds.xmin == 0.0
+            assert bounds.ymin == 0.0
+            assert bounds.xmax == 4.0
+            assert bounds.ymax == 4.0
+
+        def test_bounds_tuple_unpacking(self, example_raster: Raster):
+            # Arrange & Act
+            xmin, ymin, xmax, ymax = example_raster.bounds
+
+            # Assert - tuple unpacking still works
+            assert xmin == 0.0
+            assert ymin == 0.0
+            assert xmax == 4.0
+            assert ymax == 4.0
+
+        def test_bounds_indexing(self, example_raster: Raster):
+            # Arrange & Act
+            bounds = example_raster.bounds
+
+            # Assert - indexing still works
+            assert bounds[0] == 0.0
+            assert bounds[1] == 0.0
+            assert bounds[2] == 4.0
+            assert bounds[3] == 4.0
+
     class TestAsGeoDataFrame:
         def test_as_geodataframe(self, example_raster: Raster):
             import geopandas as gpd
@@ -414,6 +445,19 @@ class TestRaster:
             assert all(match_found), (
                 "Not all expected polygons match the geometries in the GeoDataFrame"
             )
+
+        def test_gdf_alias(self, example_raster: Raster):
+            import geopandas as gpd
+
+            # Test that gdf() is an alias for as_geodataframe()
+            raster_gdf_via_alias = example_raster.gdf(name="test")
+            raster_gdf_via_method = example_raster.as_geodataframe(name="test")
+
+            # Check that the result is a GeoDataFrame
+            assert isinstance(raster_gdf_via_alias, gpd.GeoDataFrame)
+
+            # Check that both methods produce identical results
+            assert raster_gdf_via_alias.equals(raster_gdf_via_method)
 
     class TestAdd:
         def test_basic(self):
@@ -845,6 +889,67 @@ class TestRaster:
             result = -float32_raster
             assert result.arr.dtype == np.float32
 
+    class TestAbs:
+        def test_mixed_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[-1, 2], [3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+            assert result.raster_meta == raster_meta
+            assert result.raster_meta.cell_size == 1.0
+            assert result.raster_meta.crs == CRS.from_epsg(2193)
+
+        def test_preserves_dtype_float32(self, float32_raster: Raster):
+            """Test that abs() preserves float32."""
+            negative_raster = -float32_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float32
+
+        def test_preserves_dtype_float64(self, float64_raster: Raster):
+            """Test that abs() preserves float64."""
+            negative_raster = -float64_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float64
+
+        def test_preserves_dtype_float16(self, float16_raster: Raster):
+            """Test that abs() preserves float16."""
+            negative_raster = -float16_raster
+            result = negative_raster.abs()
+            assert result.arr.dtype == np.float16
+
+        def test_subclass_return_type(self):
+            # Arrange
+            class MyRaster(Raster):
+                pass
+
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = MyRaster(
+                arr=np.array([[-1, -2], [-3, -4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.abs()
+
+            # Assert
+            assert isinstance(result, MyRaster)
+
     class TestApply:
         def test_sine(self, example_raster: Raster):
             # Act
@@ -1075,6 +1180,19 @@ class TestRaster:
             ax = example_raster_with_zeros.plot(
                 alpha=0.7, interpolation="bilinear", ax=ax
             )
+
+            # Assert
+            assert ax is not None
+            plt.close(fig)
+
+        def test_plot_with_vmin_vmax_kwargs(self, example_raster_with_zeros: Raster):
+            import matplotlib.pyplot as plt
+
+            # Arrange
+            fig, ax = plt.subplots()
+
+            # Act - passing vmin and vmax to control color scale
+            ax = example_raster_with_zeros.plot(vmin=0.0, vmax=5.0, ax=ax)
 
             # Assert
             assert ax is not None
@@ -1426,6 +1544,36 @@ class TestRaster:
             expected_y = np.array([[1.0, 1.0], [3.0, 3.0]])
             np.testing.assert_array_equal(x, expected_x)
             np.testing.assert_array_equal(y, expected_y)
+
+    class TestSobel:
+        def test_happy_path(self):
+            # Arrange
+            arr = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64)
+            cell_size = 2.0
+            raster_meta = RasterMeta(
+                cell_size=cell_size,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 0, 1, 1),
+            )
+            raster = Raster(arr=arr, raster_meta=raster_meta)
+            # Act
+            result = raster.sobel()
+            # Assert
+            expected = (
+                np.array(
+                    [  # Regression test - values are highest in middle row,
+                        # as expected, since the values increase more in the vertical
+                        # direction and the .sobel() method uses a 'reflect' border
+                        # mode.
+                        [2.23607, 2.54951, 2.23607],
+                        [4.30116, 4.47214, 4.30116],
+                        [2.23607, 2.54951, 2.23607],
+                    ]
+                )
+                / cell_size
+            )
+            np.testing.assert_almost_equal(result.arr, expected, decimal=5)
+            assert result.meta == raster_meta
 
     class TestBlur:
         def test_numeric_propertoes(self, example_raster: Raster):
@@ -2267,6 +2415,38 @@ class TestClip:
         )
         np.testing.assert_array_equal(clipped.arr, expected_array)
 
+    def test_accepts_basegeometry_polygon(self, base_raster: Raster):
+        # Arrange - bbox returns a Polygon which is a BaseGeometry
+        polygon = base_raster.bbox
+
+        # Act - should work with BaseGeometry type hint
+        clipped = base_raster.clip(polygon)
+
+        # Assert
+        assert clipped == base_raster
+
+    def test_rejects_non_polygon_geometry(self, base_raster: Raster):
+        # Arrange
+        point = Point(0, 0)
+
+        # Act & Assert
+        with pytest.raises(
+            TypeError,
+            match="Only Polygon and MultiPolygon geometries are supported for clipping",
+        ):
+            base_raster.clip(point)
+
+    def test_rejects_linestring_geometry(self, base_raster: Raster):
+        # Arrange
+        line = LineString([(0, 0), (1, 1)])
+
+        # Act & Assert
+        with pytest.raises(
+            TypeError,
+            match="Only Polygon and MultiPolygon geometries are supported for clipping",
+        ):
+            base_raster.clip(line)
+
 
 class TestTrimNaN:
     def test_no_nan_values_unchanged(self, base_raster: Raster):
@@ -3105,6 +3285,111 @@ class TestResample:
         assert result.arr.dtype == np.float64
 
 
+class TestReplacePolygon:
+    def test_single_polygon_full_extent_of_raster(self, example_raster: Raster):
+        # Arrange
+        value = 99.0
+        polygon1 = Polygon([(0, 0), (0, 4), (4, 4), (4, 0)])
+
+        # Act
+        result = example_raster.replace_polygon(polygon1, value=value)
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.all(result.arr == value)
+
+    def test_single_polygon_partial_extent_of_raster(self, example_raster: Raster):
+        # Arrange
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        value = 99.0
+        expected_result = np.array([[99, 2], [3, 4]], dtype=float)
+
+        # Act
+        result = example_raster.replace_polygon(polygon1, value=value)
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.allclose(result.arr, expected_result)
+
+    def test_dict_multiple_polygons_and_values(self, example_raster: Raster):
+        # Arrange
+        value1, value2 = 10.0, 20.0
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        polygon2 = Polygon([(2, 2), (2, 4), (4, 4), (4, 2)])
+        polygons = {polygon1: value1, polygon2: value2}
+        expected_result = np.array([[10, 2], [3, 20]], dtype=float)
+
+        # Act
+        result = example_raster.replace_polygon(polygons)  # pyright: ignore[reportArgumentType]
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.allclose(result.arr, expected_result)
+
+    def test_needs_float_true(self, example_raster: Raster):
+        # Arrange
+        int_raster = example_raster.model_copy()
+        int_raster.arr = np.array([[1, 2], [3, 4]], dtype=int)
+        polygon1 = Polygon([(0, 0), (0, 4), (4, 4), (4, 0)])
+        value = np.nan
+        expected_result = np.array([[np.nan, np.nan], [np.nan, np.nan]], dtype=float)
+
+        # Act
+        result = int_raster.replace_polygon(polygon1, value=value)
+
+        # Assert
+        assert result.arr.dtype == float
+        assert np.allclose(result.arr, expected_result, equal_nan=True)
+
+    def test_multipolygon(self, example_raster: Raster):
+        # Arrange
+        value = 42.0
+        expected_result = np.array([[42, 2], [3, 42]], dtype=float)
+        multipolygon = MultiPolygon(
+            [
+                Polygon([(0, 0), (0, 2), (2, 2), (2, 0)]),
+                Polygon([(2, 2), (2, 4), (4, 4), (4, 2)]),
+            ]
+        )
+
+        # Act
+        result = example_raster.replace_polygon(multipolygon, value=value)
+
+        # Assert
+        assert isinstance(result, Raster)
+        assert np.allclose(result.arr, expected_result)
+        assert np.allclose(result.arr, expected_result)
+
+    def test_unimplemented_geometry_type(self, example_raster: Raster):
+        # Arrange
+        linestring = LineString([(0, 0), (1, 1)])
+        msg = "Only Polygon and MultiPolygon geometries are supported, got LineString"
+
+        # Act & Assert
+        with pytest.raises(TypeError, match=msg):
+            example_raster.replace_polygon(linestring, value=5.0)
+
+    def test_value_not_none_with_dict_raises(self, example_raster: Raster):
+        # Arrange
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        polygon2 = Polygon([(2, 0), (2, 2), (4, 2), (4, 0)])
+        polygons = {polygon1: 10.0, polygon2: 20.0}
+        msg = "value must be None when polygon is a dict"
+
+        # Act & Assert
+        with pytest.raises(ValueError, match=msg):
+            example_raster.replace_polygon(polygons, value=5.0)  # pyright: ignore[reportArgumentType]
+
+    def test_value_none_with_geometry_raises(self, example_raster: Raster):
+        # Arrange
+        polygon1 = Polygon([(0, 0), (0, 2), (2, 2), (2, 0)])
+        msg = "value must be specified when polygon is a geometry"
+
+        # Act & Assert
+        with pytest.raises(ValueError, match=msg):
+            example_raster.replace_polygon(polygon1, value=None)
+
+
 class TestExplore:
     @pytest.fixture
     def explore_map(self):
@@ -3346,6 +3631,40 @@ class TestRasterStatistics:
         assert stats_test_raster_with_nans.quantile(quantile) == (
             expected_result_with_nans
         )
+
+    @pytest.mark.parametrize(
+        "method_name",
+        ["min", "max", "mean", "std", "median"],
+    )
+    def test_all_nan_slice_raster_no_warning(self, method_name: str) -> None:
+        # Arrange
+        tiny_arr = np.array([[1.0]])
+        tiny_meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        tiny_raster = Raster(arr=tiny_arr, raster_meta=tiny_meta)
+        all_nan_slice_raster = tiny_raster.pad(width=10.0, value=np.nan)
+
+        # Act (no warning)
+        method = getattr(all_nan_slice_raster, method_name)
+        method()
+
+    def test_quantile_all_nan_raster_no_warning(self) -> None:
+        """Test that quantile doesn't raise warnings with all-NaN rasters."""
+        # Arrange
+        tiny_arr = np.array([[1.0]])
+        tiny_meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        tiny_raster = Raster(arr=tiny_arr, raster_meta=tiny_meta)
+        all_nan_slice_raster = tiny_raster.pad(width=10.0, value=np.nan)
+
+        # Act (no warning)
+        all_nan_slice_raster.quantile(0.8)
 
 
 class TestNormalize:

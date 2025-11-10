@@ -5,9 +5,8 @@
 # rastr
 
 [![PyPI Version](https://img.shields.io/pypi/v/rastr.svg)](<https://pypi.python.org/pypi/rastr>)
-[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![usethis](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/usethis-python/usethis-python/main/assets/badge/v1.json)](https://github.com/usethis-python/usethis-python)
+[![PyPI Supported Versions](https://img.shields.io/pypi/pyversions/rastr.svg)](https://pypi.python.org/pypi/rastr)
+![PyPI License](https://img.shields.io/pypi/l/rastr.svg)
 
 A lightweight geospatial raster datatype library for Python focused on simplicity.
 
@@ -39,9 +38,8 @@ pip install rastr
 ```python
 from pyproj.crs.crs import CRS
 from rasterio.transform import from_origin
+from rastr import Raster, RasterMeta
 from rastr.create import full_raster
-from rastr.meta import RasterMeta
-from rastr.raster import Raster
 
 # Read a raster from a file
 raster = Raster.read_file("path/to/raster.tif")

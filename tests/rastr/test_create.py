@@ -7,7 +7,13 @@ import numpy as np
 import pytest
 from affine import Affine
 from pyproj.crs.crs import CRS
-from shapely import GeometryCollection, MultiLineString, MultiPoint, MultiPolygon
+from shapely import (
+    GeometryCollection,
+    LinearRing,
+    MultiLineString,
+    MultiPoint,
+    MultiPolygon,
+)
 from shapely.geometry import LineString, Point, Polygon
 
 from rastr.create import (
@@ -2347,6 +2353,57 @@ class TestRasterFromContours:
         assert np.min(valid_values) >= 18.0
         assert np.max(valid_values) <= 32.0
 
+    def test_linearring_contours(self):
+        # Create LinearRing geometries
+        ring1 = LinearRing([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
+        ring2 = LinearRing([(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)])
+
+        values = [14.0, 28.0]
+        geometry = [ring1, ring2]
+
+        # Should not raise an error with LinearRing geometries
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=0.5,
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Values should fall in expected range
+        assert len(valid_values) > 0
+        assert np.min(valid_values) >= 14.0
+        assert np.max(valid_values) <= 28.0
+
+    def test_point_contours(self):
+        # Create Point geometries
+        point1 = Point(1.0, 1.0)
+        point2 = Point(3.0, 5.0)
+        point3 = Point(2.0, -2.0)
+
+        values = [50.0, 100.0, 75.0]
+        geometry = [point1, point2, point3]
+
+        # Should not raise an error with Point geometries
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=0.5,
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        valid_values = raster_array[~np.isnan(raster_array)]
+
+        # Values should fall in expected range
+        assert len(valid_values) > 0
+        assert np.min(valid_values) >= 50.0
+        assert np.max(valid_values) <= 100.0
+
     def test_kissing_contours(self):
         # Arrange
         # Create two contours that touch at a single point
@@ -2398,6 +2455,36 @@ class TestRasterFromContours:
         pocket_values = result.arr[pocket_mask]
         unique_values = np.unique(pocket_values[~np.isnan(pocket_values)])
         assert len(unique_values) == 1
+
+    def test_segmentization(self):
+        """If we don't segmentize long contour lines, i.e. add extra vertices along
+        them, we can get artifacts in the rasterization where long straight lines
+        aren't treated as continuous lines and just far-spaced points.
+        """
+
+        long_contour = LineString([(0, 0), (0, 100)])
+        protected_point = Point(1, 50)
+        exposed_contour = LineString([(-5, 45), (-5, 55)])
+
+        values = [10.0, 20.0, 10.0]
+        geometry = [long_contour, protected_point, exposed_contour]
+
+        result = raster_from_contours(
+            values=values,
+            geometry=geometry,
+            crs=_PROJECTED_CRS,
+            cell_size=1,
+        )
+
+        assert isinstance(result, Raster)
+        raster_array = result.arr
+        # With segmentization, we would expect everything below x=-1 to have
+        # value 10.0
+        x_thresh = -1
+        x, _y = result.get_xy()
+        left_mask = x < x_thresh
+        left_values = raster_array[left_mask & ~np.isnan(raster_array)]
+        assert np.all(left_values == 10.0)
 
 
 class TestExtractCoords:

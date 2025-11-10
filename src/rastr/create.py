@@ -9,6 +9,7 @@ import rasterio.features
 import rasterio.transform
 from affine import Affine
 from pyproj import CRS
+from shapely import segmentize
 from shapely.geometry import (
     LineString,
     MultiLineString,
@@ -22,7 +23,7 @@ from typing_extensions import assert_never
 from rastr.gis.crs import get_affine_sign
 from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
 from rastr.gis.interpolate import InterpolationError, interpn_kernel
-from rastr.meta import RasterMeta
+from rastr.meta import RasterMeta, infer_cell_size
 from rastr.raster import Raster, RasterModel
 
 if TYPE_CHECKING:
@@ -585,13 +586,20 @@ def raster_from_contours(
         msg = "At least two distinct contour values are required."
         raise ValueError(msg)
 
+    if cell_size is None:
+        cell_size = _infer_cell_size_from_geometry(geometry)
+
     coords: list[tuple[float, ...]] = []
     z_values: list[float] = []
-    # Extract (x, y, z) points from contour geometries
-    # Repeat each contour value for all coordinates in that contour
     for value, geom in zip(values, geometry, strict=True):
+        # Extract (x, y, z) points from contour geometries
+        # Segmentize to ensure contours are treated like continuous curves instead
+        # of a collection of points with gaps.
+        geom = segmentize(geom, max_segment_length=cell_size / 2)
         geom_coords = list(_extract_coords(geom))
         coords.extend(geom_coords)
+
+        # Repeat each contour value for all coordinates in that contour
         z_values.extend([value] * len(geom_coords))
 
     coord_arr = np.asarray(coords)
@@ -618,6 +626,18 @@ def raster_from_contours(
         raster.arr[mask] = value
 
     return raster
+
+
+def _infer_cell_size_from_geometry(geometry: Collection[BaseGeometry]) -> float:
+    # Extract the coordinates without segmentization
+    coords: list[tuple[float, ...]] = []
+    for geom in geometry:
+        geom_coords = list(_extract_coords(geom))
+        coords.extend(geom_coords)
+
+    coord_arr = np.asarray(coords)
+    cell_size = infer_cell_size(coord_arr[:, 0], coord_arr[:, 1])
+    return cell_size
 
 
 def _extract_coords(geometry: BaseGeometry) -> Iterable[tuple[float, ...]]:

@@ -30,18 +30,14 @@ repos:
         name: uv-lock
         entry: uv lock --offline
         files: ^(uv\.lock|pyproject\.toml|uv\.toml)$
-        additional_dependencies:
-          - uv==0.7.13
-        language: python
+        language: system
         always_run: true
         pass_filenames: false
       - id: uv-sync
         name: uv-sync
         entry: uv sync --no-active --offline
         args: [--locked]
-        additional_dependencies:
-          - uv==0.7.13
-        language: python
+        language: system
         always_run: true
         pass_filenames: false
         stages: [manual, pre-commit, pre-push, post-checkout, post-merge, 
@@ -75,9 +71,7 @@ repos:
         always_run: true
         entry: uv run --frozen --offline ruff format --force-exclude
         types_or: [python, pyi, jupyter]
-        additional_dependencies:
-          - uv==0.7.13
-        language: python
+        language: system
         pass_filenames: false
       - id: ruff-check
         name: ruff-check
@@ -85,9 +79,7 @@ repos:
         entry: uv run --frozen --offline ruff check --fix  --force-exclude 
             --ignore "FIX"
         types_or: [python, pyi, jupyter]
-        additional_dependencies:
-          - uv==0.7.13
-        language: python
+        language: system
         pass_filenames: false
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -105,9 +97,7 @@ repos:
       - id: nbstripout
         name: nbstripout
         entry: uv run --frozen --offline nbstripout
-        additional_dependencies:
-          - uv==0.7.13
-        language: python
+        language: system
         files: .*\.(ipynb)$
         exclude: .*\.(example|template|keepoutput|)\.ipynb$
 
@@ -116,9 +106,7 @@ repos:
       - id: deptry
         name: deptry
         entry: uv run --frozen --offline deptry src
-        additional_dependencies:
-          - uv==0.7.13
-        language: python
+        language: system
         always_run: true
         pass_filenames: false
   - repo: local

@@ -33,7 +33,7 @@ repos:
       - id: uv-export
         args: ["--quiet"]
       - id: uv-export
-        args: ["--frozen", "--only-group=doc", "--output-file=docs/requirements.txt", "--quiet"]
+        args: ["--frozen", "--no-group=dev", "--no-group=test", "--output-file=docs/requirements.txt", "--quiet"]
   - repo: https://github.com/tox-dev/pyproject-fmt
     rev: v2.11.1
     hooks:

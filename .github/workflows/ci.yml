@@ -56,15 +56,10 @@ jobs:
           custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
         env:
           MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434
-
-      - name: Configure SonarQube
+      - name: Configure coverage reports directory
         if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}
         run: |
           mkdir -p ./test-reports
-          uv run usethis show sonarqube > sonar-projects.properties
-          sed -i "s|SONAR_PROJECT_KEY|${SONAR_PROJECT_KEY}|g" sonar-projects.properties
-        env:
-          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
       - name: Upload coverage reports
         if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}
@@ -72,13 +67,6 @@ jobs:
         with:
           name: coverage-reports
           path: test-reports/coverage.xml
-
-      - name: Upload SonarQube config
-        if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        with:
-          name: sonar-projects
-          path: sonar-projects.properties
 
     strategy:
       matrix:
@@ -125,12 +113,20 @@ jobs:
           path: test-reports/
         continue-on-error: true
 
-      - name: Download SonarQube config
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: sonar-projects
-          path: sonar-projects.properties
-        continue-on-error: true
+      - name: Create SonarQube properties
+        run: |
+          cat > sonar-project.properties << EOF
+          sonar.projectKey=${SONAR_PROJECT_KEY}
+          sonar.language=py
+          sonar.python.version=3.13
+          sonar.sources=./src
+          sonar.tests=./tests
+          sonar.python.coverage.reportPaths=./test-reports/coverage.xml
+          sonar.exclusions=**/Dockerfile,**/notebooks/**,**/scripts/**
+          sonar.verbose=false
+          EOF
+        env:
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
       - name: Run SonarQube analysis
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0

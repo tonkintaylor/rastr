@@ -26,6 +26,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dynamic = [ "urls", "version" ]
 dependencies = [
@@ -49,24 +50,28 @@ dependencies = [
 [dependency-groups]
 dev = [
   "build>=1.2.2.post1",
+  "codespell>=2.4.1",
   "deptry>=0.23.0",
+  "flake8-dunder-all>=0.5.0",
   "folium>=0.20.0",
   "import-linter>=2.3",
   "ipykernel>=6.30.0",
   "ipython>=8.37.0",
   "ipywidgets>=8.1.7",
   "matplotlib>=3.10.3",
-  "nbstripout>=0.8.1",
   "perfplot>=0.10.2",
   "pip>=25.1.1",
   "pre-commit>=4.2.0",
+  "pre-commit-hooks>=6.0.0",
   "pre-commit-update>=0.8.0",
   "pyinstrument>=5.1.1",
+  "pyproject-fmt>=2.11.1",
   "pyright[nodejs]>=1.1.403",
   "ruff>=0.13.2",
+  "sync-with-uv>=0.4.0",
   "tqdm>=4.67.1",
   "usethis>=0.15.2",
-  "zizmor>=1.14.2",
+  "validate-pyproject>=0.24.1",
 ]
 test = [
   "coverage[toml]>=7.10.1",
@@ -76,7 +81,12 @@ test = [
   "pytest-emoji>=0.2.0",
   "pytest-md>=0.2.0",
 ]
-doc = [ "mkdocs>=1.6.1" ]
+doc = [
+  "mkdocs>=1.6.1",
+]
+uv = [
+  "uv>=0.7.13",
+]
 
 [tool.hatch.version]
 source = "vcs"
@@ -89,6 +99,11 @@ source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/rastr/_version.py"
+
+[tool.uv]
+default-groups = [ "dev", "test", "doc" ]
+required-version = ">=0.7.13"             # sync with .pre-commit-config.yaml and release.yml
+link-mode = "symlink"
 
 [tool.ruff]
 line-length = 88
@@ -254,11 +269,6 @@ exclude_lines = [
 [tool.coverage.xml]
 output = "test-reports/coverage.xml"
 
-[tool.uv]
-default-groups = [ "dev", "test", "doc" ]
-required-version = "==0.7.13"             # sync with .pre-commit-config.yaml and release.yml
-link-mode = "symlink"
-
 [tool.importlinter]
 root_packages = [ "rastr" ]
 
@@ -268,3 +278,6 @@ type = "layers"
 layers = [ "create : io : raster", "meta", "arr | gis", "_version" ]
 containers = [ "rastr" ]
 exhaustive = true
+
+[tool.sync-with-uv.repo-to-package]
+"https://github.com/astral-sh/uv-pre-commit" = "uv"

@@ -81,7 +81,9 @@ test = [
   "pytest-emoji>=0.2.0",
   "pytest-md>=0.2.0",
 ]
-doc = [  ]
+doc = [
+  "mkdocs>=1.6.1",
+]
 uv = [
   "uv>=0.7.13",
 ]

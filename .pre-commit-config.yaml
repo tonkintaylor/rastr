@@ -1,6 +1,10 @@
 ci:
     autofix_prs: false
 repos:
+  - repo: https://github.com/tsvikas/sync-with-uv
+    rev: v0.4.0
+    hooks:
+      - id: sync-with-uv
   - repo: local
     hooks:
       # Prevent committing .rej files from copier
@@ -9,7 +13,6 @@ repos:
         entry: found Copier update rejection files; review them and remove them
         language: fail
         files: \.rej$
-
   - repo: local
     hooks:
       # Prevent committing test.py files within the tests directory
@@ -18,72 +21,37 @@ repos:
         entry: found test.py file inside tests directory; rename or remove them
         language: fail
         files: ((./tests/.*/test.py)|(./tests/test.py))$
-
   - repo: https://github.com/abravalheri/validate-pyproject
-    rev: v0.23
+    rev: v0.24.1
     hooks:
       - id: validate-pyproject
-
-  - repo: local
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.7.13
     hooks:
       - id: uv-lock
-        name: uv-lock
-        entry: uv lock --offline
-        files: ^(uv\.lock|pyproject\.toml|uv\.toml)$
-        language: system
-        always_run: true
-        pass_filenames: false
       - id: uv-sync
-        name: uv-sync
-        entry: uv sync --no-active --offline
-        args: [--locked]
-        language: system
-        always_run: true
-        pass_filenames: false
-        stages: [manual, pre-commit, pre-push, post-checkout, post-merge, 
-                post-rewrite]
       - id: uv-export
-        name: uv-export
-        files: ^uv\.lock|requirements.txt$
-        entry: uv export --frozen --offline --quiet --no-default-groups 
-            -o="requirements.txt"
-        additional_dependencies:
-          - uv==0.7.13
-        language: python
-        pass_filenames: false
-        require_serial: true
-
+        args: ["--quiet"]
+      - id: uv-export
+        args: ["--frozen", "--only-group=doc", "--output-file=docs/requirements.txt", "--quiet"]
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: v2.6.0
+    rev: v2.11.1
     hooks:
       - id: pyproject-fmt
   - repo: https://github.com/python-formate/flake8-dunder-all
-    rev: v0.4.1
+    rev: v0.5.0
     hooks:
       - id: ensure-dunder-all
         files: .*/__init__\.py$
         exclude: tests/assets/
-
-  - repo: local
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.2
     hooks:
-      - id: ruff-format
-        name: ruff-format
-        always_run: true
-        entry: uv run --frozen --offline ruff format --force-exclude
-        types_or: [python, pyi, jupyter]
-        language: system
-        pass_filenames: false
       - id: ruff-check
-        name: ruff-check
-        always_run: true
-        entry: uv run --frozen --offline ruff check --fix  --force-exclude 
-            --ignore "FIX"
-        types_or: [python, pyi, jupyter]
-        language: system
-        pass_filenames: false
-
+        args: ["--fix", "--ignore", "FIX"]
+      - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
         args: [--maxkb=100000]
@@ -91,16 +59,6 @@ repos:
         exclude: (.*\.sh|.*\.d2|.*\.md|.*\.drawio|.*egg-info.*|)$
       - id: check-merge-conflict
         args: [--assume-in-merge]
-
-  - repo: local
-    hooks:
-      - id: nbstripout
-        name: nbstripout
-        entry: uv run --frozen --offline nbstripout
-        language: system
-        files: .*\.(ipynb)$
-        exclude: .*\.(example|template|keepoutput|)\.ipynb$
-
   - repo: local
     hooks:
       - id: deptry
@@ -113,11 +71,10 @@ repos:
     hooks:
       - id: import-linter
         name: import-linter
-        always_run: true
         entry: uv run --frozen --offline lint-imports
         language: system
+        always_run: true
         pass_filenames: false
-        require_serial: true
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:

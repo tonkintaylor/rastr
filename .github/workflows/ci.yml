@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   tests:
-    name: Run Tests and Checks
+    name: ${{ format('Test Python {0} {1}', matrix.python_version, ((matrix.dependencies == 'min' || matrix.dependencies == 'max') && format('{0} dependencies', matrix.dependencies)) || (matrix.os || 'ubuntu-latest')) }}
     runs-on: ${{ matrix.os }}
     env:
       PYTHONIOENCODING: utf-8
@@ -30,56 +30,39 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup git user config
-        run: |
-          git config --global user.name placeholder
-          git config --global user.email placeholder@example.com
-
       - name: Set up uv
-        uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.3.1
+        uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3 # v7.1.3
         with:
           version: "0.7.13" # Sync with pyproject.toml
           enable-cache: true
 
-      - name: Setup Python
+      - name: Setup dependencies
         run: |
-          uv python pin ${PYTHON_VERSION}
-          uv python install
+          uv sync $CI_UV_UPGRADE_ARG
         env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
+          CI_UV_UPGRADE_ARG: ${{ matrix.dependencies == 'max' && '--upgrade' || '' }}
+          UV_RESOLUTION: ${{ matrix.dependencies == 'min' && 'lowest-direct' || 'highest' }}
 
-      - name: Run pre-commit
-        if: matrix.checks
+      - name: Run checks
+        if: ${{ matrix.checks == null || matrix.checks == 'true' }}
         run: |
           uv run pre-commit run --all-files
-
-      - name: Run pyright
-        if: matrix.checks
-        run: |
           uv run pyright
-
-      - name: Run zizmor
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
-        run: |
-          uv run zizmor --no-progress --pedantic .github/
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run pytest
         uses: pavelzw/pytest-action@510c5e90c360a185039bea56ce8b3e7e51a16507 # v2.2.0
-        if: matrix.pytest
         with:
           custom-pytest: uv run pytest
           custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
         env:
           MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434
-
-      - name: Create test reports directory
-        if: matrix.pytest && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
-        run: mkdir -p ./test-reports
+      - name: Configure coverage reports directory
+        if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}
+        run: |
+          mkdir -p ./test-reports
 
       - name: Upload coverage reports
-        if: matrix.pytest && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: coverage-reports
@@ -87,17 +70,26 @@ jobs:
 
     strategy:
       matrix:
+        python_version: ["3.10", "3.14"]
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-        resolution: ["highest"]
-        checks: [true]
-        pytest: [true]
+        dependencies: ["lockfile"]
+        sonarqube: ["false"]
         include:
+          - python_version: "3.11"
+            os: "ubuntu-latest"
+          - python_version: "3.12"
+            os: "ubuntu-latest"
+          - sonarqube: "true"
+            python_version: "3.13"
+            os: "ubuntu-latest"
           - os: "ubuntu-latest"
-            python-version: "3.10"
-            resolution: "lowest-direct"
-            checks: false
-            pytest: true
+            python_version: "3.10"
+            dependencies: "min"
+            checks: "false"
+          - dependencies: "max"
+            python_version: "3.14"
+            os: "ubuntu-latest"
+            checks: "false"
 
   code-analysis:
     name: Analyse Code Quality

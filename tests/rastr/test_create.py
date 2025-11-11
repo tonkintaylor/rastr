@@ -2447,7 +2447,7 @@ class TestRasterFromContours:
         )
 
         # Assert
-        # All values in the horseshow pocket (above a y-threshold) should be identical
+        # All values in the horseshoe pocket (above a y-threshold) should be identical
         y_thresh = 5918541.61
         _x, y = result.get_xy()
         pocket_mask = y > y_thresh

@@ -83,6 +83,9 @@ test = [
 ]
 doc = [
   "mkdocs>=1.6.1",
+  "mkdocs-autoapi[python]>=0.4.1",
+  "mkdocs-material>=9.7.0",
+  "mkdocstrings[python]>=0.30.1",
 ]
 uv = [
   "uv>=0.7.13",

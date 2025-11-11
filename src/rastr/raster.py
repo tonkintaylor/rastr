@@ -679,8 +679,9 @@ class Raster(BaseModel):
 
         Args:
             **kwargs: Keyword arguments to pass to `rasterio.plot.show()`. This includes
-            parameters like `alpha` for transparency, and `with_bounds` to control
-            whether to plot in spatial coordinates or array index coordinates.
+                      parameters like `alpha` for transparency, and `with_bounds` to
+                      control whether to plot in spatial coordinates or array index
+                      coordinates.
         """
         with self.to_rasterio_dataset() as dataset:
             return rasterio.plot.show(dataset, **kwargs).get_images()
@@ -785,7 +786,7 @@ class Raster(BaseModel):
         *,
         raw: Literal[False] = False,
     ) -> Self: ...
-    def apply(self, func, *, raw=False) -> Self:
+    def apply(self, func: Callable, *, raw: bool = False) -> Self:
         """Apply a function element-wise to the raster array.
 
         Creates a new raster instance with the same metadata (CRS, transform, etc.)

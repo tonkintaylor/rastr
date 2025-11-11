@@ -2407,8 +2407,8 @@ class TestRasterFromContours:
     def test_kissing_contours(self):
         # Arrange
         # Create two contours that touch at a single point
-        line1 = LineString([(0.0, 0.0), (2.0, 2.0)])
-        line2 = LineString([(2.0, 2.0), (4.0, 0.0)])
+        line1 = LineString([(-0.25, -0.25), (2.0, 2.25)])
+        line2 = LineString([(2.0, 2.25), (4.25, 4.25)])
         values = [10.0, 20.0]
         geometry = [line1, line2]
         # Act
@@ -2420,6 +2420,13 @@ class TestRasterFromContours:
         )
         # Assert
         assert isinstance(result, Raster)
+
+        # The value at 2, 2 is 15. This point should be the average of the 2 contours
+        x_coords, y_coords = result.get_xy()
+        point_mask = np.isclose(x_coords, 2.0) & np.isclose(y_coords, 2.0)
+        point_value = result.arr[point_mask]
+        assert point_value.size > 0
+        assert np.isclose(point_value, 15.0)
 
     def test_float_speckling(self, assets_dir: Path):
         """When interpolating between contours, we can get whole areas which all get

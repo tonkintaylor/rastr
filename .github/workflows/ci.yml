@@ -62,8 +62,7 @@ jobs:
         run: |
           mkdir -p ./test-reports
           uv run usethis show sonarqube > sonar-projects.properties
-        env:
-          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          sed -i 's/SONAR_PROJECT_KEY/'"${{ vars.SONAR_PROJECT_KEY }}"'/g' sonar-projects.properties
 
       - name: Upload coverage reports
         if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}

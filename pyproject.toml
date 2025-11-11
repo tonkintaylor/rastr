@@ -279,3 +279,7 @@ exhaustive = true
 
 [tool.sync-with-uv.repo-to-package]
 "https://github.com/astral-sh/uv-pre-commit" = "uv"
+
+[tool.usethis.sonarqube]
+project-key = "SONAR_PROJECT_KEY"
+exclusions = [ "**/Dockerfile", "**/notebooks/**", "**/scripts/**" ]

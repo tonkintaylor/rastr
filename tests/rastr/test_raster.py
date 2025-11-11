@@ -950,6 +950,48 @@ class TestRaster:
             # Assert
             assert isinstance(result, MyRaster)
 
+    class TestLog:
+        def test_basic_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1, np.e], [np.e**2, np.e**3]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.log()
+
+            # Assert
+            np.testing.assert_allclose(result.arr, np.array([[0, 1], [2, 3]]))
+            assert result.raster_meta == raster_meta
+
+    class TestExp:
+        def test_basic_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[0, 1], [2, 3]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.exp()
+
+            # Assert
+            np.testing.assert_allclose(
+                result.arr, np.array([[1, np.e], [np.e**2, np.e**3]])
+            )
+            assert result.raster_meta == raster_meta
+
     class TestApply:
         def test_sine(self, example_raster: Raster):
             # Act

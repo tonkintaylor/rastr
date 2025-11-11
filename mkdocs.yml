@@ -1,3 +1,40 @@
 site_name: rastr
+
 nav:
-  - Home: index.md
+  - Introduction: index.md
+
+theme:
+  name: material
+  logo: logo.svg
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-6
+        name: Switch between light and dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: black
+      scheme: slate
+      toggle:
+        icon: material/brightness-6
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: black
+      scheme: default
+      toggle:
+        icon: material/brightness-6
+        name: Switch to dark mode
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/usethis-python/usethis-python
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/usethis/
+
+plugins:
+  - search
+  - mkdocs-autoapi:
+      autoapi_dir: "src/rastr"
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["src/rastr"]

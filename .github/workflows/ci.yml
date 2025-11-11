@@ -62,7 +62,7 @@ jobs:
         run: |
           mkdir -p ./test-reports
           uv run usethis show sonarqube > sonar-projects.properties
-          sed -i "s/SONAR_PROJECT_KEY/${SONAR_PROJECT_KEY}/g" sonar-projects.properties
+          sed -i "s|SONAR_PROJECT_KEY|${SONAR_PROJECT_KEY}|g" sonar-projects.properties
         env:
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 

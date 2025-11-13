@@ -276,6 +276,30 @@ class Raster(BaseModel):
         cls = self.__class__
         return cls(arr=np.abs(self.arr), raster_meta=self.raster_meta)
 
+    def log(self) -> Self:
+        """Compute the natural logarithm of the raster.
+
+        Returns a new raster with the natural logarithm of each cell. The original
+        raster is not modified.
+
+        Returns:
+            A new Raster instance with the natural logarithm values.
+        """
+        cls = self.__class__
+        return cls(arr=np.log(self.arr), raster_meta=self.raster_meta)
+
+    def exp(self) -> Self:
+        """Compute the exponential of the raster.
+
+        Returns a new raster with the exponential (e^x) of each cell. The original
+        raster is not modified.
+
+        Returns:
+            A new Raster instance with the exponential values.
+        """
+        cls = self.__class__
+        return cls(arr=np.exp(self.arr), raster_meta=self.raster_meta)
+
     @property
     def cell_centre_coords(self) -> NDArray[np.float64]:
         """Get the coordinates of the cell centres in the raster."""
@@ -679,8 +703,9 @@ class Raster(BaseModel):
 
         Args:
             **kwargs: Keyword arguments to pass to `rasterio.plot.show()`. This includes
-            parameters like `alpha` for transparency, and `with_bounds` to control
-            whether to plot in spatial coordinates or array index coordinates.
+                      parameters like `alpha` for transparency, and `with_bounds` to
+                      control whether to plot in spatial coordinates or array index
+                      coordinates.
         """
         with self.to_rasterio_dataset() as dataset:
             return rasterio.plot.show(dataset, **kwargs).get_images()
@@ -785,7 +810,7 @@ class Raster(BaseModel):
         *,
         raw: Literal[False] = False,
     ) -> Self: ...
-    def apply(self, func, *, raw=False) -> Self:
+    def apply(self, func: Callable, *, raw: bool = False) -> Self:
         """Apply a function element-wise to the raster array.
 
         Creates a new raster instance with the same metadata (CRS, transform, etc.)

@@ -1867,47 +1867,7 @@ class TestRasterizeZGDF:
 
 class TestRasterFromPointCloud:
     def test_square(self):
-        """Test rasterization from a simple square point cloud.
-
-        (0,1,20)            (1,1,40)
-           ┌─────────┬─────────┐
-           │         │         │
-           │         │         │
-           │    x    │    x    │
-           │         │         │
-           │         │         │
-           ├─────────┼─────────┤
-           │         │         │
-           │         │         │
-           │    x    │    x    │
-           │         │         │
-           │         │         │
-           └─────────└─────────┘
-        (0,0,10)            (1,0,30)
-
-        The three nearest points to (0.5, 1.5) are (0,0), (0,1), and (1,1), as shown
-        below:
-
-        (0,1,20)            (1,1,40)
-            ┌─────────┬─────────┐
-            │\\       │   //////│
-            │  \\   //│///      │
-            │    x//  │    x    │
-            │   /     │         │
-            │   /     │         │
-            ├─────────┼─────────┤
-            │  /      │         │
-            │  /      │         │
-            │ /  x    │    x    │
-            │ /       │         │
-            │/        │         │
-            └─────────└─────────┘
-        (0,0,10)            (1,0,30)
-
-        In barycentric coordinates of the triangle formed by these points, (0.5, 1.5)
-        is (1/4, 1/2, 1/4). Thus, the interpolated value is:
-        1/4*10 + 1/2*20 + 1/4*40 = 2.5 + 10 + 10 = 22.5.
-        """
+        """Test rasterization from a simple square point cloud."""
 
         # Arrange
         x = [0, 0, 1, 1]
@@ -1919,11 +1879,22 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
+
+        # The non-corner cells are interpolated
         expected_array = np.array(
             [
-                [0.25 * 10 + 0.5 * 20 + 0.25 * 40, 0.25 * 30 + 0.5 * 40 + 0.25 * 20],
-                [0.25 * 20 + 0.5 * 10 + 0.25 * 30, 0.25 * 10 + 0.5 * 30 + 0.25 * 40],
+                [
+                    20.0,
+                    (20 + 40) / 2,
+                    40.0,
+                ],
+                [
+                    (10 + 20) / 2,
+                    (10 + 20 + 30 + 40) / 4,
+                    (40 + 30) / 2,
+                ],
+                [10.0, (10 + 30) / 2, 30.0],
             ]
         )
         np.testing.assert_array_equal(raster.arr, expected_array)

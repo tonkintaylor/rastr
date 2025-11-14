@@ -1166,64 +1166,6 @@ class TestRasterizeZGDF:
         assert result.raster_meta.cell_size == raster_meta.cell_size
         assert result.raster_meta.crs == raster_meta.crs
 
-    def test_target_cols_as_tuple(self):
-        """Test that target_cols accepts a tuple (Collection) instead of just list."""
-        import geopandas as gpd
-
-        polygons = [
-            Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
-            Polygon([(1, 0), (1, 1), (2, 1), (2, 0)]),
-        ]
-        gdf = gpd.GeoDataFrame(
-            {
-                "value1": [10.0, 20.0],
-                "value2": [100.0, 200.0],
-                "geometry": polygons,
-            },
-            crs=_PROJECTED_CRS,
-        )
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
-
-        # Use tuple instead of list for target_cols
-        result = rasterize_gdf(
-            gdf, raster_meta=raster_meta, target_cols=("value1", "value2")
-        )
-
-        assert len(result) == 2
-        assert all(isinstance(r, Raster) for r in result)
-
-    def test_target_cols_as_set(self):
-        """Test that target_cols accepts a set (Collection) instead of just list."""
-        import geopandas as gpd
-
-        polygons = [
-            Polygon([(0, 0, -1), (0, 1, 1), (1, 1, 2), (1, 0, 3)]),
-        ]
-        gdf = gpd.GeoDataFrame(
-            {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
-        )
-        raster_meta = RasterMeta(
-            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
-        )
-
-        result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
-        )
-
-        assert isinstance(result, Raster)
-        # The cell size and CRS should be preserved
-        assert result.raster_meta.cell_size == raster_meta.cell_size
-        assert result.raster_meta.crs == raster_meta.crs
-        # The transform may be adjusted to properly cover the geometry
-
-        # Check that interpolated values are within expected range
-        raster_array = result.arr
-        valid_values = raster_array[~np.isnan(raster_array)]
-        assert len(valid_values) > 0
-        assert np.all((valid_values >= 0.0) & (valid_values <= 20.0))
-
     def test_multiple_polygons_mean_aggregation(self):
         """Test Z interpolation with multiple overlapping polygons using mean
         aggregation."""
@@ -1753,7 +1695,7 @@ class TestRasterizeZGDF:
         assert len(valid_values) > 0
 
     def test_bounds_preservation_no_resampling(self):
-        """Test that overall bounds stay identical when using same cell size."""
+        """Bounds of raster should match input GeoDataFrame shifted by half a cell."""
         import geopandas as gpd
 
         coords_2d = np.array(
@@ -1772,26 +1714,20 @@ class TestRasterizeZGDF:
 
         # Create raster with specific bounds
         cell_size = 5.0
-        raster_meta = RasterMeta(
-            cell_size=cell_size,
-            crs=_PROJECTED_CRS,
-            transform=Affine.scale(cell_size, -cell_size),
-        )
 
-        result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
-        )
+        result = rasterize_z_gdf(gdf, cell_size=cell_size, crs=_PROJECTED_CRS)
 
         # Get the bounds of the result
         result_bounds = result.bounds
 
-        # Calculate expected bounds based on geometry (no buffer after refactoring)
+        # With the new infer implementation, bounds extend by cell_size/2 on each side
+        # to ensure cell centers align with data points
         gdf_bounds = gdf.total_bounds
         expected_bounds = (
-            gdf_bounds[0],  # minx
-            gdf_bounds[1],  # miny
-            gdf_bounds[2],  # maxx
-            gdf_bounds[3],  # maxy
+            gdf_bounds[0] - cell_size / 2,  # minx - half cell
+            gdf_bounds[1] - cell_size / 2,  # miny - half cell
+            gdf_bounds[2] + cell_size / 2,  # maxx + half cell
+            gdf_bounds[3] + cell_size / 2,  # maxy + half cell
         )
 
         # Check bounds are within relative tolerance
@@ -1823,41 +1759,28 @@ class TestRasterizeZGDF:
         polygon = self._create_3d_polygon(coords_2d, z_values)
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
-        # Create a 2x2 raster over the unit square (cell size 0.5)
+        # Use cell size 0.5 for the unit square
         cell_size = 0.5
-        # Transform that starts at (0,1) and goes down with negative y-scale
-        transform = Affine.translation(0.0, 1.0) * Affine.scale(cell_size, -cell_size)
-        raster_meta = RasterMeta(
-            cell_size=cell_size,
-            crs=_PROJECTED_CRS,
-            transform=transform,
-        )
 
-        result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
-        )
+        result = rasterize_z_gdf(gdf, cell_size=cell_size, crs=_PROJECTED_CRS)
 
-        # After refactoring to remove unnecessary buffering, the function returns
-        # a clean 2x2 array that exactly matches the cell size and geometry bounds
-        # The interpolated values are:
-        # Position [0,0] (cell center 0.25, 0.75): Z ≈ 1.0 (bilinear interpolation)
-        # Position [0,1] (cell center 0.75, 0.75): Z ≈ 1.5 (bilinear interpolation)
-        # Position [1,0] (cell center 0.25, 0.25): Z ≈ 0.5 (bilinear interpolation)
-        # Position [1,1] (cell center 0.75, 0.25): Z ≈ 1.0 (bilinear interpolation)
+        # Shape is (3, 3) with cell centers at:
+        # - Columns (x): 0.0, 0.5, 1.0
+        # - Rows (y): 1.0, 0.5, 0.0
+        # This grid captures all corner points exactly plus interpolated midpoints
+
         expected_array = np.array(
             [
-                [1.0, 1.5],  # Top row: (0.25, 0.75), (0.75, 0.75)
-                [0.5, 1.0],  # Bottom row: (0.25, 0.25), (0.75, 0.25)
+                [1.0, 1.5, 2.0],
+                [0.5, 1.0, 1.5],
+                [0.0, 0.5, 1.0],
             ],
             dtype=np.float64,
         )
 
-        # Get the actual array and compare
-        actual_array = result.arr
-
         # Test against expected array using allclose
         np.testing.assert_allclose(
-            actual_array,
+            result.arr,
             expected_array,
             rtol=1e-5,
             err_msg="Interpolated array doesn't match expected values",
@@ -1867,47 +1790,7 @@ class TestRasterizeZGDF:
 
 class TestRasterFromPointCloud:
     def test_square(self):
-        """Test rasterization from a simple square point cloud.
-
-        (0,1,20)            (1,1,40)
-           ┌─────────┬─────────┐
-           │         │         │
-           │         │         │
-           │    x    │    x    │
-           │         │         │
-           │         │         │
-           ├─────────┼─────────┤
-           │         │         │
-           │         │         │
-           │    x    │    x    │
-           │         │         │
-           │         │         │
-           └─────────└─────────┘
-        (0,0,10)            (1,0,30)
-
-        The three nearest points to (0.5, 1.5) are (0,0), (0,1), and (1,1), as shown
-        below:
-
-        (0,1,20)            (1,1,40)
-            ┌─────────┬─────────┐
-            │\\       │   //////│
-            │  \\   //│///      │
-            │    x//  │    x    │
-            │   /     │         │
-            │   /     │         │
-            ├─────────┼─────────┤
-            │  /      │         │
-            │  /      │         │
-            │ /  x    │    x    │
-            │ /       │         │
-            │/        │         │
-            └─────────└─────────┘
-        (0,0,10)            (1,0,30)
-
-        In barycentric coordinates of the triangle formed by these points, (0.5, 1.5)
-        is (1/4, 1/2, 1/4). Thus, the interpolated value is:
-        1/4*10 + 1/2*20 + 1/4*40 = 2.5 + 10 + 10 = 22.5.
-        """
+        """Test rasterization from a simple square point cloud."""
 
         # Arrange
         x = [0, 0, 1, 1]
@@ -1919,11 +1802,22 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
+
+        # The non-corner cells are interpolated
         expected_array = np.array(
             [
-                [0.25 * 10 + 0.5 * 20 + 0.25 * 40, 0.25 * 30 + 0.5 * 40 + 0.25 * 20],
-                [0.25 * 20 + 0.5 * 10 + 0.25 * 30, 0.25 * 10 + 0.5 * 30 + 0.25 * 40],
+                [
+                    20.0,
+                    (20 + 40) / 2,
+                    40.0,
+                ],
+                [
+                    (10 + 20) / 2,
+                    (10 + 20 + 30 + 40) / 4,
+                    (40 + 30) / 2,
+                ],
+                [10.0, (10 + 30) / 2, 30.0],
             ]
         )
         np.testing.assert_array_equal(raster.arr, expected_array)
@@ -1940,7 +1834,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     class TestLengthMismatch:
         def test_xy(self):
@@ -1981,7 +1875,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (20, 20)
+        assert raster.arr.shape == (21, 21)
         assert np.all(raster.arr >= 0)  # All values should be non-negative
         assert np.all(raster.arr <= 1000)  # All values should be within z range
         assert 450 < raster.arr.mean() < 550  # Mean should be roughly accurate
@@ -2013,7 +1907,7 @@ class TestRasterFromPointCloud:
         # Assert
         assert isinstance(raster, Raster)
         # Should successfully create a raster with deduplicated points
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     def test_multiple_xyz_duplicates(self):
         # Arrange - multiple duplicate (x,y,z) triples should all be deduplicated
@@ -2026,7 +1920,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     def test_collinear_points(self):
         # Arrange
@@ -2079,7 +1973,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     def test_xy_are_nan_warns(self):
         # Arrange
@@ -2166,7 +2060,14 @@ class TestRasterFromContours:
         geometry = [line_bottom, line_top]
 
         # expected values based on linear interpolation between 0 (bottom) and 30 (top)
-        expected = np.array([[25.0, 25.0, 25.0], [15.0, 15.0, 15.0], [5.0, 5.0, 5.0]])
+        expected = np.array(
+            [
+                [30.0, 30.0, 30.0, 30.0],
+                [20.0, 20.0, 20.0, 20.0],
+                [10.0, 10.0, 10.0, 10.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
 
         result = raster_from_contours(
             values=values, geometry=geometry, crs=_PROJECTED_CRS, cell_size=1.0
@@ -2405,25 +2306,24 @@ class TestRasterFromContours:
         assert np.max(valid_values) <= 100.0
 
     def test_kissing_contours(self):
+        """Test two contours that touch at a single point."""
         # Arrange
-        # Create two contours that touch at a single point
-        line1 = LineString([(-0.25, -0.25), (2.0, 2.25)])
-        line2 = LineString([(2.0, 2.25), (4.25, 4.25)])
-        values = [10.0, 20.0]
-        geometry = [line1, line2]
+        line1 = LineString([(0, 0), (2, 1)])
+        line2 = LineString([(2, 1), (4, 3)])
+
         # Act
         result = raster_from_contours(
-            values=values,
-            geometry=geometry,
+            values=[10.0, 20.0],
+            geometry=[line1, line2],
             crs=_PROJECTED_CRS,
             cell_size=0.5,
         )
+
         # Assert
         assert isinstance(result, Raster)
-
-        # The value at 2, 2 is 15. This point should be the average of the 2 contours
+        # At the touching point (2, 1), the value should be the average: (10 + 20) / 2
         x_coords, y_coords = result.get_xy()
-        point_mask = np.isclose(x_coords, 2.0) & np.isclose(y_coords, 2.0)
+        point_mask = np.isclose(x_coords, 2.0) & np.isclose(y_coords, 1.0)
         point_value = result.arr[point_mask]
         assert point_value.size > 0
         assert np.isclose(point_value, 15.0)

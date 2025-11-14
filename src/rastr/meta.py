@@ -129,17 +129,19 @@ def infer_transform(
         cell_size = infer_cell_size(x, y)
 
     (xs, ys) = get_affine_sign(crs)
-    return Affine.translation(*infer_origin(x, y)) * Affine.scale(
+    return Affine.translation(*infer_origin(x, y, cell_size=cell_size)) * Affine.scale(
         xs * cell_size, ys * cell_size
     )
 
 
-def infer_origin(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+def infer_origin(
+    x: np.ndarray, y: np.ndarray, *, cell_size: float
+) -> tuple[float, float]:
     """Infer a suitable raster origin based on the bounds of (x, y) data points."""
     # Compute bounds from data
     minx, _miny, _maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
-    origin = (minx, maxy)
+    origin = (minx - cell_size / 2, maxy + cell_size / 2)
     return origin
 
 
@@ -154,8 +156,8 @@ def infer_shape(
     minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
     # Compute grid shape
-    width = int(np.ceil((maxx - minx) / cell_size))
-    height = int(np.ceil((maxy - miny) / cell_size))
+    width = max(1, int(np.ceil((maxx - minx) / cell_size)) + 1)
+    height = max(1, int(np.ceil((maxy - miny) / cell_size)) + 1)
     shape = (height, width)
 
     return shape

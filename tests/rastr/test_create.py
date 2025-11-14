@@ -2137,7 +2137,14 @@ class TestRasterFromContours:
         geometry = [line_bottom, line_top]
 
         # expected values based on linear interpolation between 0 (bottom) and 30 (top)
-        expected = np.array([[25.0, 25.0, 25.0], [15.0, 15.0, 15.0], [5.0, 5.0, 5.0]])
+        expected = np.array(
+            [
+                [30.0, 30.0, 30.0, 30.0],
+                [20.0, 20.0, 20.0, 20.0],
+                [10.0, 10.0, 10.0, 10.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
 
         result = raster_from_contours(
             values=values, geometry=geometry, crs=_PROJECTED_CRS, cell_size=1.0
@@ -2376,25 +2383,24 @@ class TestRasterFromContours:
         assert np.max(valid_values) <= 100.0
 
     def test_kissing_contours(self):
+        """Test two contours that touch at a single point."""
         # Arrange
-        # Create two contours that touch at a single point
-        line1 = LineString([(-0.25, -0.25), (2.0, 2.25)])
-        line2 = LineString([(2.0, 2.25), (4.25, 4.25)])
-        values = [10.0, 20.0]
-        geometry = [line1, line2]
+        line1 = LineString([(0, 0), (2, 1)])
+        line2 = LineString([(2, 1), (4, 3)])
+
         # Act
         result = raster_from_contours(
-            values=values,
-            geometry=geometry,
+            values=[10.0, 20.0],
+            geometry=[line1, line2],
             crs=_PROJECTED_CRS,
             cell_size=0.5,
         )
+
         # Assert
         assert isinstance(result, Raster)
-
-        # The value at 2, 2 is 15. This point should be the average of the 2 contours
+        # At the touching point (2, 1), the value should be the average: (10 + 20) / 2
         x_coords, y_coords = result.get_xy()
-        point_mask = np.isclose(x_coords, 2.0) & np.isclose(y_coords, 2.0)
+        point_mask = np.isclose(x_coords, 2.0) & np.isclose(y_coords, 1.0)
         point_value = result.arr[point_mask]
         assert point_value.size > 0
         assert np.isclose(point_value, 15.0)

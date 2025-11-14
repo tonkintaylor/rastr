@@ -1765,41 +1765,28 @@ class TestRasterizeZGDF:
         polygon = self._create_3d_polygon(coords_2d, z_values)
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
-        # Create a 2x2 raster over the unit square (cell size 0.5)
+        # Use cell size 0.5 for the unit square
         cell_size = 0.5
-        # Transform that starts at (0,1) and goes down with negative y-scale
-        transform = Affine.translation(0.0, 1.0) * Affine.scale(cell_size, -cell_size)
-        raster_meta = RasterMeta(
-            cell_size=cell_size,
-            crs=_PROJECTED_CRS,
-            transform=transform,
-        )
 
-        result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
-        )
+        result = rasterize_z_gdf(gdf, cell_size=cell_size, crs=_PROJECTED_CRS)
 
-        # After refactoring to remove unnecessary buffering, the function returns
-        # a clean 2x2 array that exactly matches the cell size and geometry bounds
-        # The interpolated values are:
-        # Position [0,0] (cell center 0.25, 0.75): Z ≈ 1.0 (bilinear interpolation)
-        # Position [0,1] (cell center 0.75, 0.75): Z ≈ 1.5 (bilinear interpolation)
-        # Position [1,0] (cell center 0.25, 0.25): Z ≈ 0.5 (bilinear interpolation)
-        # Position [1,1] (cell center 0.75, 0.25): Z ≈ 1.0 (bilinear interpolation)
+        # Shape is (3, 3) with cell centers at:
+        # - Columns (x): 0.0, 0.5, 1.0
+        # - Rows (y): 1.0, 0.5, 0.0
+        # This grid captures all corner points exactly plus interpolated midpoints
+
         expected_array = np.array(
             [
-                [1.0, 1.5],  # Top row: (0.25, 0.75), (0.75, 0.75)
-                [0.5, 1.0],  # Bottom row: (0.25, 0.25), (0.75, 0.25)
+                [1.0, 1.5, 2.0],
+                [0.5, 1.0, 1.5],
+                [0.0, 0.5, 1.0],
             ],
             dtype=np.float64,
         )
 
-        # Get the actual array and compare
-        actual_array = result.arr
-
         # Test against expected array using allclose
         np.testing.assert_allclose(
-            actual_array,
+            result.arr,
             expected_array,
             rtol=1e-5,
             err_msg="Interpolated array doesn't match expected values",

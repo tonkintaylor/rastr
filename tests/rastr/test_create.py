@@ -1911,7 +1911,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     class TestLengthMismatch:
         def test_xy(self):
@@ -1952,7 +1952,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (20, 20)
+        assert raster.arr.shape == (21, 21)
         assert np.all(raster.arr >= 0)  # All values should be non-negative
         assert np.all(raster.arr <= 1000)  # All values should be within z range
         assert 450 < raster.arr.mean() < 550  # Mean should be roughly accurate
@@ -1984,7 +1984,7 @@ class TestRasterFromPointCloud:
         # Assert
         assert isinstance(raster, Raster)
         # Should successfully create a raster with deduplicated points
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     def test_multiple_xyz_duplicates(self):
         # Arrange - multiple duplicate (x,y,z) triples should all be deduplicated
@@ -1997,7 +1997,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     def test_collinear_points(self):
         # Arrange
@@ -2050,7 +2050,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (2, 2)
+        assert raster.arr.shape == (3, 3)
 
     def test_xy_are_nan_warns(self):
         # Arrange

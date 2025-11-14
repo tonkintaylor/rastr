@@ -235,5 +235,7 @@ def read_cad_gdf(path: Path | str, crs: CRS | str | None = None) -> gpd.GeoDataF
     elif gdf.crs is not None and not gdf.crs.equals(crs):
         # Reproject if inconsistent
         gdf = gdf.to_crs(crs)
+    elif gdf.crs is None and crs is not None:
+        gdf = gdf.set_crs(crs)
 
     return gdf

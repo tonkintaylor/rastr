@@ -277,7 +277,7 @@ class TestReadRasterMosaicInMem:
         assert raster.arr.dtype == np.float16
 
 
-class TestReadRasterFromCAD:
+class TestReadCADGDF:
     def test_with_nztm_crs(self, monkeypatch: pytest.MonkeyPatch):
         import geopandas as gpd
 
@@ -324,3 +324,23 @@ class TestReadRasterFromCAD:
 
         assert result.crs is not None
         assert result.crs.to_epsg() == target_crs.to_epsg()
+
+    def test_missing_crs_specified(self, monkeypatch: pytest.MonkeyPatch):
+        import geopandas as gpd
+
+        # Arrange
+        # Create a mock GeoDataFrame with no CRS
+        mock_gdf = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0, 0), (1, 0, 1), (1, 1, 2), (0, 1, 1)])]},
+            crs=None,
+        )
+
+        monkeypatch.setattr("geopandas.read_file", lambda *_, **__: mock_gdf)
+
+        specified_crs = CRS.from_epsg(2193)
+
+        # Act
+        result = read_cad_gdf(path=Path("dummy.dxf"), crs=specified_crs)
+
+        # Assert
+        assert result.crs is not None

@@ -1695,7 +1695,7 @@ class TestRasterizeZGDF:
         assert len(valid_values) > 0
 
     def test_bounds_preservation_no_resampling(self):
-        """Test that overall bounds stay identical when using same cell size."""
+        """Bounds of raster should match input GeoDataFrame shifted by half a cell."""
         import geopandas as gpd
 
         coords_2d = np.array(
@@ -1714,26 +1714,20 @@ class TestRasterizeZGDF:
 
         # Create raster with specific bounds
         cell_size = 5.0
-        raster_meta = RasterMeta(
-            cell_size=cell_size,
-            crs=_PROJECTED_CRS,
-            transform=Affine.scale(cell_size, -cell_size),
-        )
 
-        result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
-        )
+        result = rasterize_z_gdf(gdf, cell_size=cell_size, crs=_PROJECTED_CRS)
 
         # Get the bounds of the result
         result_bounds = result.bounds
 
-        # Calculate expected bounds based on geometry (no buffer after refactoring)
+        # With the new infer implementation, bounds extend by cell_size/2 on each side
+        # to ensure cell centers align with data points
         gdf_bounds = gdf.total_bounds
         expected_bounds = (
-            gdf_bounds[0],  # minx
-            gdf_bounds[1],  # miny
-            gdf_bounds[2],  # maxx
-            gdf_bounds[3],  # maxy
+            gdf_bounds[0] - cell_size / 2,  # minx - half cell
+            gdf_bounds[1] - cell_size / 2,  # miny - half cell
+            gdf_bounds[2] + cell_size / 2,  # maxx + half cell
+            gdf_bounds[3] + cell_size / 2,  # maxy + half cell
         )
 
         # Check bounds are within relative tolerance

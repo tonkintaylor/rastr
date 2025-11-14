@@ -156,8 +156,8 @@ def infer_shape(
     minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
     # Compute grid shape
-    width = max(1, int(np.ceil((maxx - minx) / cell_size)))
-    height = max(1, int(np.ceil((maxy - miny) / cell_size)))
+    width = max(1, int(np.ceil((maxx - minx) / cell_size)) + 1)
+    height = max(1, int(np.ceil((maxy - miny) / cell_size)) + 1)
     shape = (height, width)
 
     return shape

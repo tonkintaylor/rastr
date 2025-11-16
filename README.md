@@ -10,6 +10,8 @@
 
 A lightweight geospatial raster datatype library for Python focused on simplicity.
 
+For more details, read the documentation: https://rastr.readthedocs.io/en/latest/.
+
 ## Overview
 
 `rastr` provides an intuitive interface for creating, reading, manipulating, and exporting geospatial raster data in Python.

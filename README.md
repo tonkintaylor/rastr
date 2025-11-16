@@ -9,6 +9,7 @@
 ![PyPI License](https://img.shields.io/pypi/l/rastr.svg)
 
 A lightweight geospatial raster datatype library for Python focused on simplicity.
+
 For more details, read the documentation: https://rastr.readthedocs.io/en/latest/.
 
 ## Overview

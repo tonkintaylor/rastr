@@ -51,6 +51,7 @@ dev = [
   "build>=1.2.2.post1",
   "deptry>=0.23.0",
   "folium>=0.20.0",
+  "hypothesis>=6.148.1",
   "import-linter>=2.3",
   "ipykernel>=6.30.0",
   "ipython>=8.37.0",
@@ -215,7 +216,7 @@ keep_full_version = true
 
 [tool.pytest.ini_options]
 testpaths = [ "tests" ]
-norecursedirs = [ "tests/assets", "src/notebooks", "src/scripts", "src/archive" ]
+norecursedirs = [ "tests/assets", "src/notebooks", "src/scripts", "src/archive", ".hypothesis" ]
 addopts = [
   "--import-mode=importlib",
   "-ra",

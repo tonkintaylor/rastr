@@ -39,6 +39,8 @@ To run the tests, simply run:
 uv run pytest
 ```
 
+Property-based tests using [Hypothesis](https://hypothesis.readthedocs.io/) are available but not included in default test runs. You can opt-in to these tests with `uv run pytest -m hypothesis`. These tests automatically generate a wide range of test cases with randomly generated inputs to verify code correctness across many scenarios. They are particularly useful during development to discover edge cases and scenarios that weren't initially considered.
+
 ### Writing Tests
 
 Tests are written using the `pytest` framework. The test suite is located in the `tests` directory. The tests are organized into subdirectories with a directory structure that mirrors the structure of the code being tested. This makes it easy to find the tests for a specific module or function.

@@ -1481,6 +1481,7 @@ class TestRaster:
             nan_fraction=st.floats(min_value=0.1, max_value=0.9),
             radius=st.floats(min_value=0.5, max_value=3.0),
         )
+        @pytest.mark.hypothesis
         def test_output_properties(
             self,
             arr: np.ndarray[tuple[int, int], np.dtype[np.float64]],

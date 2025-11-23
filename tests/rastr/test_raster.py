@@ -1493,7 +1493,7 @@ class TestRaster:
             2. Monotonicity: Sum does not decrease (max operation spreads values)
             """
             # Randomly set some values to NaN
-            rng = np.random.default_rng(42)
+            rng = np.random.default_rng()
             nan_mask = rng.random(arr.shape) < nan_fraction
             arr[nan_mask] = np.nan
 

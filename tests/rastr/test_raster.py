@@ -1458,7 +1458,6 @@ class TestRaster:
 
             np.testing.assert_array_equal(result.arr, expected)
 
-        @pytest.mark.hypothesis
         @settings(
             suppress_health_check=[HealthCheck.too_slow],
             max_examples=1000,

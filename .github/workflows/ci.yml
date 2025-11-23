@@ -69,7 +69,7 @@ jobs:
         uses: pavelzw/pytest-action@510c5e90c360a185039bea56ce8b3e7e51a16507 # v2.2.0
         if: matrix.pytest
         with:
-          custom-pytest: uv run pytest tests -m "not hypothesis"
+          custom-pytest: uv run pytest -m "not hypothesis"
           custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
         env:
           MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434

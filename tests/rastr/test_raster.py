@@ -1461,7 +1461,7 @@ class TestRaster:
         @pytest.mark.hypothesis
         @settings(
             suppress_health_check=[HealthCheck.too_slow],
-            max_examples=50,
+            max_examples=1000,
             deadline=None,
         )
         @given(

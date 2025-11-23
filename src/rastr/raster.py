@@ -1048,6 +1048,10 @@ class Raster(BaseModel):
         original_nan_mask = np.isnan(self.arr)
         original_shape = self.arr.shape
 
+        # Handle all-NaN case
+        if np.all(original_nan_mask):
+            return self.model_copy()
+
         # Pad the raster with non-consequential values to avoid edge effects
         fill_val = self.min() - 1.0
         new_raster = self.model_copy()

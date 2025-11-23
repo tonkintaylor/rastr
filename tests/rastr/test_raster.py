@@ -1534,6 +1534,28 @@ class TestRaster:
                 f"Sum decreased: {input_sum} -> {output_sum}"
             )
 
+        def test_all_nan_raster(self):
+            """Test dilation on a raster where all values are NaN.
+
+            Should return a copy of the raster without modification.
+            """
+            # Arrange
+            arr = np.full((5, 5), np.nan, dtype=np.float64)
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 5, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act
+            result = raster.dilate(radius=1.5)
+
+            # Assert
+            assert result.shape == raster.shape
+            assert np.all(np.isnan(result.arr))
+            assert result.meta == raster.meta
+
     class TestExtrapolate:
         class TestNearest:
             def test_no_nas_stays_the_same(self, example_raster: Raster):

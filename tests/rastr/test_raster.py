@@ -1491,6 +1491,7 @@ class TestRaster:
             Tests two fundamental properties of morphological dilation:
             1. NaN mask preservation: NaN locations remain unchanged
             2. Monotonicity: Sum does not decrease (max operation spreads values)
+            3. Minimum value does not decrease (dilation should not reduce minimum)
             """
             # Randomly set some values to NaN
             rng = np.random.default_rng()
@@ -1532,6 +1533,11 @@ class TestRaster:
             output_sum = np.nansum(result.arr)
             assert output_sum >= input_sum, (
                 f"Sum decreased: {input_sum} -> {output_sum}"
+            )
+
+            # Assert: Min should not decrease
+            assert raster.min() <= result.min(), (
+                "Minimum value decreased after dilation"
             )
 
         def test_all_nan_raster(self):

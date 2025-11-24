@@ -892,6 +892,15 @@ class Raster(BaseModel):
         with suppress_slice_warning():
             return float(np.nanmedian(self.arr))
 
+    def sum(self) -> float:
+        """Get the sum of all values in the raster, ignoring NaN values.
+
+        Returns:
+            The sum of all values in the raster. Returns 0.0 if all values are NaN.
+        """
+        with suppress_slice_warning():
+            return float(np.nansum(self.arr))
+
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
 

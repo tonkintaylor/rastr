@@ -896,7 +896,8 @@ class Raster(BaseModel):
         """Get the sum of all values in the raster, ignoring NaN values.
 
         Returns:
-            The sum of all values in the raster. Returns 0.0 if all values are NaN.
+            The sum of all values in the raster. Returns 0.0 if all values are NaN
+            (following numpy's convention that the sum of no elements is zero).
         """
         with suppress_slice_warning():
             return float(np.nansum(self.arr))

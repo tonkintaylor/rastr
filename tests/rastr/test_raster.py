@@ -1412,14 +1412,14 @@ class TestRaster:
             # Act
             result = raster.dilate(radius=2)
             # Assert
-            # With radius=2 and cell_size=2.0, cell_radius=1
-            # The rightmost points (1,3) only partially dilate to the right edge
+            # With radius=2 and cell_size=2.0, cell_radius=ceil(2/2.0)=1
+            # Each point dilates by 1 cell (the disk radius) in all directions
             expected = np.array(
                 [
+                    [0, 1, 0, 1, 0],
                     [1, 1, 1, 1, 1],
-                    [1, 1, 1, 1, 0],
+                    [0, 1, 0, 1, 0],
                     [1, 1, 1, 1, 1],
-                    [1, 1, 1, 1, 0],
                 ],
                 dtype=np.float64,
             )
@@ -1562,6 +1562,56 @@ class TestRaster:
             assert result.shape == raster.shape
             assert np.all(np.isnan(result.arr))
             assert result.meta == raster.meta
+
+        def test_radius_rounded_to_cell_size(self):
+            """Test that radius is rounded up to nearest cell size multiple.
+
+            When radius is not an exact multiple of cell_size, it should be
+            rounded up and the actual dilation should use the rounded radius.
+            """
+            # Arrange: Create a raster with cell_size=2.0
+            arr = np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 14, 2, 2),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act: Request radius=2.5 which should round up to 4.0 (2 cells * 2.0)
+            result_2_5 = raster.dilate(radius=2.5)
+            # Request radius=4.0 which is exact (2 cells * 2.0)
+            result_4 = raster.dilate(radius=4.0)
+
+            # Assert: Both should produce the same result since 2.5 / 2 rounds up to 2
+            # radius=2.5: ceil(2.5/2.0) = 2 cells
+            # radius=4.0: ceil(4.0/2.0) = 2 cells
+            # The disk(2) footprint creates a circular pattern with radius 2 cells
+            expected = np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 1, 1, 1, 0, 0],
+                    [0, 1, 1, 1, 1, 1, 0],
+                    [0, 0, 1, 1, 1, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                ],
+                dtype=np.float64,
+            )
+            np.testing.assert_array_equal(result_2_5.arr, expected)
+            np.testing.assert_array_equal(result_4.arr, expected)
 
     class TestExtrapolate:
         class TestNearest:

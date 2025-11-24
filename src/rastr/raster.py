@@ -1040,9 +1040,11 @@ class Raster(BaseModel):
         """
         from skimage import morphology
 
-        # Round up to nearest cell, but in a floating-point safe way
-        cell_radius = radius / self.cell_size
-        cell_radius = int(np.ceil(cell_radius + CELL_EPS))
+        # Round up to nearest cell
+        cell_radius = int(np.ceil(radius / self.cell_size))
+
+        # Calculate actual radius based on rounded cell count
+        radius_m = cell_radius * self.cell_size
 
         # Store original NaN mask and shape
         original_nan_mask = np.isnan(self.arr)
@@ -1055,7 +1057,7 @@ class Raster(BaseModel):
         # Pad the raster with non-consequential values to avoid edge effects
         fill_val = self.min() - 1.0
         new_raster = self.model_copy()
-        new_raster = new_raster.pad(width=radius, value=fill_val)
+        new_raster = new_raster.pad(width=radius_m, value=fill_val)
 
         # Replace NaNs with fill_val to avoid issues during dilation
         new_raster.arr[np.isnan(new_raster.arr)] = fill_val

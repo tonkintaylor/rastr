@@ -8,6 +8,9 @@ import pytest
 import rasterio
 import rasterio.transform
 from affine import Affine
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from hypothesis.extra.numpy import arrays
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 from shapely import MultiPolygon, box
@@ -1767,6 +1770,228 @@ class TestRaster:
 
             # Assert - NaNs should spread into data
             assert np.all(np.isnan(blurred.arr))
+
+    class TestDilate:
+        def test_happy_path(self):
+            # Arrange
+            arr = np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 0, 1, 0],
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 0, 1, 0],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 0, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+            # Act
+            result = raster.dilate(radius=2)
+            # Assert
+            # With radius=2 and cell_size=2.0, cell_radius=ceil(2/2.0)=1
+            # Each point dilates by 1 cell (the disk radius) in all directions
+            expected = np.array(
+                [
+                    [0, 1, 0, 1, 0],
+                    [1, 1, 1, 1, 1],
+                    [0, 1, 0, 1, 0],
+                    [1, 1, 1, 1, 1],
+                ],
+                dtype=np.float64,
+            )
+            np.testing.assert_array_equal(result.arr, expected)
+            assert result.meta == raster_meta
+
+        def test_edge_behaviour_with_nans(self):
+            # Arrange: Single point in top-left corner with surrounding NaNs
+            arr = np.array(
+                [
+                    [10, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=rasterio.transform.from_origin(0, 3, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act
+            result = raster.dilate(radius=1.5)
+
+            # Assert: Dilation does nothing
+            expected = np.array(
+                [
+                    [10, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=np.float64,
+            )
+
+            np.testing.assert_array_equal(result.arr, expected)
+
+        @settings(
+            suppress_health_check=[HealthCheck.too_slow],
+            max_examples=1000,
+            deadline=None,
+        )
+        @given(
+            arr=arrays(
+                dtype=np.float64,
+                shape=st.tuples(
+                    st.integers(min_value=3, max_value=10),
+                    st.integers(min_value=3, max_value=10),
+                ),
+                elements=st.floats(
+                    min_value=-100.0,
+                    max_value=100.0,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+            ),
+            nan_fraction=st.floats(min_value=0.1, max_value=0.9),
+            radius=st.floats(min_value=0.5, max_value=3.0),
+        )
+        @pytest.mark.hypothesis
+        def test_output_properties(
+            self,
+            arr: np.ndarray[tuple[int, int], np.dtype[np.float64]],
+            nan_fraction: float,
+            radius: float,
+        ) -> None:
+            """Property-based test for NaN preservation and sum monotonicity.
+
+            Tests two fundamental properties of morphological dilation:
+            1. NaN mask preservation: NaN locations remain unchanged
+            2. Monotonicity: Sum does not decrease (max operation spreads values)
+            3. Minimum value does not decrease (dilation should not reduce minimum)
+            """
+            # Randomly set some values to NaN
+            rng = np.random.default_rng()
+            nan_mask = rng.random(arr.shape) < nan_fraction
+            arr[nan_mask] = np.nan
+
+            # Skip if array is all NaNs or has no NaNs
+            if np.all(np.isnan(arr)) or not np.any(np.isnan(arr)):
+                return
+
+            # Arrange
+            cell_size = 1.0
+            height, _width = arr.shape
+            raster_meta = RasterMeta(
+                cell_size=cell_size,
+                crs=CRS.from_epsg(2193),
+                transform=rasterio.transform.from_origin(
+                    0, height, cell_size, cell_size
+                ),
+            )
+            raster = Raster(arr=arr.copy(), meta=raster_meta)
+
+            # Store original NaN mask
+            original_nan_mask = np.isnan(raster.arr)
+
+            # Act
+            result = raster.dilate(radius=radius)
+
+            # Assert: NaN mask should be identical
+            result_nan_mask = np.isnan(result.arr)
+            np.testing.assert_array_equal(
+                result_nan_mask,
+                original_nan_mask,
+                err_msg="NaN positions changed after dilation",
+            )
+
+            # Assert: Sum should not decrease (dilation spreads max values)
+            input_sum = np.nansum(raster.arr)
+            output_sum = np.nansum(result.arr)
+            assert output_sum >= input_sum, (
+                f"Sum decreased: {input_sum} -> {output_sum}"
+            )
+
+            # Assert: Min should not decrease
+            assert raster.min() <= result.min(), (
+                "Minimum value decreased after dilation"
+            )
+
+        def test_all_nan_raster(self):
+            """Test dilation on a raster where all values are NaN.
+
+            Should return a copy of the raster without modification.
+            """
+            # Arrange
+            arr = np.full((5, 5), np.nan, dtype=np.float64)
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 5, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act
+            result = raster.dilate(radius=1.5)
+
+            # Assert
+            assert result.shape == raster.shape
+            assert np.all(np.isnan(result.arr))
+            assert result.meta == raster.meta
+
+        def test_radius_rounded_to_cell_size(self):
+            """Test that radius is rounded up to nearest cell size multiple.
+
+            When radius is not an exact multiple of cell_size, it should be
+            rounded up and the actual dilation should use the rounded radius.
+            """
+            # Arrange: Create a raster with cell_size=2.0
+            arr = np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 14, 2, 2),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act: Request radius=2.5 which should round up to 4.0 (2 cells * 2.0)
+            result_2_5 = raster.dilate(radius=2.5)
+            # Request radius=4.0 which is exact (2 cells * 2.0)
+            result_4 = raster.dilate(radius=4.0)
+
+            # Assert: Both should produce the same result since 2.5 / 2 rounds up to 2
+            # radius=2.5: ceil(2.5/2.0) = 2 cells
+            # radius=4.0: ceil(4.0/2.0) = 2 cells
+            # The disk(2) footprint creates a circular pattern with radius 2 cells
+            expected = np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 1, 1, 1, 0, 0],
+                    [0, 1, 1, 1, 1, 1, 0],
+                    [0, 0, 1, 1, 1, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                ],
+                dtype=np.float64,
+            )
+            np.testing.assert_array_equal(result_2_5.arr, expected)
+            np.testing.assert_array_equal(result_4.arr, expected)
 
     class TestExtrapolate:
         class TestNearest:

@@ -1120,6 +1120,73 @@ class Raster(BaseModel):
         new_raster.arr = blurred_array
         return new_raster
 
+    def dilate(self, radius: float) -> Self:
+        """Apply a morphological dilation to the raster using a disk footprint.
+
+        Morphological dilation sets the value of a pixel to the maximum over all pixel
+        values within a local neighborhood centered about it.
+
+        Dilation enlarges bright regions and shrinks dark regions. This is useful e.g.
+        to find a region nearby a steep edge after applying a Sobel filter.
+
+        The radius parameter controls the dilation extent. This is rounded up to the
+        nearest integer multiple of the cell size, since dilation is a discrete
+        operation. To reduce inaccuracies due to this rounding, consider resampling
+        the raster to a smaller cell size before applying dilation.
+
+        NaN values in the original raster are preserved in their original locations.
+        They are temporarily filled during dilation to avoid spreading into valid data,
+        then restored after the operation completes. The output raster maintains the
+        same shape as the input.
+
+        Args:
+            radius: Radius of the disk footprint used in dilation, in units of
+                    geographic coordinate distance (e.g. meters).
+
+        Returns:
+            New raster with dilated values. NaN locations are preserved from the
+            original raster.
+        """
+        from skimage import morphology
+
+        # Round up to nearest cell
+        cell_radius = int(np.ceil(radius / self.cell_size))
+
+        # Calculate actual radius based on rounded cell count
+        radius_m = cell_radius * self.cell_size
+
+        # Store original NaN mask and shape
+        original_nan_mask = np.isnan(self.arr)
+        original_shape = self.arr.shape
+
+        # Handle all-NaN case
+        if np.all(original_nan_mask):
+            return self.model_copy()
+
+        # Pad the raster with non-consequential values to avoid edge effects
+        fill_val = self.min() - 1.0
+        new_raster = self.model_copy()
+        new_raster = new_raster.pad(width=radius_m, value=fill_val)
+
+        # Replace NaNs with fill_val to avoid issues during dilation
+        new_raster.arr[np.isnan(new_raster.arr)] = fill_val
+        new_raster.arr = morphology.dilation(
+            new_raster.arr, morphology.disk(cell_radius)
+        )
+
+        # Crop back to original size using array slicing
+        new_raster.arr = new_raster.arr[
+            cell_radius : cell_radius + original_shape[0],
+            cell_radius : cell_radius + original_shape[1],
+        ]
+        # Restore original metadata
+        new_raster = self.__class__(arr=new_raster.arr, meta=self.meta)
+
+        # Restore original NaN values
+        new_raster.arr[original_nan_mask] = np.nan
+
+        return new_raster
+
     def extrapolate(self, method: Literal["nearest"] = "nearest") -> Self:
         """Extrapolate the raster data to fill NaN values.
 

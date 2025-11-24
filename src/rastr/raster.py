@@ -52,9 +52,6 @@ BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 CONTOUR_PERTURB_EPS = 1e-10
-CELL_EPS = (
-    1e-9  # Small epsilon to avoid floating-point issues when comparing cell sizes
-)
 
 
 class RasterCellArrayShapeError(ValueError):

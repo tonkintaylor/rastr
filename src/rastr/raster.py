@@ -1059,7 +1059,7 @@ class Raster(BaseModel):
         )
 
         # Dissolve contours by level to merge all contour lines of the same level
-        return contour_gdf.dissolve(by="level", as_index=False)
+        return contour_gdf.dissolve(by="level", as_index=False, sort=True)
 
     def sobel(self) -> Self:
         """Compute the Sobel gradient magnitude of the raster.

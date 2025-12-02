@@ -3357,13 +3357,13 @@ class TestTrimZeros:
 class TestResample:
     def test_upsampling_doubles_resolution(self, base_raster: Raster):
         # Arrange
-        new_cell_size = 5.0  # Half the original size (10.0)
+        cell_size = 5.0  # Half the original size (10.0)
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should approximately double the dimensions (some discretization)
         assert resampled.arr.shape[0] >= 7  # At least 2x original (4)
         assert resampled.arr.shape[1] >= 7
@@ -3371,13 +3371,13 @@ class TestResample:
 
     def test_downsampling_halves_resolution(self, base_raster: Raster):
         # Arrange
-        new_cell_size = 20.0  # Double the original size (10.0)
+        cell_size = 20.0  # Double the original size (10.0)
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should approximately halve the dimensions
         assert resampled.arr.shape[0] <= 3  # At most half original (4)
         assert resampled.arr.shape[1] <= 3
@@ -3398,26 +3398,26 @@ class TestResample:
 
     def test_extreme_upsampling(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 1.0  # Much smaller than original 5.0
+        cell_size = 1.0  # Much smaller than original 5.0
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should be significantly larger
         assert resampled.arr.shape[0] >= 8
         assert resampled.arr.shape[1] >= 8
 
     def test_extreme_downsampling(self, base_raster: Raster):
         # Arrange
-        new_cell_size = 100.0  # Much larger than original 10.0
+        cell_size = 100.0  # Much larger than original 10.0
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should be much smaller, potentially 1x1
         assert resampled.arr.shape[0] >= 1
         assert resampled.arr.shape[1] >= 1
@@ -3426,23 +3426,23 @@ class TestResample:
 
     def test_transform_scaling(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 2.5  # Half the original cell size
+        cell_size = 2.5  # Half the original cell size
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
         new_transform = resampled.raster_meta.transform
         # The transform scale should be updated to reflect new cell size
-        assert abs(abs(new_transform.a) - new_cell_size) < 0.1
-        assert abs(abs(new_transform.e) - new_cell_size) < 0.1
+        assert abs(abs(new_transform.a) - cell_size) < 0.1
+        assert abs(abs(new_transform.e) - cell_size) < 0.1
 
     def test_bilinear_interpolation_smoothing(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 2.0  # Between original cells
+        cell_size = 2.0  # Between original cells
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
         # With bilinear interpolation, we shouldn't have any extreme values
@@ -3459,27 +3459,27 @@ class TestResample:
 
     def test_invalid_resampling_method(self, small_raster: Raster):
         with pytest.raises(NotImplementedError, match="Unsupported resampling method"):
-            small_raster.resample(new_cell_size=2.0, method="nearest")  # pyright: ignore[reportArgumentType]
+            small_raster.resample(cell_size=2.0, method="nearest")  # pyright: ignore[reportArgumentType]
 
     def test_negative_cell_size_fails(self, small_raster: Raster):
         # This should fail during the internal calculations
         with pytest.raises((ValueError, RuntimeError)):
-            small_raster.resample(new_cell_size=-1.0)
+            small_raster.resample(cell_size=-1.0)
 
     def test_zero_cell_size_fails(self, small_raster: Raster):
         # This should fail during the internal calculations
         with pytest.raises((ValueError, RuntimeError, ZeroDivisionError)):
-            small_raster.resample(new_cell_size=0.0)
+            small_raster.resample(cell_size=0.0)
 
     def test_very_small_cell_size(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 0.1  # Very small
+        cell_size = 0.1  # Very small
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should result in a very large array
         assert resampled.arr.shape[0] >= 20
         assert resampled.arr.shape[1] >= 20
@@ -3487,30 +3487,30 @@ class TestResample:
     def test_metadata_preservation(self, base_raster: Raster):
         # Arrange
         original_crs = base_raster.raster_meta.crs
-        new_cell_size = 5.0
+        cell_size = 5.0
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
         assert resampled.raster_meta.crs == original_crs
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Transform should be updated but maintain CRS
         assert resampled.raster_meta.transform != base_raster.raster_meta.transform
 
     def test_bounds_consistency(self, base_raster: Raster):
         # Arrange
         original_bounds = base_raster.bounds
-        new_cell_size = 15.0
+        cell_size = 15.0
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
         new_bounds = resampled.bounds
 
         # Assert
         # Bounds should be similar (allowing for some discretization effects)
         # The resampled raster bounds might be slightly larger due to rounding
-        tolerance = max(base_raster.raster_meta.cell_size, new_cell_size) * 2
+        tolerance = max(base_raster.raster_meta.cell_size, cell_size) * 2
 
         assert abs(new_bounds[0] - original_bounds[0]) <= tolerance  # xmin
         assert abs(new_bounds[1] - original_bounds[1]) <= tolerance  # ymin
@@ -3519,7 +3519,7 @@ class TestResample:
 
     def test_return_type(self, small_raster: Raster):
         # Act
-        result = small_raster.resample(new_cell_size=2.0)
+        result = small_raster.resample(cell_size=2.0)
 
         # Assert
         assert isinstance(result, Raster)
@@ -3531,7 +3531,7 @@ class TestResample:
         original_cell_size = small_raster.raster_meta.cell_size
 
         # Act
-        _ = small_raster.resample(new_cell_size=2.0)
+        _ = small_raster.resample(cell_size=2.0)
 
         # Assert
         np.testing.assert_array_equal(small_raster.arr, original_array)
@@ -3548,7 +3548,7 @@ class TestResample:
         raster = Raster(arr=cell_array, raster_meta=meta)
 
         # Act
-        resampled = raster.resample(new_cell_size=5.0)
+        resampled = raster.resample(cell_size=5.0)
 
         # Assert
         assert isinstance(resampled, Raster)
@@ -3558,23 +3558,23 @@ class TestResample:
 
     def test_float_precision_cell_size(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 3.7  # Non-integer value
+        cell_size = 3.7  # Non-integer value
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         assert isinstance(resampled, Raster)
 
     def test_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that resample() preserves dtype."""
-        result = float32_raster.resample(new_cell_size=0.5)
+        result = float32_raster.resample(cell_size=0.5)
         assert result.arr.dtype == np.float32
 
     def test_preserves_dtype_float64(self, float64_raster: Raster):
         """Test that resample() preserves dtype for float64."""
-        result = float64_raster.resample(new_cell_size=0.5)
+        result = float64_raster.resample(cell_size=0.5)
         assert result.arr.dtype == np.float64
 
 

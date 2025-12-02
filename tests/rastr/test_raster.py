@@ -3883,6 +3883,7 @@ class TestRasterStatistics:
                 ),
             ),
             ("median", pytest.approx(5.0), pytest.approx(6.0)),
+            ("sum", 45.0, 37.0),
         ],
     )
     def test_basic_statistics(
@@ -3927,7 +3928,7 @@ class TestRasterStatistics:
 
     @pytest.mark.parametrize(
         "method_name",
-        ["min", "max", "mean", "std", "median"],
+        ["min", "max", "mean", "std", "median", "sum"],
     )
     def test_all_nan_slice_raster_no_warning(self, method_name: str) -> None:
         # Arrange

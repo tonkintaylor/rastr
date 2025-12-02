@@ -16,6 +16,7 @@ from pyproj.crs.crs import CRS
 from shapely import MultiPolygon, box
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
 
+from rastr.io import read_raster_inmem
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
 
@@ -1316,6 +1317,31 @@ class TestRaster:
             assert isinstance(raster, Raster)
             assert raster.arr.shape == (2, 2)
             assert raster.raster_meta.crs.to_epsg() == 4326
+
+        def test_invalid_none_crs_tif(self, tmp_path: Path):
+            # Arrange
+            raster_path = tmp_path / "invalid_crs.tif"
+            data = np.array([[1, 2], [3, 4]], dtype=np.float32)
+            transform = Affine.translation(0, 2) * Affine.scale(1, -1)
+            with rasterio.open(
+                raster_path,
+                "w",
+                driver="GTiff",
+                height=data.shape[0],
+                width=data.shape[1],
+                count=1,
+                dtype=data.dtype,
+                crs=None,  # "EPSG:4326"
+                transform=transform,
+            ) as dst:
+                dst.write(data, 1)
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError,
+                match="Invalid CRS from input raster and no override CRS provided",
+            ):
+                _ = read_raster_inmem(raster_path)
 
     class TestFillNA:
         def test_2by2_example(self):

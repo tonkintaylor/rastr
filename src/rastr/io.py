@@ -8,6 +8,7 @@ import numpy as np
 import rasterio
 import rasterio.merge
 from pyproj.crs.crs import CRS
+from pyproj.exceptions import CRSError
 
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
@@ -48,7 +49,14 @@ def read_raster_inmem(
         # Extract metadata
         cell_size = dst.res[0]
         if crs is None:
-            crs = CRS.from_user_input(dst.crs)
+            try:
+                crs = CRS.from_user_input(dst.crs)
+            except CRSError as e:
+                msg = (
+                    f"Invalid CRS from input raster and no override CRS provided "
+                    f"(crs:{crs!r})."
+                )
+                raise ValueError(msg) from e
         transform = dst.transform
         nodata = dst.nodata
 

@@ -52,8 +52,10 @@ def read_raster_inmem(
             try:
                 crs = CRS.from_user_input(dst.crs)
             except CRSError as e:
-                msg = f"Invalid CRS from input raster and no override CRS provided \
-                        (crs:{crs!r})."
+                msg = (
+                    f"Invalid CRS from input raster and no override CRS provided "
+                    f"(crs:{crs!r})."
+                )
                 raise ValueError(msg) from e
         transform = dst.transform
         nodata = dst.nodata

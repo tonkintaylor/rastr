@@ -1284,7 +1284,7 @@ class Raster(BaseModel):
 
     def crop(
         self,
-        bounds: tuple[float, float, float, float],
+        bounds: tuple[float, float, float, float] | ArrayLike,
         *,
         strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:
@@ -1301,6 +1301,13 @@ class Raster(BaseModel):
         Returns:
             A new Raster instance cropped to the specified bounds.
         """
+
+        if len(bounds) != 4:
+            msg = (
+                f"bounds must be a sequence of length 4 (minx, miny, maxx, maxy); "
+                f"got length {len(bounds)}"
+            )
+            raise ValueError(msg)
 
         minx, miny, maxx, maxy = bounds
         arr = self.arr

@@ -1516,7 +1516,7 @@ class Raster(BaseModel):
         return self._trim_value(value_mask=(self.arr == 0), value_name="zero")
 
     def resample(
-        self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
+        self, cell_size: float, *, method: Literal["bilinear"] = "bilinear"
     ) -> Self:
         """Resample the raster data to a new resolution.
 
@@ -1527,14 +1527,14 @@ class Raster(BaseModel):
         will not necessary be the same as the original raster.
 
         Args:
-            new_cell_size: The desired cell size for the resampled raster.
+            cell_size: The desired cell size for the resampled raster.
             method: The resampling method to use. Only 'bilinear' is supported.
         """
         if method not in ("bilinear",):
             msg = f"Unsupported resampling method: {method}"
             raise NotImplementedError(msg)
 
-        factor = self.raster_meta.cell_size / new_cell_size
+        factor = self.raster_meta.cell_size / cell_size
 
         cls = self.__class__
         # Use the rasterio dataset with proper context management
@@ -1557,7 +1557,7 @@ class Raster(BaseModel):
                     (dataset.height / new_height),
                 ),
                 crs=self.raster_meta.crs,
-                cell_size=new_cell_size,
+                cell_size=cell_size,
             )
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)

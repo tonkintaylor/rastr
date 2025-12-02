@@ -672,13 +672,11 @@ class Raster(BaseModel):
         max_y_unsuppressed = np.max(y_unsuppressed)
 
         # Transform to raster CRS
-        # type: ignore[reportAssignmentType] overloaded tuple size in affine
-        x1, y1 = self.raster_meta.transform * (
+        x1, y1 = self.raster_meta.transform * (  # type: ignore[reportAssignmentType] overloaded tuple size in affine
             min_x_unsuppressed,
             min_y_unsuppressed,
         )
-        # type: ignore[reportAssignmentType]
-        x2, y2 = self.raster_meta.transform * (
+        x2, y2 = self.raster_meta.transform * (  # type: ignore[reportAssignmentType]
             max_x_unsuppressed + 1,
             max_y_unsuppressed + 1,
         )

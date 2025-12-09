@@ -56,6 +56,11 @@ jobs:
           custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
         env:
           MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434
+
+      - name: Test README with pytest-codeblocks
+        run: |
+          uv run pytest --codeblocks README.md -v
+
       - name: Configure coverage reports directory
         if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}
         run: |

@@ -42,9 +42,15 @@ from pyproj.crs.crs import CRS
 from rasterio.transform import from_origin
 from rastr import Raster, RasterMeta
 from rastr.create import full_raster
+from rastr.io_ import read_raster_inmem
 
-# Read a raster from a file
-raster = Raster.read_file("path/to/raster.tif")
+
+# Create an example raster
+raster = Raster.example()
+
+# Write to and read from a file
+raster.to_file("raster.tif")
+raster = read_raster_inmem("raster.tif")
 
 # Basic arithmetic operations
 doubled = raster * 2

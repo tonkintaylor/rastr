@@ -748,7 +748,7 @@ class Raster(BaseModel):
                       `nodata` is provided, NaN values in the raster will be replaced
                       with the nodata value.
         """
-        from rastr.io import write_raster  # noqa: PLC0415
+        from rastr.io_ import write_raster  # noqa: PLC0415
 
         return write_raster(self, path=path, **kwargs)
 
@@ -798,7 +798,7 @@ class Raster(BaseModel):
             crs: Optional coordinate reference system to override the file's CRS.
         """
         # Import here to avoid circular import (rastr.io imports Raster)
-        from rastr.io import read_raster_inmem  # noqa: PLC0415
+        from rastr.io_ import read_raster_inmem  # noqa: PLC0415
 
         return read_raster_inmem(filename, crs=crs, cls=cls)
 

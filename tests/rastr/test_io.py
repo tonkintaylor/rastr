@@ -9,9 +9,7 @@ from affine import Affine
 from pyproj.crs.crs import CRS
 from shapely import Polygon
 
-from rastr.io import read_cad_gdf, read_raster_inmem, read_raster_mosaic_inmem
-
-_WGS84_CRS = CRS.from_epsg(4326)
+from rastr.io_ import read_cad_gdf, read_raster_inmem, read_raster_mosaic_inmem
 
 
 class TestReadRasterInMem:

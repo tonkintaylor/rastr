@@ -16,7 +16,7 @@ from pyproj.crs.crs import CRS
 from shapely import MultiPolygon, box
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
 
-from rastr.io import read_raster_inmem
+from rastr.io_ import read_raster_inmem
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
 

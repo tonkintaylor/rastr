@@ -696,6 +696,7 @@ class Raster(BaseModel):
         ax.set_aspect("equal", "box")
         ax.set_yticklabels([])
         ax.set_xticklabels([])
+        ax.tick_params(left=False, bottom=False, top=False, right=False)
 
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)

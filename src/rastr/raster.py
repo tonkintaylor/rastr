@@ -18,7 +18,7 @@ from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import Transformer
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
-from rasterio.io_ import MemoryFile
+from rasterio.io import MemoryFile
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
-    from rasterio.io_ import BufferedDatasetWriter, DatasetReader, DatasetWriter
+    from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from shapely.geometry.base import BaseGeometry
     from typing_extensions import Self
 

@@ -79,13 +79,13 @@ jobs:
             os: "ubuntu-latest"
           - python_version: "3.12"
             os: "ubuntu-latest"
-          - sonarqube: "true"
-            python_version: "3.13"
+          - python_version: "3.13"
             os: "ubuntu-latest"
           - os: "ubuntu-latest"
             python_version: "3.10"
             dependencies: "min"
             checks: "false"
+            sonarqube: "true"
           - dependencies: "max"
             python_version: "3.14"
             os: "ubuntu-latest"
@@ -118,7 +118,7 @@ jobs:
           cat > sonar-project.properties << EOF
           sonar.projectKey=${SONAR_PROJECT_KEY}
           sonar.language=py
-          sonar.python.version=3.13
+          sonar.python.version=3.10
           sonar.sources=./src
           sonar.tests=./tests
           sonar.python.coverage.reportPaths=./test-reports/coverage.xml

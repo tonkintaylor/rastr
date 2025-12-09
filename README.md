@@ -27,6 +27,7 @@ For more details, read the documentation: https://rastr.readthedocs.io/en/latest
 
 ## Installation
 
+<!--pytest.mark.skip-->
 ```bash
 # With uv
 uv add rastr
@@ -43,8 +44,13 @@ from rasterio.transform import from_origin
 from rastr import Raster, RasterMeta
 from rastr.create import full_raster
 
-# Read a raster from a file
-raster = Raster.read_file("path/to/raster.tif")
+
+# Create an example raster
+raster = Raster.example()
+
+# Write to and read from a file
+raster.to_file("raster.tif")
+raster = Raster.read_file("raster.tif")
 
 # Basic arithmetic operations
 doubled = raster * 2
@@ -79,7 +85,7 @@ contours = raster.contour(levels=[0.1, 0.5, 0.9], smoothing=True)
 # Apply spatial operations
 blurred = raster.blur(sigma=2.0)  # Gaussian blur
 filled = raster.extrapolate(method="nearest")  # Fill NaN values via nearest-neighbours
-resampled = raster.resample(new_cell_size=0.5)  # Change resolution
+resampled = raster.resample(cell_size=0.5)  # Change resolution
 
 # Export to file
 raster.to_file("output.tif")

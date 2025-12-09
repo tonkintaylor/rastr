@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def example_raster():
     meta = RasterMeta(
-        cell_size=1.0,
+        cell_size=2.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
     )
@@ -41,7 +41,7 @@ def example_raster():
 @pytest.fixture
 def example_neg_scaled_raster():
     meta = RasterMeta(
-        cell_size=1.0,
+        cell_size=2.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, -2.0, 0.0),
     )
@@ -436,10 +436,10 @@ class TestRaster:
             raster_gdf = example_raster.as_geodataframe(name="ben")
 
             expected_polygons = {
-                Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
-                Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
-                Polygon([(0, 1), (1, 1), (1, 2), (0, 2)]),
-                Polygon([(1, 1), (2, 1), (2, 2), (1, 2)]),
+                Polygon([(0, 0), (2, 0), (2, 2), (0, 2)]),
+                Polygon([(2, 0), (4, 0), (4, 2), (2, 2)]),
+                Polygon([(0, 2), (2, 2), (2, 4), (0, 4)]),
+                Polygon([(2, 2), (4, 2), (4, 4), (2, 4)]),
             }
 
             # Check that the result is a GeoDataFrame

@@ -1290,7 +1290,7 @@ class Raster(BaseModel):
 
     def crop(
         self,
-        bounds: ArrayLike,
+        bounds: tuple[float, float, float, float] | Bounds | ArrayLike,
         *,
         strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:

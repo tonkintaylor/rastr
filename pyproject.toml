@@ -68,6 +68,7 @@ dev = [
   "pyinstrument>=5.1.1",
   "pyproject-fmt>=2.11.1",
   "pyright[nodejs]>=1.1.403",
+  "pytest-codeblocks>=0.17.0",
   "ruff>=0.13.2",
   "sync-with-uv>=0.4.0",
   "tqdm>=4.67.1",

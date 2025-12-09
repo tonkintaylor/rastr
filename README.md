@@ -116,7 +116,7 @@ from rastr import Raster
 - [`Raster.to_file(path)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.to_file) - write raster to file.
 - [`Raster.to_clipboard()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.to_clipboard) - copy raster data to clipboard in a tabular format.
 
-#### Geometric Operations
+### Geometric Operations
 
 - [`Raster.crop(bounds)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.crop) - remove cells outside given bounds.
 - [`Raster.pad(width)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.pad) - add NaN border around raster.
@@ -159,7 +159,6 @@ from rastr import Raster
 - [`Raster.quantile(q)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.quantile) - quantile of cell values.
 - [`Raster.std()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.std) - standard deviation of cell values.
 - [`Raster.sum()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.sum) - sum of cell values.
-
 
 ## Limitations
 

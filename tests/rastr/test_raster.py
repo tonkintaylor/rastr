@@ -2471,6 +2471,51 @@ class TestCrop:
         result = float32_raster.crop(bounds)
         assert result.arr.dtype == np.float32
 
+    def test_arraylike_bounds(self, base_raster: Raster):
+        # Need to test that gdf.total_bounds (which is ndarray) works.
+        # Get total_bounds from a simple GeoDataFrame with total_bounds
+        import geopandas as gpd
+
+        poly = Polygon(
+            [
+                (-20, 100),  # outside left
+                (20, 100),  # inside raster
+                (20, 60),  # inside raster
+                (-20, 60),  # outside left
+            ]
+        )
+
+        gdf = gpd.GeoDataFrame(
+            {"id": [1]},
+            geometry=[poly],
+            crs=CRS.from_epsg(2193),
+        )
+
+        bounds_array = gdf.total_bounds  # This is a numpy ndarray
+
+        # Act
+        cropped = base_raster.crop(bounds_array)
+        expected_bounds = (
+            0,
+            60,
+            20,
+            100,
+        )
+        # Assert
+        assert isinstance(cropped, Raster)
+        assert cropped.bounds == expected_bounds
+
+    def test_arraylike_bounds_length(self, base_raster: Raster):
+        # Arrange
+        bounds_array = np.array([0.0, 0.0, 50.0])  # Invalid length
+
+        # Act & Assert
+        with pytest.raises(
+            ValueError,
+            match="bounds must be a sequence of length 4",
+        ):
+            base_raster.crop(bounds_array)
+
 
 class TestPad:
     def test_example(self):

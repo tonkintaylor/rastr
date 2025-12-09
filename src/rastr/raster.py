@@ -1702,10 +1702,12 @@ def _get_colormap_function(
                 msg = "The 'matplotlib' package is required for string colormaps."
             else:
                 msg = (
-                    "The default colormap 'viridis' requires the 'matplotlib' "
-                    "package. Either install it, or provide a custom colormap, "
-                    "i.e. a function of the form [x -> (r,g,b)] or [x -> (r,g,b,a)]"
+                    "The default colormap 'viridis' requires the 'matplotlib' package."
                 )
+            msg += (
+                " Either install it, or provide a custom colormap, i.e. a function of "
+                "the form [x -> (r,g,b)] or [x -> (r,g,b,a)]"
+            )
             raise ImportError(msg)
 
         import matplotlib as mpl

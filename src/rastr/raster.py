@@ -477,7 +477,9 @@ class Raster(BaseModel):
         )
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
-        return Bounds(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
+        return Bounds(
+            xmin=float(xmin), ymin=float(ymin), xmax=float(xmax), ymax=float(ymax)
+        )
 
     @property
     def bbox(self) -> Polygon:

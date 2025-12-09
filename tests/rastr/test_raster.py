@@ -420,6 +420,15 @@ class TestRaster:
             assert bounds[2] == 4.0
             assert bounds[3] == 4.0
 
+        def test_bounds_repr_no_numpy_types(self, example_raster: Raster):
+            # Arrange & Act
+            bounds_repr = repr(example_raster.bounds)
+
+            # Assert - no numpy type references in repr
+            assert "np.float64" not in bounds_repr
+            assert "numpy.float64" not in bounds_repr
+            assert "float64" not in bounds_repr
+
     class TestAsGeoDataFrame:
         def test_as_geodataframe(self, example_raster: Raster):
             import geopandas as gpd

@@ -12,4 +12,16 @@ warnings.warn(
     stacklevel=2,
 )
 
-from rastr.io_ import *  # noqa: F403, E402
+from rastr.io_ import (
+    read_raster_inmem,
+    read_raster_mosaic_inmem,
+    write_raster,
+    read_cad_gdf,
+)
+
+__all__ = [
+    "read_raster_inmem",
+    "read_raster_mosaic_inmem",
+    "write_raster",
+    "read_cad_gdf",
+]

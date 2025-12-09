@@ -5,6 +5,13 @@ This module provides backwards compatibility by re-exporting all functions from 
 
 import warnings
 
+from rastr.io_ import (
+    read_cad_gdf,
+    read_raster_inmem,
+    read_raster_mosaic_inmem,
+    write_raster,
+)
+
 warnings.warn(
     "rastr.io is deprecated. Import from rastr.io_ instead. "
     "This module will be removed in a future version.",
@@ -12,16 +19,9 @@ warnings.warn(
     stacklevel=2,
 )
 
-from rastr.io_ import (
-    read_raster_inmem,
-    read_raster_mosaic_inmem,
-    write_raster,
-    read_cad_gdf,
-)
-
 __all__ = [
+    "read_cad_gdf",
     "read_raster_inmem",
     "read_raster_mosaic_inmem",
     "write_raster",
-    "read_cad_gdf",
 ]

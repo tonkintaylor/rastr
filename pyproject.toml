@@ -54,6 +54,7 @@ dev = [
   "deptry>=0.23.0",
   "flake8-dunder-all>=0.5.0",
   "folium>=0.20.0",
+  "hypothesis>=6.148.1",
   "import-linter>=2.3",
   "ipykernel>=6.30.0",
   "ipython>=8.37.0",
@@ -67,10 +68,11 @@ dev = [
   "pyinstrument>=5.1.1",
   "pyproject-fmt>=2.11.1",
   "pyright[nodejs]>=1.1.403",
+  "pytest-codeblocks>=0.17.0",
   "ruff>=0.13.2",
   "sync-with-uv>=0.4.0",
   "tqdm>=4.67.1",
-  "usethis>=0.15.2",
+  "usethis>=0.17.0",
   "validate-pyproject>=0.24.1",
 ]
 test = [
@@ -203,6 +205,7 @@ lint.per-file-ignores."tests/**/*.py" = [
   "SLF001",  # Accessing private members is sometimes necessary in tests
 ]
 lint.allowed-confusables = [ "ℹ", "–", "σ" ]
+lint.flake8-builtins.strict-checking = true
 lint.flake8-tidy-imports.banned-api."pytz".msg = "'zoneinfo' should be preferred to 'pytz' when using Python 3.9 and later, see https://tonkintaylor-sonarqube.azurewebsites.net/coding_rules?open=python%3AS6890&rule_key=python%3AS6890"
 lint.flake8-tidy-imports.banned-module-level-imports = [
   "branca",
@@ -234,12 +237,16 @@ keep_full_version = true
 
 [tool.pytest.ini_options]
 testpaths = [ "tests" ]
-norecursedirs = [ "tests/assets", "src/notebooks", "src/scripts", "src/archive" ]
+norecursedirs = [ "tests/assets", "src/notebooks", "src/scripts", "src/archive", ".hypothesis" ]
 addopts = [
+  "-m not hypothesis",
   "--import-mode=importlib",
   "-ra",
   "--strict-config",
   "--strict-markers",
+]
+markers = [
+  "hypothesis: test is a Hypothesis test and does not run on CI",
 ]
 console_output_style = "progress"
 filterwarnings = [ "error" ]
@@ -279,7 +286,7 @@ root_packages = [ "rastr" ]
 [[tool.importlinter.contracts]]
 name = "rastr"
 type = "layers"
-layers = [ "create : io : raster", "meta", "arr | gis", "_version" ]
+layers = [ "create : io : io_ : raster", "meta", "arr | gis", "_version" ]
 containers = [ "rastr" ]
 exhaustive = true
 

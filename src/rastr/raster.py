@@ -469,7 +469,10 @@ class Raster(BaseModel):
 
     @property
     def bounds(self) -> Bounds:
-        """Bounding box of the raster as a named tuple with xmin, ymin, xmax, ymax."""
+        """Bounding box of the raster as a named tuple with xmin, ymin, xmax, ymax.
+
+        The bounds represent the outer edges of the raster cells.
+        """
         x1, y1, x2, y2 = rasterio.transform.array_bounds(
             height=self.arr.shape[0],
             width=self.arr.shape[1],
@@ -477,7 +480,9 @@ class Raster(BaseModel):
         )
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
-        return Bounds(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
+        return Bounds(
+            xmin=float(xmin), ymin=float(ymin), xmax=float(xmax), ymax=float(ymax)
+        )
 
     @property
     def bbox(self) -> Polygon:
@@ -505,12 +510,11 @@ class Raster(BaseModel):
         vmax: float | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
-        if not FOLIUM_INSTALLED or not MATPLOTLIB_INSTALLED:
-            msg = "The 'folium' and 'matplotlib' packages are required for 'explore()'."
+        if not FOLIUM_INSTALLED:
+            msg = "The 'folium' package is required for 'explore()'."
             raise ImportError(msg)
 
         import folium.raster_layers
-        import matplotlib as mpl
 
         if m is None:
             m = folium.Map()
@@ -519,8 +523,7 @@ class Raster(BaseModel):
             msg = "'vmin' must be less than 'vmax'."
             raise ValueError(msg)
 
-        if isinstance(colormap, str):
-            colormap = mpl.colormaps[colormap]
+        cmap_func = _get_colormap_function(colormap)
 
         # Transform bounds to WGS84 using pyproj directly
         wgs84_crs = CRS.from_epsg(4326)
@@ -563,7 +566,7 @@ class Raster(BaseModel):
             image=arr,
             bounds=bounds,
             opacity=opacity,
-            colormap=colormap,
+            colormap=cmap_func,
             mercator_project=True,
         )
 
@@ -571,7 +574,7 @@ class Raster(BaseModel):
 
         # Add a colorbar legend
         if BRANCA_INSTALLED:
-            cbar = _map_colorbar(colormap=colormap, vmin=_vmin, vmax=_vmax)
+            cbar = _map_colorbar(colormap=cmap_func, vmin=_vmin, vmax=_vmax)
             if cbar_label:
                 cbar.caption = cbar_label
             cbar.add_to(m)
@@ -672,8 +675,14 @@ class Raster(BaseModel):
         max_y_unsuppressed = np.max(y_unsuppressed)
 
         # Transform to raster CRS
-        x1, y1 = self.raster_meta.transform * (min_x_unsuppressed, min_y_unsuppressed)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
-        x2, y2 = self.raster_meta.transform * (max_x_unsuppressed, max_y_unsuppressed)  # type: ignore[reportAssignmentType]
+        x1, y1 = self.raster_meta.transform * (  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+            min_x_unsuppressed,
+            min_y_unsuppressed,
+        )
+        x2, y2 = self.raster_meta.transform * (  # type: ignore[reportAssignmentType]
+            max_x_unsuppressed + 1,
+            max_y_unsuppressed + 1,
+        )
         xmin, xmax = sorted([x1, x2])
         ymin, ymax = sorted([y1, y2])
 
@@ -742,7 +751,7 @@ class Raster(BaseModel):
                       `nodata` is provided, NaN values in the raster will be replaced
                       with the nodata value.
         """
-        from rastr.io import write_raster  # noqa: PLC0415
+        from rastr.io_ import write_raster  # noqa: PLC0415
 
         return write_raster(self, path=path, **kwargs)
 
@@ -792,7 +801,7 @@ class Raster(BaseModel):
             crs: Optional coordinate reference system to override the file's CRS.
         """
         # Import here to avoid circular import (rastr.io imports Raster)
-        from rastr.io import read_raster_inmem  # noqa: PLC0415
+        from rastr.io_ import read_raster_inmem  # noqa: PLC0415
 
         return read_raster_inmem(filename, crs=crs, cls=cls)
 
@@ -891,6 +900,15 @@ class Raster(BaseModel):
         """
         with suppress_slice_warning():
             return float(np.nanmedian(self.arr))
+
+    def sum(self) -> float:
+        """Get the sum of all values in the raster, ignoring NaN values.
+
+        Returns:
+            The sum of all values in the raster. Returns zero if all values are NaN.
+        """
+        with suppress_slice_warning():
+            return float(np.nansum(self.arr))
 
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
@@ -1059,7 +1077,7 @@ class Raster(BaseModel):
         )
 
         # Dissolve contours by level to merge all contour lines of the same level
-        return contour_gdf.dissolve(by="level", as_index=False)
+        return contour_gdf.dissolve(by="level", as_index=False, sort=True)
 
     def sobel(self) -> Self:
         """Compute the Sobel gradient magnitude of the raster.
@@ -1118,6 +1136,73 @@ class Raster(BaseModel):
 
         new_raster = self.model_copy()
         new_raster.arr = blurred_array
+        return new_raster
+
+    def dilate(self, radius: float) -> Self:
+        """Apply a morphological dilation to the raster using a disk footprint.
+
+        Morphological dilation sets the value of a pixel to the maximum over all pixel
+        values within a local neighborhood centered about it.
+
+        Dilation enlarges bright regions and shrinks dark regions. This is useful e.g.
+        to find a region nearby a steep edge after applying a Sobel filter.
+
+        The radius parameter controls the dilation extent. This is rounded up to the
+        nearest integer multiple of the cell size, since dilation is a discrete
+        operation. To reduce inaccuracies due to this rounding, consider resampling
+        the raster to a smaller cell size before applying dilation.
+
+        NaN values in the original raster are preserved in their original locations.
+        They are temporarily filled during dilation to avoid spreading into valid data,
+        then restored after the operation completes. The output raster maintains the
+        same shape as the input.
+
+        Args:
+            radius: Radius of the disk footprint used in dilation, in units of
+                    geographic coordinate distance (e.g. meters).
+
+        Returns:
+            New raster with dilated values. NaN locations are preserved from the
+            original raster.
+        """
+        from skimage import morphology
+
+        # Round up to nearest cell
+        cell_radius = int(np.ceil(radius / self.cell_size))
+
+        # Calculate actual radius based on rounded cell count
+        radius_m = cell_radius * self.cell_size
+
+        # Store original NaN mask and shape
+        original_nan_mask = np.isnan(self.arr)
+        original_shape = self.arr.shape
+
+        # Handle all-NaN case
+        if np.all(original_nan_mask):
+            return self.model_copy()
+
+        # Pad the raster with non-consequential values to avoid edge effects
+        fill_val = self.min() - 1.0
+        new_raster = self.model_copy()
+        new_raster = new_raster.pad(width=radius_m, value=fill_val)
+
+        # Replace NaNs with fill_val to avoid issues during dilation
+        new_raster.arr[np.isnan(new_raster.arr)] = fill_val
+        new_raster.arr = morphology.dilation(
+            new_raster.arr, morphology.disk(cell_radius)
+        )
+
+        # Crop back to original size using array slicing
+        new_raster.arr = new_raster.arr[
+            cell_radius : cell_radius + original_shape[0],
+            cell_radius : cell_radius + original_shape[1],
+        ]
+        # Restore original metadata
+        new_raster = self.__class__(arr=new_raster.arr, meta=self.meta)
+
+        # Restore original NaN values
+        new_raster.arr[original_nan_mask] = np.nan
+
         return new_raster
 
     def extrapolate(self, method: Literal["nearest"] = "nearest") -> Self:
@@ -1208,7 +1293,7 @@ class Raster(BaseModel):
 
     def crop(
         self,
-        bounds: tuple[float, float, float, float],
+        bounds: tuple[float, float, float, float] | Bounds | ArrayLike,
         *,
         strategy: Literal["underflow", "overflow"] = "underflow",
     ) -> Self:
@@ -1225,6 +1310,14 @@ class Raster(BaseModel):
         Returns:
             A new Raster instance cropped to the specified bounds.
         """
+
+        bounds = np.asarray(bounds)
+        if len(bounds) != 4:
+            msg = (
+                f"bounds must be a sequence of length 4 (minx, miny, maxx, maxy); "
+                f"got length {len(bounds)}"
+            )
+            raise ValueError(msg)
 
         minx, miny, maxx, maxy = bounds
         arr = self.arr
@@ -1440,7 +1533,7 @@ class Raster(BaseModel):
         return self._trim_value(value_mask=(self.arr == 0), value_name="zero")
 
     def resample(
-        self, new_cell_size: float, *, method: Literal["bilinear"] = "bilinear"
+        self, cell_size: float, *, method: Literal["bilinear"] = "bilinear"
     ) -> Self:
         """Resample the raster data to a new resolution.
 
@@ -1451,14 +1544,14 @@ class Raster(BaseModel):
         will not necessary be the same as the original raster.
 
         Args:
-            new_cell_size: The desired cell size for the resampled raster.
+            cell_size: The desired cell size for the resampled raster.
             method: The resampling method to use. Only 'bilinear' is supported.
         """
         if method not in ("bilinear",):
             msg = f"Unsupported resampling method: {method}"
             raise NotImplementedError(msg)
 
-        factor = self.raster_meta.cell_size / new_cell_size
+        factor = self.raster_meta.cell_size / cell_size
 
         cls = self.__class__
         # Use the rasterio dataset with proper context management
@@ -1481,7 +1574,7 @@ class Raster(BaseModel):
                     (dataset.height / new_height),
                 ),
                 crs=self.raster_meta.crs,
-                cell_size=new_cell_size,
+                cell_size=cell_size,
             )
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)
@@ -1603,6 +1696,30 @@ def _map_colorbar(
     sample_points = np.linspace(0, 1, n)
     colors = [to_hex(colormap(x)) for x in sample_points]
     return BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+
+
+def _get_colormap_function(
+    colormap: str | Callable[[float], tuple[float, float, float, float]],
+) -> Callable[[float], tuple[float, float, float, float]]:
+    if isinstance(colormap, str):
+        if not MATPLOTLIB_INSTALLED:
+            if colormap != "viridis":
+                msg = "The 'matplotlib' package is required for string colormaps."
+            else:
+                msg = (
+                    "The default colormap 'viridis' requires the 'matplotlib' package."
+                )
+            msg += (
+                " Either install it, or provide a custom colormap, i.e. a function of "
+                "the form [x -> (r,g,b)] or [x -> (r,g,b,a)]"
+            )
+            raise ImportError(msg)
+
+        import matplotlib as mpl
+
+        colormap = mpl.colormaps[colormap]
+
+    return colormap
 
 
 def _get_vmin_vmax(

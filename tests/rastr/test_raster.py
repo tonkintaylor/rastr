@@ -8,11 +8,15 @@ import pytest
 import rasterio
 import rasterio.transform
 from affine import Affine
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from hypothesis.extra.numpy import arrays
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 from shapely import MultiPolygon, box
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
 
+from rastr.io_ import read_raster_inmem
 from rastr.meta import RasterMeta
 from rastr.raster import Raster
 
@@ -25,7 +29,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def example_raster():
     meta = RasterMeta(
-        cell_size=1.0,
+        cell_size=2.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
     )
@@ -37,7 +41,7 @@ def example_raster():
 @pytest.fixture
 def example_neg_scaled_raster():
     meta = RasterMeta(
-        cell_size=1.0,
+        cell_size=2.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, -2.0, 0.0),
     )
@@ -416,6 +420,15 @@ class TestRaster:
             assert bounds[2] == 4.0
             assert bounds[3] == 4.0
 
+        def test_bounds_repr_no_numpy_types(self, example_raster: Raster):
+            # Arrange & Act
+            bounds_repr = repr(example_raster.bounds)
+
+            # Assert - no numpy type references in repr
+            assert "np.float64" not in bounds_repr
+            assert "numpy.float64" not in bounds_repr
+            assert "float64" not in bounds_repr
+
     class TestAsGeoDataFrame:
         def test_as_geodataframe(self, example_raster: Raster):
             import geopandas as gpd
@@ -423,10 +436,10 @@ class TestRaster:
             raster_gdf = example_raster.as_geodataframe(name="ben")
 
             expected_polygons = {
-                Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
-                Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
-                Polygon([(0, 1), (1, 1), (1, 2), (0, 2)]),
-                Polygon([(1, 1), (2, 1), (2, 2), (1, 2)]),
+                Polygon([(0, 0), (2, 0), (2, 2), (0, 2)]),
+                Polygon([(2, 0), (4, 0), (4, 2), (2, 2)]),
+                Polygon([(0, 2), (2, 2), (2, 4), (0, 4)]),
+                Polygon([(2, 2), (4, 2), (4, 4), (2, 4)]),
             }
 
             # Check that the result is a GeoDataFrame
@@ -1314,6 +1327,31 @@ class TestRaster:
             assert raster.arr.shape == (2, 2)
             assert raster.raster_meta.crs.to_epsg() == 4326
 
+        def test_invalid_none_crs_tif(self, tmp_path: Path):
+            # Arrange
+            raster_path = tmp_path / "invalid_crs.tif"
+            data = np.array([[1, 2], [3, 4]], dtype=np.float32)
+            transform = Affine.translation(0, 2) * Affine.scale(1, -1)
+            with rasterio.open(
+                raster_path,
+                "w",
+                driver="GTiff",
+                height=data.shape[0],
+                width=data.shape[1],
+                count=1,
+                dtype=data.dtype,
+                crs=None,  # "EPSG:4326"
+                transform=transform,
+            ) as dst:
+                dst.write(data, 1)
+
+            # Act / Assert
+            with pytest.raises(
+                ValueError,
+                match="Invalid CRS from input raster and no override CRS provided",
+            ):
+                _ = read_raster_inmem(raster_path)
+
     class TestFillNA:
         def test_2by2_example(self):
             # Arrange
@@ -1768,6 +1806,228 @@ class TestRaster:
             # Assert - NaNs should spread into data
             assert np.all(np.isnan(blurred.arr))
 
+    class TestDilate:
+        def test_happy_path(self):
+            # Arrange
+            arr = np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 0, 1, 0],
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 0, 1, 0],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 0, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+            # Act
+            result = raster.dilate(radius=2)
+            # Assert
+            # With radius=2 and cell_size=2.0, cell_radius=ceil(2/2.0)=1
+            # Each point dilates by 1 cell (the disk radius) in all directions
+            expected = np.array(
+                [
+                    [0, 1, 0, 1, 0],
+                    [1, 1, 1, 1, 1],
+                    [0, 1, 0, 1, 0],
+                    [1, 1, 1, 1, 1],
+                ],
+                dtype=np.float64,
+            )
+            np.testing.assert_array_equal(result.arr, expected)
+            assert result.meta == raster_meta
+
+        def test_edge_behaviour_with_nans(self):
+            # Arrange: Single point in top-left corner with surrounding NaNs
+            arr = np.array(
+                [
+                    [10, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=rasterio.transform.from_origin(0, 3, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act
+            result = raster.dilate(radius=1.5)
+
+            # Assert: Dilation does nothing
+            expected = np.array(
+                [
+                    [10, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                    [np.nan, np.nan, np.nan],
+                ],
+                dtype=np.float64,
+            )
+
+            np.testing.assert_array_equal(result.arr, expected)
+
+        @settings(
+            suppress_health_check=[HealthCheck.too_slow],
+            max_examples=1000,
+            deadline=None,
+        )
+        @given(
+            arr=arrays(
+                dtype=np.float64,
+                shape=st.tuples(
+                    st.integers(min_value=3, max_value=10),
+                    st.integers(min_value=3, max_value=10),
+                ),
+                elements=st.floats(
+                    min_value=-100.0,
+                    max_value=100.0,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+            ),
+            nan_fraction=st.floats(min_value=0.1, max_value=0.9),
+            radius=st.floats(min_value=0.5, max_value=3.0),
+        )
+        @pytest.mark.hypothesis
+        def test_output_properties(
+            self,
+            arr: np.ndarray[tuple[int, int], np.dtype[np.float64]],
+            nan_fraction: float,
+            radius: float,
+        ) -> None:
+            """Property-based test for NaN preservation and sum monotonicity.
+
+            Tests two fundamental properties of morphological dilation:
+            1. NaN mask preservation: NaN locations remain unchanged
+            2. Monotonicity: Sum does not decrease (max operation spreads values)
+            3. Minimum value does not decrease (dilation should not reduce minimum)
+            """
+            # Randomly set some values to NaN
+            rng = np.random.default_rng()
+            nan_mask = rng.random(arr.shape) < nan_fraction
+            arr[nan_mask] = np.nan
+
+            # Skip if array is all NaNs or has no NaNs
+            if np.all(np.isnan(arr)) or not np.any(np.isnan(arr)):
+                return
+
+            # Arrange
+            cell_size = 1.0
+            height, _width = arr.shape
+            raster_meta = RasterMeta(
+                cell_size=cell_size,
+                crs=CRS.from_epsg(2193),
+                transform=rasterio.transform.from_origin(
+                    0, height, cell_size, cell_size
+                ),
+            )
+            raster = Raster(arr=arr.copy(), meta=raster_meta)
+
+            # Store original NaN mask
+            original_nan_mask = np.isnan(raster.arr)
+
+            # Act
+            result = raster.dilate(radius=radius)
+
+            # Assert: NaN mask should be identical
+            result_nan_mask = np.isnan(result.arr)
+            np.testing.assert_array_equal(
+                result_nan_mask,
+                original_nan_mask,
+                err_msg="NaN positions changed after dilation",
+            )
+
+            # Assert: Sum should not decrease (dilation spreads max values)
+            input_sum = np.nansum(raster.arr)
+            output_sum = np.nansum(result.arr)
+            assert output_sum >= input_sum, (
+                f"Sum decreased: {input_sum} -> {output_sum}"
+            )
+
+            # Assert: Min should not decrease
+            assert raster.min() <= result.min(), (
+                "Minimum value decreased after dilation"
+            )
+
+        def test_all_nan_raster(self):
+            """Test dilation on a raster where all values are NaN.
+
+            Should return a copy of the raster without modification.
+            """
+            # Arrange
+            arr = np.full((5, 5), np.nan, dtype=np.float64)
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 5, 1, 1),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act
+            result = raster.dilate(radius=1.5)
+
+            # Assert
+            assert result.shape == raster.shape
+            assert np.all(np.isnan(result.arr))
+            assert result.meta == raster.meta
+
+        def test_radius_rounded_to_cell_size(self):
+            """Test that radius is rounded up to nearest cell size multiple.
+
+            When radius is not an exact multiple of cell_size, it should be
+            rounded up and the actual dilation should use the rounded radius.
+            """
+            # Arrange: Create a raster with cell_size=2.0
+            arr = np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                ],
+                dtype=np.float64,
+            )
+            raster_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 14, 2, 2),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act: Request radius=2.5 which should round up to 4.0 (2 cells * 2.0)
+            result_2_5 = raster.dilate(radius=2.5)
+            # Request radius=4.0 which is exact (2 cells * 2.0)
+            result_4 = raster.dilate(radius=4.0)
+
+            # Assert: Both should produce the same result since 2.5 / 2 rounds up to 2
+            # radius=2.5: ceil(2.5/2.0) = 2 cells
+            # radius=4.0: ceil(4.0/2.0) = 2 cells
+            # The disk(2) footprint creates a circular pattern with radius 2 cells
+            expected = np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 1, 1, 1, 0, 0],
+                    [0, 1, 1, 1, 1, 1, 0],
+                    [0, 0, 1, 1, 1, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                ],
+                dtype=np.float64,
+            )
+            np.testing.assert_array_equal(result_2_5.arr, expected)
+            np.testing.assert_array_equal(result_4.arr, expected)
+
     class TestExtrapolate:
         class TestNearest:
             def test_no_nas_stays_the_same(self, example_raster: Raster):
@@ -2219,6 +2479,51 @@ class TestCrop:
         bounds = (0.0, 0.0, 1.5, 1.5)
         result = float32_raster.crop(bounds)
         assert result.arr.dtype == np.float32
+
+    def test_arraylike_bounds(self, base_raster: Raster):
+        # Need to test that gdf.total_bounds (which is ndarray) works.
+        # Get total_bounds from a simple GeoDataFrame with total_bounds
+        import geopandas as gpd
+
+        poly = Polygon(
+            [
+                (-20, 100),  # outside left
+                (20, 100),  # inside raster
+                (20, 60),  # inside raster
+                (-20, 60),  # outside left
+            ]
+        )
+
+        gdf = gpd.GeoDataFrame(
+            {"id": [1]},
+            geometry=[poly],
+            crs=CRS.from_epsg(2193),
+        )
+
+        bounds_array = gdf.total_bounds  # This is a numpy ndarray
+
+        # Act
+        cropped = base_raster.crop(bounds_array)
+        expected_bounds = (
+            0,
+            60,
+            20,
+            100,
+        )
+        # Assert
+        assert isinstance(cropped, Raster)
+        assert cropped.bounds == expected_bounds
+
+    def test_arraylike_bounds_length(self, base_raster: Raster):
+        # Arrange
+        bounds_array = np.array([0.0, 0.0, 50.0])  # Invalid length
+
+        # Act & Assert
+        with pytest.raises(
+            ValueError,
+            match="bounds must be a sequence of length 4",
+        ):
+            base_raster.crop(bounds_array)
 
 
 class TestPad:
@@ -3106,13 +3411,13 @@ class TestTrimZeros:
 class TestResample:
     def test_upsampling_doubles_resolution(self, base_raster: Raster):
         # Arrange
-        new_cell_size = 5.0  # Half the original size (10.0)
+        cell_size = 5.0  # Half the original size (10.0)
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should approximately double the dimensions (some discretization)
         assert resampled.arr.shape[0] >= 7  # At least 2x original (4)
         assert resampled.arr.shape[1] >= 7
@@ -3120,13 +3425,13 @@ class TestResample:
 
     def test_downsampling_halves_resolution(self, base_raster: Raster):
         # Arrange
-        new_cell_size = 20.0  # Double the original size (10.0)
+        cell_size = 20.0  # Double the original size (10.0)
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should approximately halve the dimensions
         assert resampled.arr.shape[0] <= 3  # At most half original (4)
         assert resampled.arr.shape[1] <= 3
@@ -3147,26 +3452,26 @@ class TestResample:
 
     def test_extreme_upsampling(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 1.0  # Much smaller than original 5.0
+        cell_size = 1.0  # Much smaller than original 5.0
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should be significantly larger
         assert resampled.arr.shape[0] >= 8
         assert resampled.arr.shape[1] >= 8
 
     def test_extreme_downsampling(self, base_raster: Raster):
         # Arrange
-        new_cell_size = 100.0  # Much larger than original 10.0
+        cell_size = 100.0  # Much larger than original 10.0
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should be much smaller, potentially 1x1
         assert resampled.arr.shape[0] >= 1
         assert resampled.arr.shape[1] >= 1
@@ -3175,23 +3480,23 @@ class TestResample:
 
     def test_transform_scaling(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 2.5  # Half the original cell size
+        cell_size = 2.5  # Half the original cell size
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
         new_transform = resampled.raster_meta.transform
         # The transform scale should be updated to reflect new cell size
-        assert abs(abs(new_transform.a) - new_cell_size) < 0.1
-        assert abs(abs(new_transform.e) - new_cell_size) < 0.1
+        assert abs(abs(new_transform.a) - cell_size) < 0.1
+        assert abs(abs(new_transform.e) - cell_size) < 0.1
 
     def test_bilinear_interpolation_smoothing(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 2.0  # Between original cells
+        cell_size = 2.0  # Between original cells
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
         # With bilinear interpolation, we shouldn't have any extreme values
@@ -3208,27 +3513,27 @@ class TestResample:
 
     def test_invalid_resampling_method(self, small_raster: Raster):
         with pytest.raises(NotImplementedError, match="Unsupported resampling method"):
-            small_raster.resample(new_cell_size=2.0, method="nearest")  # pyright: ignore[reportArgumentType]
+            small_raster.resample(cell_size=2.0, method="nearest")  # pyright: ignore[reportArgumentType]
 
     def test_negative_cell_size_fails(self, small_raster: Raster):
         # This should fail during the internal calculations
         with pytest.raises((ValueError, RuntimeError)):
-            small_raster.resample(new_cell_size=-1.0)
+            small_raster.resample(cell_size=-1.0)
 
     def test_zero_cell_size_fails(self, small_raster: Raster):
         # This should fail during the internal calculations
         with pytest.raises((ValueError, RuntimeError, ZeroDivisionError)):
-            small_raster.resample(new_cell_size=0.0)
+            small_raster.resample(cell_size=0.0)
 
     def test_very_small_cell_size(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 0.1  # Very small
+        cell_size = 0.1  # Very small
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Should result in a very large array
         assert resampled.arr.shape[0] >= 20
         assert resampled.arr.shape[1] >= 20
@@ -3236,30 +3541,30 @@ class TestResample:
     def test_metadata_preservation(self, base_raster: Raster):
         # Arrange
         original_crs = base_raster.raster_meta.crs
-        new_cell_size = 5.0
+        cell_size = 5.0
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
 
         # Assert
         assert resampled.raster_meta.crs == original_crs
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         # Transform should be updated but maintain CRS
         assert resampled.raster_meta.transform != base_raster.raster_meta.transform
 
     def test_bounds_consistency(self, base_raster: Raster):
         # Arrange
         original_bounds = base_raster.bounds
-        new_cell_size = 15.0
+        cell_size = 15.0
 
         # Act
-        resampled = base_raster.resample(new_cell_size)
+        resampled = base_raster.resample(cell_size)
         new_bounds = resampled.bounds
 
         # Assert
         # Bounds should be similar (allowing for some discretization effects)
         # The resampled raster bounds might be slightly larger due to rounding
-        tolerance = max(base_raster.raster_meta.cell_size, new_cell_size) * 2
+        tolerance = max(base_raster.raster_meta.cell_size, cell_size) * 2
 
         assert abs(new_bounds[0] - original_bounds[0]) <= tolerance  # xmin
         assert abs(new_bounds[1] - original_bounds[1]) <= tolerance  # ymin
@@ -3268,7 +3573,7 @@ class TestResample:
 
     def test_return_type(self, small_raster: Raster):
         # Act
-        result = small_raster.resample(new_cell_size=2.0)
+        result = small_raster.resample(cell_size=2.0)
 
         # Assert
         assert isinstance(result, Raster)
@@ -3280,7 +3585,7 @@ class TestResample:
         original_cell_size = small_raster.raster_meta.cell_size
 
         # Act
-        _ = small_raster.resample(new_cell_size=2.0)
+        _ = small_raster.resample(cell_size=2.0)
 
         # Assert
         np.testing.assert_array_equal(small_raster.arr, original_array)
@@ -3297,7 +3602,7 @@ class TestResample:
         raster = Raster(arr=cell_array, raster_meta=meta)
 
         # Act
-        resampled = raster.resample(new_cell_size=5.0)
+        resampled = raster.resample(cell_size=5.0)
 
         # Assert
         assert isinstance(resampled, Raster)
@@ -3307,23 +3612,23 @@ class TestResample:
 
     def test_float_precision_cell_size(self, small_raster: Raster):
         # Arrange
-        new_cell_size = 3.7  # Non-integer value
+        cell_size = 3.7  # Non-integer value
 
         # Act
-        resampled = small_raster.resample(new_cell_size)
+        resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == new_cell_size
+        assert resampled.raster_meta.cell_size == cell_size
         assert isinstance(resampled, Raster)
 
     def test_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that resample() preserves dtype."""
-        result = float32_raster.resample(new_cell_size=0.5)
+        result = float32_raster.resample(cell_size=0.5)
         assert result.arr.dtype == np.float32
 
     def test_preserves_dtype_float64(self, float64_raster: Raster):
         """Test that resample() preserves dtype for float64."""
-        result = float64_raster.resample(new_cell_size=0.5)
+        result = float64_raster.resample(cell_size=0.5)
         assert result.arr.dtype == np.float64
 
 
@@ -3507,7 +3812,12 @@ class TestExplore:
         monkeypatch.setattr("rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match=r"matplotlib.*required"):
+        with pytest.raises(
+            ImportError,
+            match=(
+                r"The default colormap 'viridis' requires the 'matplotlib' package."
+            ),
+        ):
             raster.explore()
 
     def test_homogenous_raster(self):
@@ -3632,6 +3942,7 @@ class TestRasterStatistics:
                 ),
             ),
             ("median", pytest.approx(5.0), pytest.approx(6.0)),
+            ("sum", 45.0, 37.0),
         ],
     )
     def test_basic_statistics(
@@ -3676,7 +3987,7 @@ class TestRasterStatistics:
 
     @pytest.mark.parametrize(
         "method_name",
-        ["min", "max", "mean", "std", "median"],
+        ["min", "max", "mean", "std", "median", "sum"],
     )
     def test_all_nan_slice_raster_no_warning(self, method_name: str) -> None:
         # Arrange

@@ -52,10 +52,15 @@ jobs:
       - name: Run pytest
         uses: pavelzw/pytest-action@510c5e90c360a185039bea56ce8b3e7e51a16507 # v2.2.0
         with:
-          custom-pytest: uv run pytest
+          custom-pytest: uv run pytest -m "not hypothesis"
           custom-arguments: --cov --junitxml=junit.xml -o junit_family=legacy --cov-report=xml
         env:
           MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434
+
+      - name: Test README codeblocks
+        run: |
+          uv run pytest --codeblocks README.md -v
+
       - name: Configure coverage reports directory
         if: ${{ matrix.sonarqube != null && matrix.sonarqube == 'true' && !cancelled() }}
         run: |
@@ -79,13 +84,13 @@ jobs:
             os: "ubuntu-latest"
           - python_version: "3.12"
             os: "ubuntu-latest"
-          - sonarqube: "true"
-            python_version: "3.13"
+          - python_version: "3.13"
             os: "ubuntu-latest"
           - os: "ubuntu-latest"
             python_version: "3.10"
             dependencies: "min"
             checks: "false"
+            sonarqube: "true"
           - dependencies: "max"
             python_version: "3.14"
             os: "ubuntu-latest"
@@ -118,7 +123,7 @@ jobs:
           cat > sonar-project.properties << EOF
           sonar.projectKey=${SONAR_PROJECT_KEY}
           sonar.language=py
-          sonar.python.version=3.13
+          sonar.python.version=3.10
           sonar.sources=./src
           sonar.tests=./tests
           sonar.python.coverage.reportPaths=./test-reports/coverage.xml

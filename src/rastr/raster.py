@@ -18,7 +18,7 @@ from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import Transformer
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
-from rasterio.io import MemoryFile
+from rasterio.io_ import MemoryFile
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
-    from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
+    from rasterio.io_ import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from shapely.geometry.base import BaseGeometry
     from typing_extensions import Self
 
@@ -748,7 +748,7 @@ class Raster(BaseModel):
                       `nodata` is provided, NaN values in the raster will be replaced
                       with the nodata value.
         """
-        from rastr.io import write_raster  # noqa: PLC0415
+        from rastr.io_ import write_raster  # noqa: PLC0415
 
         return write_raster(self, path=path, **kwargs)
 
@@ -798,7 +798,7 @@ class Raster(BaseModel):
             crs: Optional coordinate reference system to override the file's CRS.
         """
         # Import here to avoid circular import (rastr.io imports Raster)
-        from rastr.io import read_raster_inmem  # noqa: PLC0415
+        from rastr.io_ import read_raster_inmem  # noqa: PLC0415
 
         return read_raster_inmem(filename, crs=crs, cls=cls)
 

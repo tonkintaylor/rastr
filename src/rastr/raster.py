@@ -469,7 +469,10 @@ class Raster(BaseModel):
 
     @property
     def bounds(self) -> Bounds:
-        """Bounding box of the raster as a named tuple with xmin, ymin, xmax, ymax."""
+        """Bounding box of the raster as a named tuple with xmin, ymin, xmax, ymax.
+
+        The bounds represent the outer edges of the raster cells.
+        """
         x1, y1, x2, y2 = rasterio.transform.array_bounds(
             height=self.arr.shape[0],
             width=self.arr.shape[1],

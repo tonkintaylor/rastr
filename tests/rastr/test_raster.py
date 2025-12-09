@@ -3812,7 +3812,12 @@ class TestExplore:
         monkeypatch.setattr("rastr.raster.MATPLOTLIB_INSTALLED", False, raising=False)
 
         # Act / Assert
-        with pytest.raises(ImportError, match=r"matplotlib.*required"):
+        with pytest.raises(
+            ImportError,
+            match=(
+                r"The default colormap 'viridis' requires the 'matplotlib' package."
+            ),
+        ):
             raster.explore()
 
     def test_homogenous_raster(self):

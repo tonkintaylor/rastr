@@ -505,12 +505,11 @@ class Raster(BaseModel):
         vmax: float | None = None,
     ) -> Map:
         """Display the raster on a folium map."""
-        if not FOLIUM_INSTALLED or not MATPLOTLIB_INSTALLED:
-            msg = "The 'folium' and 'matplotlib' packages are required for 'explore()'."
+        if not FOLIUM_INSTALLED:
+            msg = "The 'folium' package is required for 'explore()'."
             raise ImportError(msg)
 
         import folium.raster_layers
-        import matplotlib as mpl
 
         if m is None:
             m = folium.Map()
@@ -519,8 +518,7 @@ class Raster(BaseModel):
             msg = "'vmin' must be less than 'vmax'."
             raise ValueError(msg)
 
-        if isinstance(colormap, str):
-            colormap = mpl.colormaps[colormap]
+        cmap_func = _get_colormap_function(colormap)
 
         # Transform bounds to WGS84 using pyproj directly
         wgs84_crs = CRS.from_epsg(4326)
@@ -563,7 +561,7 @@ class Raster(BaseModel):
             image=arr,
             bounds=bounds,
             opacity=opacity,
-            colormap=colormap,
+            colormap=cmap_func,
             mercator_project=True,
         )
 
@@ -571,7 +569,7 @@ class Raster(BaseModel):
 
         # Add a colorbar legend
         if BRANCA_INSTALLED:
-            cbar = _map_colorbar(colormap=colormap, vmin=_vmin, vmax=_vmax)
+            cbar = _map_colorbar(colormap=cmap_func, vmin=_vmin, vmax=_vmax)
             if cbar_label:
                 cbar.caption = cbar_label
             cbar.add_to(m)
@@ -1693,6 +1691,28 @@ def _map_colorbar(
     sample_points = np.linspace(0, 1, n)
     colors = [to_hex(colormap(x)) for x in sample_points]
     return BrancaLinearColormap(colors=colors, vmin=vmin, vmax=vmax)
+
+
+def _get_colormap_function(
+    colormap: str | Callable[[float], tuple[float, float, float, float]],
+) -> Callable[[float], tuple[float, float, float, float]]:
+    if isinstance(colormap, str):
+        if not MATPLOTLIB_INSTALLED:
+            if colormap != "viridis":
+                msg = "The 'matplotlib' package is required for string colormaps."
+            else:
+                msg = (
+                    "The default colormap 'viridis' requires the 'matplotlib' "
+                    "package. Either install it, or provide a custom colormap, "
+                    "i.e. a function of the form [x -> (r,g,b)] or [x -> (r,g,b,a)]"
+                )
+            raise ImportError(msg)
+
+        import matplotlib as mpl
+
+        colormap = mpl.colormaps[colormap]
+
+    return colormap
 
 
 def _get_vmin_vmax(

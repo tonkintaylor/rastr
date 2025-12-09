@@ -57,7 +57,7 @@ jobs:
         env:
           MPLBACKEND: Agg # https://github.com/orgs/community/discussions/26434
 
-      - name: Test README with pytest-codeblocks
+      - name: Test README codeblocks
         run: |
           uv run pytest --codeblocks README.md -v
 

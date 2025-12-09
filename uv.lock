@@ -320,6 +320,15 @@ wheels = [
 ]
 
 [[package]]
+name = "configupdater"
+version = "3.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/f4/603bd8a65e040b23d25b5843836297b0f4e430f509d8ed2ef8f072fb4127/ConfigUpdater-3.2.tar.gz", hash = "sha256:9fdac53831c1b062929bf398b649b87ca30e7f1a735f3fbf482072804106306b", size = 140603, upload-time = "2023-11-27T17:16:45.434Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/f0/b59cb7613d9d0f866b6ff247c5953ad78363c27ff5d684a2a98899ab8220/ConfigUpdater-3.2-py2.py3-none-any.whl", hash = "sha256:0f65a041627d7693840b4dd743581db4c441c97195298a29d075f91b79539df2", size = 34688, upload-time = "2023-11-27T17:16:43.53Z" },
+]
+
+[[package]]
 name = "consolekit"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3024,6 +3033,7 @@ dev = [
     { name = "ruff" },
     { name = "sync-with-uv" },
     { name = "tqdm" },
+    { name = "usethis" },
     { name = "validate-pyproject" },
 ]
 doc = [
@@ -3088,6 +3098,7 @@ dev = [
     { name = "ruff", specifier = ">=0.13.2" },
     { name = "sync-with-uv", specifier = ">=0.4.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "usethis", specifier = ">=0.17.0" },
     { name = "validate-pyproject", specifier = ">=0.24.1" },
 ]
 doc = [
@@ -3602,6 +3613,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tomlkit"
+version = "0.13.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/18/0bbf3884e9eaa38819ebe46a7bd25dcd56b67434402b66a58c4b8e552575/tomlkit-0.13.3.tar.gz", hash = "sha256:430cf247ee57df2b94ee3fbe588e71d362a941ebb545dec29b53961d61add2a1", size = 185207, upload-time = "2025-06-05T07:13:44.947Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/75/8539d011f6be8e29f339c42e633aae3cb73bffa95dd0f9adec09b9c58e85/tomlkit-0.13.3-py3-none-any.whl", hash = "sha256:c89c649d79ee40629a9fda55f8ace8c6a1b42deb912b2a8fd8d942ddadb606b0", size = 38901, upload-time = "2025-06-05T07:13:43.546Z" },
+]
+
+[[package]]
 name = "tornado"
 version = "6.5.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3693,6 +3713,28 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/15/22/9ee70a2574a4f4599c47dd506532914ce044817c7752a79b6a51286319bc/urllib3-2.5.0.tar.gz", hash = "sha256:3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760", size = 393185, upload-time = "2025-06-18T14:07:41.644Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/c2/fe1e52489ae3122415c51f387e221dd0773709bad6c6cdaa599e8a2c5185/urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc", size = 129795, upload-time = "2025-06-18T14:07:40.39Z" },
+]
+
+[[package]]
+name = "usethis"
+version = "0.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "configupdater" },
+    { name = "grimp" },
+    { name = "mergedeep" },
+    { name = "packaging" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "ruamel-yaml" },
+    { name = "tomlkit" },
+    { name = "typer" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/d0/b79f8c1dd92e4497ea9bc6d6db8f5843489caa3113e18f53237e12c30124/usethis-0.17.0.tar.gz", hash = "sha256:513e8a50376ff2603acc8dd257b81f5a28e246a03073aba68482ce342138c831", size = 364741, upload-time = "2025-11-09T00:57:46.722Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/d2/cdf985e05fa362787baf6005b62fc56ea04dec241d41c3a48eb2c008b7b3/usethis-0.17.0-py3-none-any.whl", hash = "sha256:ae8ea1704e9fbf474fa556c10e369395cd7a1209f4984dcdc5b046f65265a6f8", size = 163371, upload-time = "2025-11-09T00:57:45.402Z" },
 ]
 
 [[package]]

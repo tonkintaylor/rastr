@@ -71,6 +71,7 @@ dev = [
   "ruff>=0.13.2",
   "sync-with-uv>=0.4.0",
   "tqdm>=4.67.1",
+  "usethis>=0.17.0",
   "validate-pyproject>=0.24.1",
 ]
 test = [

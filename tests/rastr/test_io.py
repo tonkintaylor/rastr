@@ -1,15 +1,34 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
+import rasterio
 import rasterio.transform
 from affine import Affine
 from pyproj.crs.crs import CRS
 from shapely import Polygon
 
-from rastr.io_ import read_cad_gdf, read_raster_inmem, read_raster_mosaic_inmem
+from rastr.io_ import (
+    read_cad_gdf,
+    read_raster_inmem,
+    read_raster_mosaic_inmem,
+    write_raster,
+)
+from rastr.meta import RasterMeta
+from rastr.raster import Raster
+
+if TYPE_CHECKING:
+    from types import TracebackType
+
+    from typing_extensions import Self
+
+try:
+    from rasterio._err import CPLE_BaseError
+except ImportError:
+    CPLE_BaseError = Exception  # Fallback if private module import fails
 
 
 class TestReadRasterInMem:
@@ -273,6 +292,120 @@ class TestReadRasterMosaicInMem:
 
         # Assert
         assert raster.arr.dtype == np.float16
+
+
+class TestWriteRaster:
+    @pytest.fixture
+    def example_raster(self) -> Raster:
+        meta = RasterMeta(
+            cell_size=2.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+        )
+        arr = np.array([[1, 2], [3, 4]], dtype=float)
+        return Raster(arr=arr, raster_meta=meta)
+
+    def test_tiff_basic(self, tmp_path: Path, example_raster: Raster) -> None:
+        # Arrange
+        output_path = tmp_path / "test.tif"
+
+        # Act
+        write_raster(example_raster, path=output_path)
+
+        # Assert
+        assert output_path.exists()
+        result_raster = read_raster_inmem(output_path)
+        np.testing.assert_array_equal(result_raster.arr, example_raster.arr)
+        assert result_raster.raster_meta.crs.to_epsg() == 2193
+
+    def test_grd_basic(self, tmp_path: Path, example_raster: Raster) -> None:
+        # Arrange
+        output_path = tmp_path / "test.grd"
+
+        # Act
+        write_raster(example_raster, path=output_path)
+
+        # Assert
+        assert output_path.exists()
+        result_raster = read_raster_inmem(output_path)
+        np.testing.assert_allclose(result_raster.arr, example_raster.arr)
+
+    def test_preserves_dtype(self, tmp_path: Path) -> None:
+        # Arrange
+        meta = RasterMeta(
+            cell_size=2.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
+        )
+        arr = np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float32)
+        raster = Raster(arr=arr, raster_meta=meta)
+        output_path = tmp_path / "test.tif"
+
+        # Act
+        write_raster(raster, path=output_path)
+
+        # Assert
+        result_raster = read_raster_inmem(output_path)
+        assert result_raster.arr.dtype == np.float32
+
+    def test_with_nodata_value(self, tmp_path: Path, example_raster: Raster) -> None:
+        # Arrange
+        output_path = tmp_path / "test.tif"
+        raster_with_nan = example_raster.model_copy()
+        raster_with_nan.arr[0, 0] = np.nan
+        nodata_value = -9999
+
+        # Act
+        write_raster(raster_with_nan, path=output_path, nodata=nodata_value)
+
+        # Assert
+        with rasterio.open(output_path) as src:
+            arr = src.read(1)
+            assert src.nodata == nodata_value
+            assert arr[0, 0] == nodata_value
+            assert arr[1, 1] == 4
+
+    def test_unsupported_extension_raises_error(
+        self, tmp_path: Path, example_raster: Raster
+    ) -> None:
+        # Arrange
+        output_path = tmp_path / "test.xyz"
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Unsupported file extension"):
+            write_raster(example_raster, path=output_path)
+
+    def test_cple_write_error(
+        self, tmp_path: Path, example_raster: Raster, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Arrange
+        tif_path = tmp_path / "test.tif"
+
+        # Define a fake dataset context manager mimicking rasterio.open("w")
+        class FakeDataset:
+            def write(self, _arr: Any, _band: Any) -> None:
+                # Simulate a GDAL write failure — proper CPLE_BaseError signature
+                raise CPLE_BaseError(1, 2, "Simulated GDAL write failure")
+
+            def __enter__(self) -> Self:
+                return self
+
+            def __exit__(
+                self,
+                _exc_type: type[BaseException] | None,
+                _exc_val: BaseException | None,
+                _exc_tb: TracebackType | None,
+            ) -> None:
+                pass
+
+        monkeypatch.setattr(rasterio, "open", lambda *_args, **_kwargs: FakeDataset())
+
+        # Act & Assert
+        with pytest.raises(
+            OSError,
+            match="Failed to write raster to file: Simulated GDAL write failure",
+        ):
+            write_raster(example_raster, path=tif_path)
 
 
 class TestReadCADGDF:

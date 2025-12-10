@@ -5,7 +5,7 @@ Fork + Port of <https://github.com/philipschall/shapelysmooth> (Public domain)
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
@@ -14,15 +14,16 @@ from typing_extensions import assert_never
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-
-T = TypeVar("T", bound=LineString | Polygon)
+    from shapely.geometry.base import BaseGeometry
 
 
 class InputeTypeError(TypeError):
     """Raised when the input geometry is of the incorrect type."""
 
 
-def catmull_rom_smooth(geometry: T, alpha: float = 0.5, subdivs: int = 10) -> T:
+def catmull_rom_smooth(
+    geometry: BaseGeometry, alpha: float = 0.5, subdivs: int = 10
+) -> LineString | Polygon:
     """Polyline smoothing using Catmull-Rom splines.
 
     Args:
@@ -36,6 +37,9 @@ def catmull_rom_smooth(geometry: T, alpha: float = 0.5, subdivs: int = 10) -> T:
 
     Returns: The smoothed geometry.
     """
+    if not isinstance(geometry, (LineString, Polygon)):
+        msg = "Only LineString and Polygon geometries are supported."
+        raise NotImplementedError(msg)
     coords, interior_coords = _get_coords(geometry)
     coords_smoothed = _catmull_rom(coords, alpha=alpha, subdivs=subdivs)
     if isinstance(geometry, LineString):

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from rastr.gis.smooth import _recursive_eval, catmull_rom_smooth
 
@@ -51,6 +51,14 @@ class TestCatmullRomSmooth:
         assert result.interiors[0].coords[0] == pytest.approx(
             result.interiors[0].coords[-1]
         )
+
+    def test_invalid_geometry(self):
+        # Arrange
+        point = Point(0, 0)
+        # Act & Assert
+        msg = "Only LineString and Polygon geometries are supported"
+        with pytest.raises(NotImplementedError, match=msg):
+            catmull_rom_smooth(point, alpha=0.5, subdivs=5)
 
     @pytest.mark.parametrize("alpha", [0.0, 0.5, 1.0])
     @pytest.mark.parametrize("subdivs", [2, 5, 10])

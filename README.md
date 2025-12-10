@@ -131,7 +131,7 @@ from rastr import Raster
 - [`Raster.fillna(value)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.fillna) - fill NaN values with a specified value.
 - [`Raster.replace(to_replace, value)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.replace) - replace specific cell values.
 - [`Raster.replace_polygon(polygon, value)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.replace_polygon) - replace cell values within a polygon.
-- [`Raster.trim_nan()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.trim_nan) - remove rows/columns that are entirely NaN.
+- [`Raster.trim_nan()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.trim_nan) - remove border rows/columns that are entirely NaN.
 
 ### Image Processing
 

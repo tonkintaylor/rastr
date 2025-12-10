@@ -26,7 +26,7 @@ theme:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/usethis-python/usethis-python
+      link: https://github.com/tonkintaylor/rastr
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/usethis/
 

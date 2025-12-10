@@ -10,7 +10,7 @@
 
 A lightweight geospatial raster datatype library for Python focused on simplicity.
 
-For more details, read the documentation: https://rastr.readthedocs.io/en/latest/.
+For more details, read the documentation: <https://rastr.readthedocs.io/en/stable/>.
 
 ## Overview
 
@@ -93,6 +93,72 @@ raster.to_file("output.tif")
 # Convert to GeoDataFrame for vector analysis
 gdf = raster.as_geodataframe(name="elevation")
 ```
+
+## Quick Reference
+
+```python
+from rastr import Raster
+```
+
+### Data access
+
+- [`Raster.bbox`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.bbox) - bounding box polygon.
+- [`Raster.bounds`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.bounds) - bounding box as `(xmin, ymin, xmax, ymax)`.
+- [`Raster.cell_size`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.cell_size) - cell size.
+- [`Raster.crs`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.crs) - coordinate reference system.
+- [`Raster.shape`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.shape) - raster shape (rows, columns).
+- [`Raster.transform`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.transform) - affine transform.
+- [`Raster.sample(xy)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.sample) - sample raster values at given coordinates.
+
+### I/O
+
+- [`Raster.read_file(path)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.read_file) - read raster from file.
+- [`Raster.to_file(path)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.to_file) - write raster to file.
+- [`Raster.to_clipboard()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.to_clipboard) - copy raster data to clipboard in a tabular format.
+
+### Geometric Operations
+
+- [`Raster.crop(bounds)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.crop) - remove cells outside given bounds.
+- [`Raster.pad(width)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.pad) - add NaN border around raster.
+- [`Raster.resample(cell_size)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.resample) - resample raster to a new cell size.
+- [`Raster.taper_border(width)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.taper_border) - gradually reduce values to zero at the border.
+- [`Raster.gdf()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.gdf) - Vectorize to a GeoDataFrame of cell polygons and values.
+
+### NaN Management and value replacements
+
+- [`Raster.clip(polygon)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.clip) - replace values outside a polygon with NaN.
+- [`Raster.extrapolate()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.extrapolate) - fill NaN values via nearest-neighbours.
+- [`Raster.fillna(value)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.fillna) - fill NaN values with a specified value.
+- [`Raster.replace(to_replace, value)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.replace) - replace specific cell values.
+- [`Raster.replace_polygon(polygon, value)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.replace_polygon) - replace cell values within a polygon.
+- [`Raster.trim_nan()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.trim_nan) - remove border rows/columns that are entirely NaN.
+
+### Image Processing
+
+- [`Raster.blur(radius)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.blur) - apply Gaussian blur.
+- [`Raster.dilate(radius)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.dilate) - apply morphological dilation.
+- [`Raster.sobel()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.sobel) - apply Sobel filter (edge detection/gradient).
+
+### Visualization
+
+- [`Raster.explore()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.explore) - interactive web map visualization with folium.
+- [`Raster.plot()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.plot) - matplotlib static plot with colorbar.
+- [`Raster.contour(levels)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.contour) - get a GeoDataFrame of contour lines.
+
+### Cell-wise Operations
+
+- [`Raster.apply(func)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.apply) - apply a function to cell values.
+- [`Raster.abs()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.abs) - absolute value of cell values.
+- [`Raster.exp()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.exp) - exponential of cell values.
+- [`Raster.log()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.log) - logarithm of cell values.
+- [`Raster.max()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.max) - maximum of cell values.
+- [`Raster.mean()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.mean) - mean of cell values.
+- [`Raster.median()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.median) - median of cell values.
+- [`Raster.min()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.min) - minimum of cell values.
+- [`Raster.normalize()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.normalize) - normalize cell values to [0, 1].
+- [`Raster.quantile(q)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.quantile) - quantile of cell values.
+- [`Raster.std()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.std) - standard deviation of cell values.
+- [`Raster.sum()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.sum) - sum of cell values.
 
 ## Limitations
 

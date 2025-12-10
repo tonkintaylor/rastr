@@ -57,18 +57,6 @@ doubled = raster * 2
 summed = raster + 10
 combined = raster + doubled
 
-# Create full rasters with specified values
-cell_size = 1.0
-empty_raster = full_raster(
-    RasterMeta(
-        cell_size=cell_size,
-        crs=CRS.from_epsg(2193),
-        transform=from_origin(0, 100, cell_size, cell_size),
-    ),
-    bounds=(0, 0, 100, 100),
-    fill_value=0.0,
-)
-
 # Visualize the data
 ax = raster.plot(cbar_label="Values")
 

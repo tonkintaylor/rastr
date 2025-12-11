@@ -410,15 +410,16 @@ class Raster(BaseModel):
         | Collection[Point]
         | ArrayLike
         | tuple[float, float]
-        | Point,
+        | Point
+        | gpd.GeoDataFrame,
         *,
         na_action: Literal["raise", "ignore"] = "raise",
     ) -> NDArray | float:
         """Sample raster values at GeoSeries locations and return sampled values.
 
         Args:
-            xy: A list of (x, y) coordinates or shapely Point objects to sample the
-                raster at.
+            xy: A list of (x, y) coordinates, shapely Point objects, or a
+                GeoDataFrame containing Point geometries to sample the raster at.
             na_action: Action to take when a NaN value is encountered in the input xy.
                        Options are "raise" (raise an error) or "ignore" (replace with
                        NaN).
@@ -429,8 +430,14 @@ class Raster(BaseModel):
         # If this function is too slow, consider the optimizations detailed here:
         # https://rdrn.me/optimising-sampling/
 
+        import geopandas as gpd
+
+        if isinstance(xy, gpd.GeoDataFrame):
+            xy = _gdf_to_xy(xy, self.crs)
+            singleton = False
+
         # Convert shapely Points to coordinate tuples if needed
-        if isinstance(xy, Point):
+        elif isinstance(xy, Point):
             xy = [(xy.x, xy.y)]
             singleton = True
         elif (
@@ -1722,6 +1729,38 @@ class Raster(BaseModel):
         raster.arr = arr
 
         return raster
+
+
+def _gdf_to_xy(gdf: gpd.GeoDataFrame, raster_crs: CRS) -> list[tuple[float, float]]:
+    """Convert GeoDataFrame with Point geometries to list of (x, y) tuples.
+
+    Args:
+        gdf: GeoDataFrame containing Point geometries.
+        raster_crs: The CRS of the raster for validation.
+
+    Returns:
+        List of (x, y) coordinate tuples from the Point geometries.
+
+    Raises:
+        NotImplementedError: If geometries are not all Points.
+        ValueError: If GeoDataFrame CRS doesn't match raster CRS.
+    """
+    # Check that all geometries are Points
+    if not all(gdf.geometry.geom_type == "Point"):
+        msg = "Sampling is only supported for Point geometries."
+        raise NotImplementedError(msg)
+
+    # Check CRS
+    if gdf.crs is None:
+        msg = "GeoDataFrame has no CRS; assuming it matches the raster CRS."
+        warnings.warn(msg, UserWarning, stacklevel=2)
+    elif gdf.crs != raster_crs:
+        msg = "CRS of GeoDataFrame does not match raster CRS."
+        raise ValueError(msg)
+
+    # Extract coordinates from Point geometries
+    xy = [(geom.x, geom.y) for geom in gdf.geometry]  # pyright: ignore[reportAttributeAccessIssue]
+    return xy
 
 
 def _map_colorbar(

@@ -383,6 +383,102 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(result, np.array(1.0), strict=True)
 
+        def test_gdf_multiple_points(self, example_raster: Raster):
+            # Arrange
+            import geopandas as gpd
+
+            gdf = gpd.GeoDataFrame(
+                geometry=[Point(0, 0), Point(1, 1), Point(2, 2)],
+                crs=example_raster.crs,
+            )
+
+            # Act
+            result = example_raster.sample(gdf, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array([1.0, 1.0, 4.0]))
+
+        def test_gdf_with_single_point(self, example_raster: Raster):
+            # Arrange
+            import geopandas as gpd
+
+            gdf = gpd.GeoDataFrame(
+                geometry=[Point(0, 0)],
+                crs=example_raster.crs,
+            )
+
+            # Act
+            result = example_raster.sample(gdf, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array([1.0]))
+
+        def test_gdf_non_point_geometry(self, example_raster: Raster):
+            # Arrange
+            import geopandas as gpd
+
+            gdf = gpd.GeoDataFrame(
+                geometry=[Point(0, 0), Point(1, 1), Polygon([(0, 0), (1, 0), (1, 1)])],
+                crs=example_raster.crs,
+            )
+
+            # Act & Assert
+            with pytest.raises(
+                NotImplementedError,
+                match="Sampling is only supported for Point geometries",
+            ):
+                example_raster.sample(gdf, na_action="raise")
+
+        def test_geoseries_of_points(self, example_raster: Raster):
+            # Arrange
+            import geopandas as gpd
+
+            points = gpd.GeoSeries(
+                [Point(0, 0), Point(1, 1), Point(2, 2)],
+                crs=example_raster.crs,
+            )
+
+            # Act
+            result = example_raster.sample(points, na_action="raise")
+
+            # Assert
+            np.testing.assert_array_equal(result, np.array([1.0, 1.0, 4.0]))
+
+        def test_gdf_mismatched_crs(self, example_raster: Raster):
+            # Arrange
+            import geopandas as gpd
+
+            gdf = gpd.GeoDataFrame(
+                geometry=[Point(0, 0), Point(1, 1)],
+                crs=CRS.from_epsg(4326),  # Different CRS
+            )
+
+            # Act & Assert
+            with pytest.raises(
+                ValueError,
+                match="CRS of GeoDataFrame does not match raster CRS",
+            ):
+                example_raster.sample(gdf, na_action="raise")
+
+        def test_gdf_no_crs(self, example_raster: Raster):
+            # Arrange
+            import geopandas as gpd
+
+            gdf = gpd.GeoDataFrame(
+                geometry=[Point(0, 0), Point(1, 1), Point(2, 2)],
+                crs=None,
+            )
+
+            # Act & Assert
+            with pytest.warns(
+                UserWarning,
+                match="GeoDataFrame has no CRS; assuming it matches the raster CRS",
+            ):
+                result = example_raster.sample(gdf, na_action="raise")
+
+            # Assert the function still executes correctly
+            np.testing.assert_array_equal(result, np.array([1.0, 1.0, 4.0]))
+
     class TestBounds:
         def test_bounds(self, example_raster: Raster):
             assert example_raster.bounds == (0.0, 0.0, 4.0, 4.0)

@@ -1005,6 +1005,83 @@ class TestRaster:
             )
             assert result.raster_meta == raster_meta
 
+    class TestClamp:
+        def test_both_bounds(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[0, 5], [10, 15]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.clamp(a_min=3, a_max=12)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[3, 5], [10, 12]]))
+            assert result.raster_meta == raster_meta
+
+        def test_only_min(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[0, 5], [10, 15]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.clamp(a_min=7)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[7, 7], [10, 15]]))
+            assert result.raster_meta == raster_meta
+
+        def test_only_max(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[0, 5], [10, 15]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.clamp(a_max=8)
+
+            # Assert
+            np.testing.assert_array_equal(result.arr, np.array([[0, 5], [8, 8]]))
+            assert result.raster_meta == raster_meta
+
+        def test_preserves_dtype(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[0, 5], [10, 15]], dtype=np.int32),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.clamp(a_min=3, a_max=12)
+
+            # Assert
+            assert result.arr.dtype == np.int32
+            assert result.raster_meta == raster_meta
+
     class TestSetCRS:
         def test_crs_object(self, example_raster: Raster) -> None:
             # Arrange

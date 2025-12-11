@@ -4136,3 +4136,50 @@ class TestNormalize:
         """Test that normalize() preserves dtype for float16."""
         result = float16_raster.normalize()
         assert result.arr.dtype == np.float16
+
+
+class TestUnique:
+    def test_example(self):
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        )
+        arr = np.array([[1, 2, np.nan], [3, 2, 1]], dtype=float)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        result = raster.unique()
+
+        # Assert
+        assert isinstance(result, np.ndarray)
+        np.testing.assert_array_equal(result, np.array([1.0, 2.0, 3.0, np.nan]))
+
+    def test_all_nan(self):
+        """Test unique when all values are NaN."""
+        # Arrange
+        meta = RasterMeta(
+            cell_size=1.0,
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        )
+        arr = np.array([[np.nan, np.nan], [np.nan, np.nan]], dtype=float)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        result = raster.unique()
+
+        # Assert
+        assert isinstance(result, np.ndarray)
+        assert result.size == 1
+        assert np.isnan(result[0])
+
+    def test_preserves_dtype(self, float32_raster: Raster):
+        """Test that unique preserves dtype."""
+        # Act
+        result = float32_raster.unique()
+
+        # Assert
+        assert isinstance(result, np.ndarray)
+        assert result.dtype == np.float32

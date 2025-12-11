@@ -1005,7 +1005,7 @@ class TestRaster:
             )
             assert result.raster_meta == raster_meta
 
-    class TestSetCrs:
+    class TestSetCRS:
         def test_crs_object(self, example_raster: Raster) -> None:
             # Arrange
             new_crs = CRS.from_epsg(4326)

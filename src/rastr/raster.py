@@ -300,6 +300,30 @@ class Raster(BaseModel):
         cls = self.__class__
         return cls(arr=np.exp(self.arr), raster_meta=self.raster_meta)
 
+    def clamp(
+        self,
+        a_min: float | None = None,
+        a_max: float | None = None,
+    ) -> Self:
+        """Clip (clamp) values to a specified range.
+
+        Returns a new raster with values clipped to [a_min, a_max].
+
+        Args:
+            a_min: Minimum value. Values below this will be set to a_min.
+                   If None, no minimum clipping is applied.
+            a_max: Maximum value. Values above this will be set to a_max.
+                   If None, no maximum clipping is applied.
+
+        Returns:
+            A new Raster instance with clipped values.
+        """
+        cls = self.__class__
+        return cls(
+            arr=np.clip(self.arr, a_min, a_max),
+            raster_meta=self.raster_meta,
+        )
+
     def set_crs(self, crs: CRS | str, *, allow_override: bool = False) -> Self:
         """Set the CRS of the raster without reprojecting.
 

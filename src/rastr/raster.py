@@ -954,7 +954,7 @@ class Raster(BaseModel):
             return float(np.nansum(self.arr))
 
     def unique(self) -> NDArray:
-        """Get the unique cell values in the raster, including NaN..
+        """Get the unique cell values in the raster, including NaN.
 
         Returns:
             Array of unique values in the raster.

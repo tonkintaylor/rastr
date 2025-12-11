@@ -1100,6 +1100,22 @@ class TestRaster:
             result = float32_raster.apply(lambda arr: arr * 2, raw=True)
             assert result.arr.dtype == np.float32
 
+        def test_apply_raw_passes_kwargs(self, float32_raster: Raster):
+            """Test that apply() with raw=True passes kwargs to array function."""
+            result = float32_raster.apply(
+                lambda arr, exponent: arr**exponent, raw=True, exponent=2
+            )
+            expected = float32_raster.arr**2
+            np.testing.assert_array_almost_equal(result.arr, expected)
+
+        def test_apply_elementwise_passes_kwargs(self, float32_raster: Raster):
+            """Test that apply() with raw=False passes kwargs to scalar function."""
+            result = float32_raster.apply(
+                lambda arr, exponent: arr**exponent, raw=False, exponent=2
+            )
+            expected = float32_raster.arr**2
+            np.testing.assert_array_almost_equal(result.arr, expected)
+
     class TestToFile:
         def test_saving_gtiff(self, tmp_path: Path, example_raster: Raster):
             # Arrange

@@ -6,7 +6,15 @@ import importlib.util
 import warnings
 from collections.abc import Collection
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Concatenate,
+    Literal,
+    NamedTuple,
+    ParamSpec,
+    overload,
+)
 
 import numpy as np
 import numpy.ma
@@ -47,6 +55,7 @@ BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 CONTOUR_PERTURB_EPS = 1e-10
+P = ParamSpec("P")
 
 
 @contextmanager
@@ -851,18 +860,21 @@ class Raster(BaseModel):
     @overload
     def apply(
         self,
-        func: Callable[[np.ndarray], np.ndarray],
+        func: Callable[Concatenate[np.ndarray, P], np.ndarray],
         *,
         raw: Literal[True],
+        **kwargs: Any,
     ) -> Self: ...
     @overload
     def apply(
         self,
-        func: Callable[[float], float] | Callable[[np.ndarray], np.ndarray],
+        func: Callable[Concatenate[float, P], float]
+        | Callable[Concatenate[np.ndarray, P], np.ndarray],
         *,
         raw: Literal[False] = False,
+        **kwargs: Any,
     ) -> Self: ...
-    def apply(self, func: Callable, *, raw: bool = False) -> Self:
+    def apply(self, func: Callable, *, raw: bool = False, **kwargs: Any) -> Self:
         """Apply a function element-wise to the raster array.
 
         Creates a new raster instance with the same metadata (CRS, transform, etc.)
@@ -876,12 +888,13 @@ class Raster(BaseModel):
             raw: If True, the function is applied directly to the entire array at
                  once. If False, the function is applied element-wise to each cell
                  in the array using `np.vectorize()`. Default is False.
+            **kwargs: Additional keyword arguments to pass to the function.
         """
         new_raster = self.model_copy()
         if raw:
-            new_arr = func(self.arr)
+            new_arr = func(self.arr, **kwargs)
         else:
-            new_arr = np.vectorize(func)(self.arr)
+            new_arr = np.vectorize(func)(self.arr, **kwargs)
         new_raster.arr = np.asarray(new_arr)
         return new_raster
 

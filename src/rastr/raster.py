@@ -300,6 +300,48 @@ class Raster(BaseModel):
         cls = self.__class__
         return cls(arr=np.exp(self.arr), raster_meta=self.raster_meta)
 
+    def set_crs(self, crs: CRS | str, *, allow_override: bool = False) -> Self:
+        """Set the CRS of the raster without reprojecting.
+
+        To reproject the raster data to a different CRS, use `to_crs()` instead.
+
+        Args:
+            crs: The coordinate reference system to assign. Can be a CRS object or a
+                 string that can be parsed by pyproj (e.g., 'EPSG:4326').
+            allow_override: If False (default), raises an error if the raster already
+                           has a CRS that differs from the one being set. If True,
+                           allows overriding any existing CRS.
+
+        Returns:
+            A new Raster instance with the updated CRS and unchanged array data.
+
+        Raises:
+            ValueError: If the raster already has a CRS that differs from the one
+                       being set and allow_override is False.
+
+        """
+        crs_obj = CRS.from_user_input(crs)
+
+        # Check if raster already has a different CRS
+        if (
+            self.raster_meta.crs is not None
+            and self.raster_meta.crs != crs_obj
+            and not allow_override
+        ):
+            msg = (
+                f"The raster already has a CRS ({self.raster_meta.crs}) which is "
+                f"different from the one provided ({crs_obj}). Use "
+                f"allow_override=True to override."
+            )
+            raise ValueError(msg)
+
+        new_meta = RasterMeta(
+            cell_size=self.raster_meta.cell_size,
+            crs=crs_obj,
+            transform=self.raster_meta.transform,
+        )
+        return self.__class__(arr=self.arr, raster_meta=new_meta)
+
     @property
     def cell_centre_coords(self) -> NDArray[np.float64]:
         """Get the coordinates of the cell centres in the raster."""

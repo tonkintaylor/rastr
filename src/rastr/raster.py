@@ -300,6 +300,26 @@ class Raster(BaseModel):
         cls = self.__class__
         return cls(arr=np.exp(self.arr), raster_meta=self.raster_meta)
 
+    def set_crs(self, crs: CRS | str) -> Self:
+        """Set the CRS of the raster without reprojecting.
+
+        To reproject the raster data to a different CRS, use `to_crs()` instead.
+
+        Args:
+            crs: The coordinate reference system to assign. Can be a CRS object or a
+                 string that can be parsed by pyproj (e.g., 'EPSG:4326').
+
+        Returns:
+            A new Raster instance with the updated CRS and unchanged array data.
+        """
+        crs_obj = CRS.from_user_input(crs)
+        new_meta = RasterMeta(
+            cell_size=self.raster_meta.cell_size,
+            crs=crs_obj,
+            transform=self.raster_meta.transform,
+        )
+        return self.__class__(arr=self.arr, raster_meta=new_meta)
+
     @property
     def cell_centre_coords(self) -> NDArray[np.float64]:
         """Get the coordinates of the cell centres in the raster."""

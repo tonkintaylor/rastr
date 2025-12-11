@@ -1005,6 +1005,52 @@ class TestRaster:
             )
             assert result.raster_meta == raster_meta
 
+    class TestSetCrs:
+        def test_crs_object(self, example_raster: Raster) -> None:
+            # Arrange
+            new_crs = CRS.from_epsg(4326)
+
+            # Act
+            result = example_raster.set_crs(new_crs)
+
+            # Assert
+            assert result.crs.to_epsg() == 4326
+            assert result.arr is example_raster.arr
+            assert result.raster_meta.transform == example_raster.raster_meta.transform
+            assert result.raster_meta.cell_size == example_raster.raster_meta.cell_size
+
+        def test_epsg_code(self, example_raster: Raster) -> None:
+            # Arrange
+            epsg_code = "EPSG:4326"
+
+            # Act
+            result = example_raster.set_crs(epsg_code)
+
+            # Assert
+            assert result.crs.to_epsg() == 4326
+
+        def test_returns_new_instance(self, example_raster: Raster) -> None:
+            # Arrange
+            new_crs = CRS.from_epsg(4326)
+
+            # Act
+            result = example_raster.set_crs(new_crs)
+
+            # Assert
+            assert isinstance(result, Raster)
+            assert result is not example_raster
+            assert result.raster_meta is not example_raster.raster_meta
+
+        def test_wkt_string(self, example_raster: Raster) -> None:
+            # Arrange
+            wkt = CRS.from_epsg(4326).to_wkt()
+
+            # Act
+            result = example_raster.set_crs(wkt)
+
+            # Assert
+            assert result.crs.to_epsg() == 4326
+
     class TestApply:
         def test_sine(self, example_raster: Raster):
             # Act

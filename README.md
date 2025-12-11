@@ -137,6 +137,7 @@ from rastr import Raster
 
 - [`Raster.apply(func)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.apply) - apply a function to cell values.
 - [`Raster.abs()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.abs) - absolute value of cell values.
+- [`Raster.clamp()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.clamp) - cell values to an (a_min, a_max).
 - [`Raster.exp()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.exp) - exponential of cell values.
 - [`Raster.log()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.log) - logarithm of cell values.
 - [`Raster.max()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.max) - maximum of cell values.
@@ -147,7 +148,6 @@ from rastr import Raster
 - [`Raster.quantile(q)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.quantile) - quantile of cell values.
 - [`Raster.std()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.std) - standard deviation of cell values.
 - [`Raster.sum()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.sum) - sum of cell values.
-- [`Raster.clamp()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.clamp) - constrain cell values to a set range.
 
 ## Limitations
 

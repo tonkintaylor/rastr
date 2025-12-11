@@ -848,6 +848,26 @@ class Raster(BaseModel):
 
         return read_raster_inmem(filename, crs=crs, cls=cls)
 
+    @classmethod
+    def read_file_dir(
+        cls, mosaic_dir: Path | str, *, glob: str = "*.tif", crs: CRS | None = None
+    ) -> Self:
+        """Read a raster mosaic from a directory and return an in-memory Raster object.
+
+        Args:
+            mosaic_dir: Path to the directory containing raster files.
+            glob: Glob pattern to match raster files. Default is "*.tif".
+            crs: Optional coordinate reference system to override the files' CRS.
+
+        Returns:
+            A Raster object containing the mosaicked data from all matching files.
+        """
+        # Import here to avoid circular import (rastr.io imports Raster)
+        from rastr.io_ import read_raster_mosaic_inmem  # noqa: PLC0415
+
+        raster_obj = read_raster_mosaic_inmem(mosaic_dir, glob=glob, crs=crs)
+        return cls(arr=raster_obj.arr, raster_meta=raster_obj.raster_meta)
+
     @overload
     def apply(
         self,

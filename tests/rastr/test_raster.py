@@ -1429,6 +1429,89 @@ class TestRaster:
             ):
                 _ = read_raster_inmem(raster_path)
 
+    class TestReadFileDir:
+        def test_basic_mosaic(self, tmp_path: Path):
+            # Arrange – create two small adjacent raster tiles in tmp_path
+            transform1 = Affine.translation(0, 2) * Affine.scale(1, -1)
+            data1 = np.array([[1, 2], [3, 4]], dtype=np.float32)
+            data2 = np.array([[5, 6], [7, 8]], dtype=np.float32)
+
+            # First tile
+            tif1 = tmp_path / "tile_1.tif"
+            with rasterio.open(
+                tif1,
+                "w",
+                driver="GTiff",
+                height=data1.shape[0],
+                width=data1.shape[1],
+                count=1,
+                dtype=data1.dtype,
+                crs="EPSG:4326",
+                transform=transform1,
+            ) as dst:
+                dst.write(data1, 1)
+
+            # Second tile, translate by 2 pixels in x
+            transform2 = Affine.translation(2, 2) * Affine.scale(1, -1)
+            tif2 = tmp_path / "tile_2.tif"
+            with rasterio.open(
+                tif2,
+                "w",
+                driver="GTiff",
+                height=data2.shape[0],
+                width=data2.shape[1],
+                count=1,
+                dtype=data2.dtype,
+                crs="EPSG:4326",
+                transform=transform2,
+            ) as dst:
+                dst.write(data2, 1)
+
+            # Act
+            raster = Raster.read_file_dir(tmp_path)
+
+            # Assert
+            assert isinstance(raster, Raster)
+            # Expect mosaic of 2x4 pixels (2 high, 4 wide)
+            assert raster.arr.shape == (2, 4)
+            assert raster.raster_meta.crs.to_epsg() == 4326
+            # Check that the mosaic includes all original values
+            assert np.all(np.isin([1, 2, 3, 4, 5, 6, 7, 8], raster.arr))
+
+        def test_no_tifs_found(self, tmp_path: Path):
+            # Act & Assert
+            with pytest.raises(FileNotFoundError, match="No raster files found"):
+                _ = Raster.read_file_dir(tmp_path)
+
+        def test_override_crs(self, tmp_path: Path):
+            """It should override the CRS if provided in the call."""
+            # Arrange
+            data = np.array([[10, 20], [30, 40]], dtype=np.float32)
+            transform = Affine.translation(0, 2) * Affine.scale(1, -1)
+            tif_path = tmp_path / "tile_a.tif"
+            with rasterio.open(
+                tif_path,
+                "w",
+                driver="GTiff",
+                height=data.shape[0],
+                width=data.shape[1],
+                count=1,
+                dtype=data.dtype,
+                crs="EPSG:4326",
+                transform=transform,
+            ) as dst:
+                dst.write(data, 1)
+
+            override_crs = CRS.from_epsg(3857)
+
+            # Act
+            raster = Raster.read_file_dir(tmp_path, crs=override_crs)
+
+            # Assert
+            assert isinstance(raster, Raster)
+            assert raster.arr.shape == data.shape
+            assert raster.raster_meta.crs == override_crs
+
     class TestFillNA:
         def test_2by2_example(self):
             # Arrange

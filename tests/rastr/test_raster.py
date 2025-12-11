@@ -1011,7 +1011,7 @@ class TestRaster:
             new_crs = CRS.from_epsg(4326)
 
             # Act
-            result = example_raster.set_crs(new_crs)
+            result = example_raster.set_crs(new_crs, allow_override=True)
 
             # Assert
             assert result.crs.to_epsg() == 4326
@@ -1024,7 +1024,7 @@ class TestRaster:
             epsg_code = "EPSG:4326"
 
             # Act
-            result = example_raster.set_crs(epsg_code)
+            result = example_raster.set_crs(epsg_code, allow_override=True)
 
             # Assert
             assert result.crs.to_epsg() == 4326
@@ -1034,7 +1034,7 @@ class TestRaster:
             new_crs = CRS.from_epsg(4326)
 
             # Act
-            result = example_raster.set_crs(new_crs)
+            result = example_raster.set_crs(new_crs, allow_override=True)
 
             # Assert
             assert isinstance(result, Raster)
@@ -1046,10 +1046,41 @@ class TestRaster:
             wkt = CRS.from_epsg(4326).to_wkt()
 
             # Act
-            result = example_raster.set_crs(wkt)
+            result = example_raster.set_crs(wkt, allow_override=True)
 
             # Assert
             assert result.crs.to_epsg() == 4326
+
+        def test_override_different_crs_allowed(self, example_raster: Raster) -> None:
+            # Arrange - raster has EPSG:2193
+            new_crs = CRS.from_epsg(4326)  # WGS 84, different from existing
+
+            # Act
+            result = example_raster.set_crs(new_crs, allow_override=True)
+
+            # Assert
+            assert result.crs.to_epsg() == 4326
+            assert example_raster.crs.to_epsg() == 2193  # Original unchanged
+
+        def test_raises_on_different_crs_not_allowed(
+            self, example_raster: Raster
+        ) -> None:
+            # Arrange
+            new_crs = CRS.from_epsg(4326)  # Different from existing EPSG:2193
+
+            # Act & Assert
+            with pytest.raises(ValueError, match="already has a CRS"):
+                example_raster.set_crs(new_crs)
+
+        def test_allows_same_crs_without_override(self, example_raster: Raster) -> None:
+            # Arrange
+            same_crs = example_raster.crs
+
+            # Act
+            result = example_raster.set_crs(same_crs)
+
+            # Assert
+            assert result.crs.to_epsg() == example_raster.crs.to_epsg()
 
     class TestApply:
         def test_sine(self, example_raster: Raster):

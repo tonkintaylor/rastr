@@ -147,6 +147,7 @@ from rastr import Raster
 - [`Raster.quantile(q)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.quantile) - quantile of cell values.
 - [`Raster.std()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.std) - standard deviation of cell values.
 - [`Raster.sum()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.sum) - sum of cell values.
+- [`Raster.unique()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.unique) - array of unique cell values.
 
 ## Limitations
 

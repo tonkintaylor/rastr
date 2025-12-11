@@ -953,6 +953,14 @@ class Raster(BaseModel):
         with suppress_slice_warning():
             return float(np.nansum(self.arr))
 
+    def unique(self) -> NDArray:
+        """Get the unique cell values in the raster, including NaN.
+
+        Returns:
+            Array of unique values in the raster.
+        """
+        return np.unique(self.arr.flatten())
+
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
 

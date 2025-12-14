@@ -1429,7 +1429,7 @@ class TestRaster:
             ):
                 _ = read_raster_inmem(raster_path)
 
-    class TestReadFileDir:
+    class TestReadMosaicDir:
         def test_basic_mosaic(self, tmp_path: Path):
             # Arrange – create two small adjacent raster tiles in tmp_path
             transform1 = Affine.translation(0, 2) * Affine.scale(1, -1)

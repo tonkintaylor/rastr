@@ -205,6 +205,75 @@ class TestRaster:
             assert not example_raster.is_like(other_raster)
             assert not other_raster.is_like(example_raster)
 
+    class TestEquality:
+        def test_identical_rasters_are_equal(self, example_raster: Raster):
+            """Test that identical rasters are equal."""
+            # Arrange
+            other_raster = Raster(
+                arr=example_raster.arr.copy(), raster_meta=example_raster.raster_meta
+            )
+
+            # Act & Assert
+            assert example_raster == other_raster
+            assert other_raster == example_raster
+
+        def test_rasters_with_nan_are_equal(self, example_raster: Raster):
+            """Test that rasters with NaN values in same positions are equal."""
+            # Arrange
+            arr_with_nan = np.array([[1.0, np.nan], [3.0, 4.0]], dtype=float)
+            raster1 = Raster(
+                arr=arr_with_nan.copy(), raster_meta=example_raster.raster_meta
+            )
+            raster2 = Raster(
+                arr=arr_with_nan.copy(), raster_meta=example_raster.raster_meta
+            )
+
+            # Act & Assert
+            assert raster1 == raster2
+            assert raster2 == raster1
+
+        def test_rasters_with_different_values_not_equal(self, example_raster: Raster):
+            """Test that rasters with different values are not equal."""
+            # Arrange
+            different_arr = np.array([[5, 6], [7, 8]], dtype=float)
+            other_raster = Raster(
+                arr=different_arr, raster_meta=example_raster.raster_meta
+            )
+
+            # Act & Assert
+            assert example_raster != other_raster
+            assert other_raster != example_raster
+
+        def test_rasters_with_different_nan_positions_not_equal(
+            self, example_raster: Raster
+        ):
+            """Test that rasters with NaN in different positions are not equal."""
+            # Arrange
+            arr1 = np.array([[1.0, np.nan], [3.0, 4.0]], dtype=float)
+            arr2 = np.array([[1.0, 2.0], [np.nan, 4.0]], dtype=float)
+            raster1 = Raster(arr=arr1, raster_meta=example_raster.raster_meta)
+            raster2 = Raster(arr=arr2, raster_meta=example_raster.raster_meta)
+
+            # Act & Assert
+            assert raster1 != raster2
+            assert raster2 != raster1
+
+        def test_rasters_with_different_meta_not_equal(self, example_raster: Raster):
+            """Test that rasters with different metadata are not equal."""
+            # Arrange
+            different_meta = RasterMeta(
+                cell_size=2.0,
+                crs=CRS.from_epsg(4326),
+                transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
+            )
+            other_raster = Raster(
+                arr=example_raster.arr.copy(), raster_meta=different_meta
+            )
+
+            # Act & Assert
+            assert example_raster != other_raster
+            assert other_raster != example_raster
+
     class TestShape:
         def test_shape_property(self, example_raster: Raster):
             # Act

@@ -165,7 +165,7 @@ class Raster(BaseModel):
         if not isinstance(other, Raster):
             return NotImplemented
         return (
-            np.array_equal(self.arr, other.arr)
+            np.array_equal(self.arr, other.arr, equal_nan=True)
             and self.raster_meta == other.raster_meta
         )
 

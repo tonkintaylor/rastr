@@ -1468,7 +1468,7 @@ class TestRaster:
                 dst.write(data2, 1)
 
             # Act
-            raster = Raster.read_file_dir(tmp_path)
+            raster = Raster.read_mosaic_dir(tmp_path)
 
             # Assert
             assert isinstance(raster, Raster)
@@ -1481,7 +1481,7 @@ class TestRaster:
         def test_no_tifs_found(self, tmp_path: Path):
             # Act & Assert
             with pytest.raises(FileNotFoundError, match="No raster files found"):
-                _ = Raster.read_file_dir(tmp_path)
+                _ = Raster.read_mosaic_dir(tmp_path)
 
         def test_override_crs(self, tmp_path: Path):
             """It should override the CRS if provided in the call."""
@@ -1505,7 +1505,7 @@ class TestRaster:
             override_crs = CRS.from_epsg(3857)
 
             # Act
-            raster = Raster.read_file_dir(tmp_path, crs=override_crs)
+            raster = Raster.read_mosaic_dir(tmp_path, crs=override_crs)
 
             # Assert
             assert isinstance(raster, Raster)

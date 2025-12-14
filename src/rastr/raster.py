@@ -849,7 +849,7 @@ class Raster(BaseModel):
         return read_raster_inmem(filename, crs=crs, cls=cls)
 
     @classmethod
-    def read_file_dir(
+    def read_mosaic_dir(
         cls, mosaic_dir: Path | str, *, glob: str = "*.tif", crs: CRS | None = None
     ) -> Self:
         """Read a raster mosaic from a directory and return an in-memory Raster object.

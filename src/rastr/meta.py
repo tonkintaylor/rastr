@@ -182,6 +182,6 @@ def infer_cell_size(x: np.ndarray, y: np.ndarray) -> float:
     tree = KDTree(xy_points)
     distances, _ = tree.query(xy_points, k=2)
     distances: np.ndarray
-    cell_size = float(np.percentile(distances[distances > 0], 5)) / 2
+    cell_size = float(np.percentile(distances[distances > 0], 5))
 
     return cell_size

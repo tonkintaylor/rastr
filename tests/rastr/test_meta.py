@@ -4,6 +4,7 @@ from affine import Affine
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 
+from rastr.meta import infer_cell_size
 from rastr.raster import Raster, RasterMeta
 
 _NZTM_CRS = CRS.from_epsg(2193)
@@ -70,3 +71,19 @@ class TestRaster:
             ]
         )
         np.testing.assert_allclose(coords, expected)
+
+
+class TestInferCellSize:
+    def test_regular_grid(self):
+        """Test infer_cell_size with a regular grid of evenly-spaced points."""
+        # Arrange - create a 10x10 regular grid with 5.0 spacing
+        spacing = 5.0
+        x = np.tile(np.arange(0, 50, spacing), 10)
+        y = np.repeat(np.arange(0, 50, spacing), 10)
+
+        # Act
+        cell_size = infer_cell_size(x, y)
+
+        # Assert
+        # We expect a cell size close to the spacing used to create the grid
+        assert cell_size == pytest.approx(spacing, rel=0.1)

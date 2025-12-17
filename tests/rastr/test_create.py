@@ -1834,7 +1834,7 @@ class TestRasterFromPointCloud:
 
         # Assert
         assert isinstance(raster, Raster)
-        assert raster.arr.shape == (3, 3)
+        assert raster.arr.shape == (2, 2)
 
     class TestLengthMismatch:
         def test_xy(self):

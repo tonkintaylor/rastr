@@ -166,8 +166,8 @@ def infer_shape(
 def infer_cell_size(x: np.ndarray, y: np.ndarray) -> float:
     """Infer a suitable cell size based on the spacing of (x, y) data points.
 
-    When points are distributed regularly, this corresponds to roughly half the distance
-    between neighboring points.
+    When points are distributed regularly, this corresponds to the distance between
+    neighboring points.
 
     When distributed irregularly, the size is more influenced by the densest clusters of
     points, i.e. the cell size will be small enough to capture the detail in these
@@ -177,11 +177,11 @@ def infer_cell_size(x: np.ndarray, y: np.ndarray) -> float:
     """
     from scipy.spatial import KDTree
 
-    # Half the 5th percentile of nearest neighbor distances between the (x,y) points
+    # 5th percentile of nearest neighbor distances between the (x,y) points
     xy_points = np.column_stack((x, y))
     tree = KDTree(xy_points)
     distances, _ = tree.query(xy_points, k=2)
     distances: np.ndarray
-    cell_size = float(np.percentile(distances[distances > 0], 5)) / 2
+    cell_size = float(np.percentile(distances[distances > 0], 5))
 
     return cell_size

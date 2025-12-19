@@ -19,9 +19,10 @@ from pyproj import Transformer
 from pyproj.crs.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
+from rastr.gis.cast import cast_multilinestring
 from rastr.gis.fishnet import create_fishnet
 from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
@@ -1181,7 +1182,7 @@ class Raster(BaseModel):
         # Dissolve contours by level to merge all contour lines of the same level
         contour_gdf = contour_gdf.dissolve(by="level", as_index=False, sort=True)
         contour_gdf = contour_gdf.set_geometry("geometry")
-        contour_gdf["geometry"] = contour_gdf["geometry"].apply(_cast_multilinestring)  # pyright: ignore[reportArgumentType]
+        contour_gdf["geometry"] = contour_gdf["geometry"].apply(cast_multilinestring)  # pyright: ignore[reportArgumentType]
         return contour_gdf
 
     def sobel(self) -> Self:
@@ -1879,31 +1880,6 @@ def _get_vmin_vmax(
 
 
 RasterModel = Raster
-
-
-def _cast_multilinestring(geom: BaseGeometry) -> MultiLineString:
-    """Cast a geometry to a MultiLineString.
-
-    If the geometry is a LineString, it will be converted to a single-part
-    MultiLineString. MultiLineStrings are returned unchanged.
-
-    Args:
-        geom: The geometry to cast.
-    """
-    if geom.is_empty:
-        return MultiLineString()
-
-    if geom.geom_type == "MultiLineString":
-        if not isinstance(geom, MultiLineString):
-            raise AssertionError
-        return geom
-    elif geom.geom_type == "LineString":
-        if not isinstance(geom, LineString):
-            raise AssertionError
-        return MultiLineString([geom])
-    else:
-        msg = f"Cannot cast geometry of type {geom.geom_type} to MultiLineString."
-        raise TypeError(msg)
 
 
 class Bounds(NamedTuple):

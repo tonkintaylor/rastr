@@ -10,7 +10,7 @@ import rasterio.transform
 from affine import Affine
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-from hypothesis.extra.numpy import arrays
+from hypothesis.extra.numpy import array_shapes, arrays
 from pydantic import ValidationError
 from pyproj.crs.crs import CRS
 from shapely import MultiPolygon, box
@@ -2581,11 +2581,151 @@ class TestRaster:
             assert len(gdf) == len(levels)
             assert set(gdf["level"]) == set(levels)
 
-            # Geometries should be MultiLineString (dissolved from multiple LineStrings)
+        def test_contour_geometries_are_multilinestrings(self):
+            raster = Raster.example()
+            gdf = raster.contour(levels=[0.0, 0.5], smoothing=False)
+
+            assert not gdf.empty
             for geom in gdf.geometry:
-                assert isinstance(
-                    geom, (MultiLineString, LineString)
-                )  # Can be either depending on dissolve result
+                assert isinstance(geom, MultiLineString)
+
+        def test_contour_geometries_multilinestring_counterexample(self):
+            arr = np.array(
+                [
+                    [1.0, 0.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                ]
+            )
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            gdf = raster.contour(levels=[0.0], smoothing=False)
+
+            assert not gdf.empty
+            for geom in gdf.geometry:
+                assert isinstance(geom, MultiLineString)
+
+        @settings(
+            max_examples=100,
+            deadline=None,
+            suppress_health_check=(HealthCheck.filter_too_much,),
+        )
+        @given(
+            arr=arrays(
+                dtype=np.float64,
+                shape=array_shapes(min_dims=2, max_dims=2, min_side=3, max_side=8),
+                elements=st.floats(
+                    min_value=-5_000.0,
+                    max_value=5_000.0,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+            ),
+            smoothing=st.booleans(),
+            x_scale=st.one_of(
+                st.floats(
+                    min_value=0.1,
+                    max_value=500.0,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+                st.floats(
+                    min_value=-500.0,
+                    max_value=-0.1,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+            ),
+            y_scale=st.one_of(
+                st.floats(
+                    min_value=0.1,
+                    max_value=500.0,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+                st.floats(
+                    min_value=-500.0,
+                    max_value=-0.1,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+            ),
+            origin_x=st.floats(
+                min_value=-10_000.0,
+                max_value=10_000.0,
+                allow_nan=False,
+                allow_infinity=False,
+            ),
+            origin_y=st.floats(
+                min_value=-10_000.0,
+                max_value=10_000.0,
+                allow_nan=False,
+                allow_infinity=False,
+            ),
+            level_count=st.integers(min_value=1, max_value=4),
+        )
+        def test_contour_geometries_are_multilinestrings_property(
+            self,
+            arr: np.ndarray,
+            smoothing: bool,
+            x_scale: float,
+            y_scale: float,
+            origin_x: float,
+            origin_y: float,
+            level_count: int,
+        ) -> None:
+            meta = RasterMeta(
+                cell_size=float(min(abs(x_scale), abs(y_scale))),
+                crs=CRS.from_epsg(2193),
+                transform=Affine(x_scale, 0.0, origin_x, 0.0, y_scale, origin_y),
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            min_val = float(np.min(arr))
+            max_val = float(np.max(arr))
+            if min_val == max_val:
+                levels = [min_val]
+            else:
+                levels = np.linspace(
+                    min_val,
+                    max_val,
+                    num=max(1, level_count),
+                    dtype=float,
+                ).tolist()
+
+            gdf = raster.contour(levels=levels, smoothing=smoothing)
+            if gdf.empty:
+                return
+
+            for geom in gdf.geometry:
+                assert isinstance(geom, MultiLineString)
+
+        def test_contour_handles_empty_linestring_geometry(self) -> None:
+            arr = np.array(
+                [
+                    [0.0, 0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, -1754.0, 0.0],
+                ],
+                dtype=float,
+            )
+            meta = RasterMeta(
+                cell_size=1.0,
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 509.0, 0.0, 1.0, 510.0),
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+
+            gdf = raster.contour(levels=[-1754.0], smoothing=False)
+
+            assert not gdf.empty
+            for geom in gdf.geometry:
+                assert isinstance(geom, MultiLineString)
 
         def test_contour_with_smoothing(self):
             raster = Raster.example()

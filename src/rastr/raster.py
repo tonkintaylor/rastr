@@ -30,6 +30,7 @@ from rasterio.io import MemoryFile
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from rastr.arr.fill import fillna_nearest_neighbours
+from rastr.gis.cast import cast_multilinestring
 from rastr.gis.fishnet import create_fishnet
 from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
@@ -1192,7 +1193,10 @@ class Raster(BaseModel):
         )
 
         # Dissolve contours by level to merge all contour lines of the same level
-        return contour_gdf.dissolve(by="level", as_index=False, sort=True)
+        contour_gdf = contour_gdf.dissolve(by="level", as_index=False, sort=True)
+        contour_gdf = contour_gdf.set_geometry("geometry")
+        contour_gdf["geometry"] = contour_gdf["geometry"].apply(cast_multilinestring)  # pyright: ignore[reportArgumentType]
+        return contour_gdf
 
     def sobel(self) -> Self:
         """Compute the Sobel gradient magnitude of the raster.

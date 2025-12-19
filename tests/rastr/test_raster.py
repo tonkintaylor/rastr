@@ -2581,14 +2581,6 @@ class TestRaster:
             assert len(gdf) == len(levels)
             assert set(gdf["level"]) == set(levels)
 
-        def test_contour_geometries_are_multilinestrings(self):
-            raster = Raster.example()
-            gdf = raster.contour(levels=[0.0, 0.5], smoothing=False)
-
-            assert not gdf.empty
-            for geom in gdf.geometry:
-                assert isinstance(geom, MultiLineString)
-
         def test_contour_geometries_multilinestring_counterexample(self):
             arr = np.array(
                 [

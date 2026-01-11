@@ -247,6 +247,8 @@ addopts = [
 ]
 markers = [
   "hypothesis: test is a Hypothesis test and does not run on CI",
+  "folium: test requires folium package",
+  "matplotlib: test requires matplotlib package",
 ]
 console_output_style = "progress"
 filterwarnings = [ "error" ]

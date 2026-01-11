@@ -1458,6 +1458,7 @@ class TestRaster:
             with rasterio.open(filename) as src:
                 assert np.isnan(src.nodata)
 
+    @pytest.mark.matplotlib
     class TestPlot:
         def test_cell_array_unchanged(self, example_raster_with_zeros: Raster):
             # Arrange
@@ -4282,6 +4283,7 @@ class TestReplacePolygon:
             example_raster.replace_polygon(polygon1, value=None)
 
 
+@pytest.mark.folium
 class TestExplore:
     @pytest.fixture
     def explore_map(self):

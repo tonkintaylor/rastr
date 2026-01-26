@@ -14,6 +14,8 @@ For more information on optimizing sampling, see:
 https://rdrn.me/optimising-sampling/
 """
 
+from pathlib import Path
+
 import numpy as np
 from affine import Affine
 from pyinstrument import Profiler
@@ -32,12 +34,13 @@ def create_test_raster(size: int = 1000) -> Raster:
     Returns:
         A Raster object with random data.
     """
+    rng = np.random.default_rng()
     meta = RasterMeta(
         cell_size=1.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, float(size)),
     )
-    arr = np.random.rand(size, size)
+    arr = rng.random((size, size))
     return Raster(arr=arr, raster_meta=meta)
 
 
@@ -48,11 +51,12 @@ def profile_sample_points(raster: Raster, num_points: int) -> None:
         raster: The raster to sample from.
         num_points: Number of points to sample.
     """
+    rng = np.random.default_rng()
     # Generate random points within the raster bounds
     bounds = raster.bounds
-    x_coords = np.random.uniform(bounds.xmin, bounds.xmax, num_points)
-    y_coords = np.random.uniform(bounds.ymin, bounds.ymax, num_points)
-    points = list(zip(x_coords, y_coords))
+    x_coords = rng.uniform(bounds.xmin, bounds.xmax, num_points)
+    y_coords = rng.uniform(bounds.ymin, bounds.ymax, num_points)
+    points = list(zip(x_coords, y_coords, strict=True))
 
     # Profile the sampling operation
     profiler = Profiler()
@@ -63,9 +67,8 @@ def profile_sample_points(raster: Raster, num_points: int) -> None:
     profiler.stop()
 
     # Save the profiling report
-    output_file = f"scripts/profiling/sample_{num_points}_points.html"
-    with open(output_file, "w") as f:
-        f.write(profiler.output_html())
+    output_file = Path(f"scripts/profiling/sample_{num_points}_points.html")
+    output_file.write_text(profiler.output_html())
     print(f"Profiling report saved to: {output_file}")
 
 

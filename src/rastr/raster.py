@@ -1495,6 +1495,143 @@ class Raster(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
+    def to_bounds(  # noqa: C901, PLR0912, PLR0915
+        self,
+        bounds: tuple[float, float, float, float] | Bounds | ArrayLike,
+        *,
+        strategy: Literal["underflow", "overflow"] = "underflow",
+    ) -> Self:
+        """Resize the raster to the specified bounds, cropping or padding as needed.
+
+        This method behaves like `crop()` when the bounds are within the current raster,
+        but also allows expanding the raster by padding with NaN-valued cells when the
+        bounds extend beyond the current raster boundaries.
+
+        Args:
+            bounds: A tuple of (minx, miny, maxx, maxy) defining the target bounds.
+            strategy:
+                The strategy to use when determining cell inclusion at boundaries.
+                'underflow' will only include cells fully within the bounds,
+                'overflow' will include cells that intersect the bounds.
+
+        Returns:
+            A new Raster instance resized to the specified bounds.
+        """
+        bounds = np.asarray(bounds)
+        if len(bounds) != 4:
+            msg = (
+                f"bounds must be a sequence of length 4 (minx, miny, maxx, maxy); "
+                f"got length {len(bounds)}"
+            )
+            raise ValueError(msg)
+
+        target_minx, target_miny, target_maxx, target_maxy = bounds
+        cell_size = self.raster_meta.cell_size
+        half_cell_size = cell_size / 2
+
+        # Calculate the range for cell centers based on strategy
+        if strategy == "underflow":
+            # Cell centers must be at least half_cell_size inside the bounds
+            offset = half_cell_size
+            x_range = (target_minx + offset, target_maxx - offset)
+            y_range = (target_miny + offset, target_maxy - offset)
+        elif strategy == "overflow":
+            # Cell centers can be up to half_cell_size outside the bounds
+            offset = half_cell_size
+            x_range = (target_minx - offset, target_maxx + offset)
+            y_range = (target_miny - offset, target_maxy + offset)
+        else:
+            msg = f"Unsupported strategy: {strategy}"
+            raise NotImplementedError(msg)
+
+        # Check if bounds would result in an empty raster
+        if x_range[1] < x_range[0] or y_range[1] < y_range[0]:
+            msg = "No cells within the specified bounds."
+            raise ValueError(msg)
+
+        # Get current cell coordinates
+        current_x_coords = self.cell_x_coords
+        current_y_coords = self.cell_y_coords
+
+        # Determine the grid alignment based on the first cell center
+        first_x = current_x_coords[0]
+        first_y = current_y_coords[0]
+
+        # Calculate indices for target grid (aligned to original grid)
+        # x-direction is always ascending
+        x_start = np.ceil((x_range[0] - first_x) / cell_size)
+        x_end = np.floor((x_range[1] - first_x) / cell_size)
+
+        # y-direction may be ascending or descending depending on transform
+        # Determine direction from current_y_coords
+        y_ascending = (
+            len(current_y_coords) > 1 and current_y_coords[1] > current_y_coords[0]
+        )
+
+        if y_ascending:
+            y_start = np.ceil((y_range[0] - first_y) / cell_size)
+            y_end = np.floor((y_range[1] - first_y) / cell_size)
+        else:
+            # For descending y-coords, we need to flip the logic
+            y_start = np.ceil((first_y - y_range[1]) / cell_size)
+            y_end = np.floor((first_y - y_range[0]) / cell_size)
+
+        # Generate target coordinates
+        x_indices = np.arange(x_start, x_end + 1, dtype=int)
+        y_indices = np.arange(y_start, y_end + 1, dtype=int)
+
+        if len(x_indices) == 0 or len(y_indices) == 0:
+            msg = "No cells within the specified bounds."
+            raise ValueError(msg)
+
+        target_x_coords = first_x + x_indices * cell_size
+
+        if y_ascending:
+            target_y_coords = first_y + y_indices * cell_size
+        else:
+            target_y_coords = first_y - y_indices * cell_size
+
+        # Create output array filled with NaN
+        output_shape = (len(target_y_coords), len(target_x_coords))
+        output_arr = np.full(output_shape, np.nan, dtype=float)
+
+        # Map current cells to target array
+        # Find which indices in current arrays overlap with target arrays
+        for target_y_idx, target_y in enumerate(target_y_coords):
+            for target_x_idx, target_x in enumerate(target_x_coords):
+                # Find matching coordinates in current raster
+                x_matches = np.where(
+                    np.isclose(current_x_coords, target_x, rtol=1e-9, atol=1e-9)
+                )[0]
+                y_matches = np.where(
+                    np.isclose(current_y_coords, target_y, rtol=1e-9, atol=1e-9)
+                )[0]
+
+                if len(x_matches) > 0 and len(y_matches) > 0:
+                    # Copy value from current raster
+                    current_y_idx = y_matches[0]
+                    current_x_idx = x_matches[0]
+                    output_arr[target_y_idx, target_x_idx] = self.arr[
+                        current_y_idx, current_x_idx
+                    ]
+
+        # Calculate the new transform
+        transform = rasterio.transform.from_bounds(
+            west=target_x_coords.min() - half_cell_size,
+            south=target_y_coords.min() - half_cell_size,
+            east=target_x_coords.max() + half_cell_size,
+            north=target_y_coords.max() + half_cell_size,
+            width=output_arr.shape[1],
+            height=output_arr.shape[0],
+        )
+
+        # Create the new raster
+        cls = self.__class__
+        new_meta = RasterMeta(
+            cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
+        )
+        return cls(arr=output_arr, raster_meta=new_meta)
+
     def taper_border(self, width: float, *, limit: float = 0.0) -> Self:
         """Taper values to a limiting value around the border of the raster.
 

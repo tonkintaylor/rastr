@@ -167,6 +167,8 @@ Current version limitations:
 
 ### Contributing
 
+[![Commits since latest release](https://img.shields.io/github/commits-since/tonkintaylor/rastr/latest.svg)](https://github.com/tonkintaylor/rastr/releases)
+
 See the
 [CONTRIBUTING.md](https://github.com/usethis-python/usethis-python/blob/main/CONTRIBUTING.md)
 file.

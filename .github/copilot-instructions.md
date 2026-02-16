@@ -13,6 +13,7 @@
 - When testing methods on classes, create nested test classes within the test class associated with the overall tested class (e.g., `TestContour` nested within `TestRaster` when testing the `contour` method of `Raster`).
 - After modifying a function, run its unit tests using pytest.
 - Run tests in virtual environment: `.\.venv\Scripts\activate; python -m pytest tests/path/to/test_file.py -v`
+- Never include docstrings in test functions or test classes. Test names should be self-explanatory.
 
 ## Python
 

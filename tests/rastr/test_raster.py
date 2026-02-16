@@ -3073,10 +3073,7 @@ class TestCrop:
 
 
 class TestToBounds:
-    """Test the to_bounds method."""
-
     def test_same_bounds_returns_equal_raster(self, base_raster: Raster):
-        """Test that using the same bounds returns an equal raster."""
         # Arrange
         bounds = base_raster.bounds
 
@@ -3087,7 +3084,6 @@ class TestToBounds:
         assert result == base_raster
 
     def test_crop_behavior_when_smaller(self, base_raster: Raster):
-        """Test that to_bounds crops like crop() when bounds are smaller."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3106,7 +3102,6 @@ class TestToBounds:
         assert to_bounds_result == crop_result
 
     def test_padding_expands_with_nan(self, base_raster: Raster):
-        """Test that to_bounds pads with NaN when bounds are larger."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3137,7 +3132,6 @@ class TestToBounds:
         assert np.all(np.isnan(result.arr[:, -1]))  # Right column
 
     def test_expand_one_side_only(self, base_raster: Raster):
-        """Test expanding on only one side."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3158,7 +3152,6 @@ class TestToBounds:
         assert np.all(np.isnan(result.arr[:, 4:]))
 
     def test_crop_and_expand_simultaneously(self, base_raster: Raster):
-        """Test that to_bounds can crop in one direction and expand in another."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3183,7 +3176,6 @@ class TestToBounds:
         assert np.all(np.isnan(result.arr[:, -1]))  # Right column (new)
 
     def test_overflow_strategy_expands(self, base_raster: Raster):
-        """Test that overflow strategy works with expansion."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3204,7 +3196,6 @@ class TestToBounds:
         assert np.array_equal(center_data, base_raster.arr)
 
     def test_underflow_strategy_with_expansion(self, base_raster: Raster):
-        """Test underflow strategy with bounds expansion."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3223,7 +3214,6 @@ class TestToBounds:
         assert result.bounds == bounds
 
     def test_invalid_strategy_raises(self, base_raster: Raster):
-        """Test that invalid strategy raises NotImplementedError."""
         # Arrange
         bounds = base_raster.bounds
 
@@ -3232,7 +3222,6 @@ class TestToBounds:
             base_raster.to_bounds(bounds, strategy="invalid")  # type: ignore[arg-type]
 
     def test_invalid_bounds_length_raises(self, base_raster: Raster):
-        """Test that invalid bounds length raises ValueError."""
         # Arrange
         bounds = (0.0, 0.0, 50.0)  # Only 3 values
 
@@ -3241,7 +3230,6 @@ class TestToBounds:
             base_raster.to_bounds(bounds)  # type: ignore[arg-type]
 
     def test_empty_bounds_raises(self, base_raster: Raster):
-        """Test that bounds resulting in no cells raises ValueError."""
         # Arrange
         # Bounds with zero width (minx == maxx)
         bounds = (0.0, 60.0, 0.0, 100.0)
@@ -3251,7 +3239,6 @@ class TestToBounds:
             base_raster.to_bounds(bounds)
 
     def test_preserves_crs(self, base_raster: Raster):
-        """Test that to_bounds preserves the CRS."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3269,7 +3256,6 @@ class TestToBounds:
         assert result.raster_meta.crs == base_raster.raster_meta.crs
 
     def test_preserves_cell_size(self, base_raster: Raster):
-        """Test that to_bounds preserves the cell size."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size
@@ -3287,7 +3273,6 @@ class TestToBounds:
         assert result.raster_meta.cell_size == base_raster.raster_meta.cell_size
 
     def test_arraylike_bounds(self, base_raster: Raster):
-        """Test that array-like bounds work (e.g., from GeoDataFrame)."""
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
         cell_size = base_raster.raster_meta.cell_size

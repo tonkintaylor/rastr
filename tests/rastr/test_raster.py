@@ -3229,7 +3229,7 @@ class TestToBounds:
 
         # Act & Assert
         with pytest.raises(NotImplementedError, match="Unsupported strategy"):
-            base_raster.to_bounds(bounds, strategy="invalid")  # type: ignore[reportArgumentType]
+            base_raster.to_bounds(bounds, strategy="invalid")  # type: ignore[arg-type]
 
     def test_invalid_bounds_length_raises(self, base_raster: Raster):
         """Test that invalid bounds length raises ValueError."""
@@ -3238,7 +3238,7 @@ class TestToBounds:
 
         # Act & Assert
         with pytest.raises(ValueError, match="bounds must be a sequence of length 4"):
-            base_raster.to_bounds(bounds)  # type: ignore[reportArgumentType]
+            base_raster.to_bounds(bounds)  # type: ignore[arg-type]
 
     def test_empty_bounds_raises(self, base_raster: Raster):
         """Test that bounds resulting in no cells raises ValueError."""

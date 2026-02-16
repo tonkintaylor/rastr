@@ -56,6 +56,7 @@ BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 CONTOUR_PERTURB_EPS = 1e-10
+COORD_MATCH_TOLERANCE = 1e-9
 P = ParamSpec("P")
 
 
@@ -1495,7 +1496,7 @@ class Raster(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
-    def to_bounds(  # noqa: PLR0915
+    def to_bounds(
         self,
         bounds: tuple[float, float, float, float] | Bounds | ArrayLike,
         *,
@@ -1584,19 +1585,15 @@ class Raster(BaseModel):
         output_shape = (len(target_y_coords), len(target_x_coords))
         output_arr = np.full(output_shape, np.nan, dtype=float)
 
-        # Map current cells to target array using vectorized operations
-        # Build boolean masks for overlapping coordinates
-        tolerance = 1e-9
-
         # For each target coordinate, find matching indices in current raster
         # Use broadcasting to create boolean masks
         x_match_mask = (
             np.abs(target_x_coords[:, np.newaxis] - current_x_coords[np.newaxis, :])
-            < tolerance
+            < COORD_MATCH_TOLERANCE
         )
         y_match_mask = (
             np.abs(target_y_coords[:, np.newaxis] - current_y_coords[np.newaxis, :])
-            < tolerance
+            < COORD_MATCH_TOLERANCE
         )
 
         y_target_indices, y_current_indices = np.where(y_match_mask)

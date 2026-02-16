@@ -56,6 +56,7 @@ BRANCA_INSTALLED = importlib.util.find_spec("branca") is not None
 MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 
 CONTOUR_PERTURB_EPS = 1e-10
+COORD_MATCH_TOLERANCE = 1e-9
 P = ParamSpec("P")
 
 
@@ -1494,6 +1495,131 @@ class Raster(BaseModel):
             cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
+
+    def to_bounds(
+        self,
+        bounds: tuple[float, float, float, float] | Bounds | ArrayLike,
+        *,
+        strategy: Literal["underflow", "overflow"] = "underflow",
+    ) -> Self:
+        """Resize the raster to the specified bounds, cropping or padding as needed.
+
+        This method behaves like `crop()` when the bounds are within the current raster,
+        but also allows expanding the raster by padding with NaN-valued cells when the
+        bounds extend beyond the current raster boundaries.
+
+        Args:
+            bounds: A tuple of (minx, miny, maxx, maxy) defining the target bounds.
+            strategy:
+                The strategy to use when determining cell inclusion at boundaries.
+                'underflow' will only include cells fully within the bounds,
+                'overflow' will include cells that intersect the bounds.
+
+        Returns:
+            A new Raster instance resized to the specified bounds.
+        """
+        bounds = np.asarray(bounds)
+        if len(bounds) != 4:
+            msg = (
+                f"bounds must be a sequence of length 4 (minx, miny, maxx, maxy); "
+                f"got length {len(bounds)}"
+            )
+            raise ValueError(msg)
+
+        if strategy not in ("underflow", "overflow"):
+            msg = f"Unsupported strategy: {strategy}"
+            raise NotImplementedError(msg)
+
+        target_minx, target_miny, target_maxx, target_maxy = bounds
+        cell_size = self.raster_meta.cell_size
+        half_cell_size = cell_size / 2
+
+        offset = half_cell_size
+        sign = 1 if strategy == "underflow" else -1
+        x_range = (target_minx + sign * offset, target_maxx - sign * offset)
+        y_range = (target_miny + sign * offset, target_maxy - sign * offset)
+
+        if x_range[1] < x_range[0] or y_range[1] < y_range[0]:
+            msg = "No cells within the specified bounds."
+            raise ValueError(msg)
+
+        # Get current cell coordinates
+        current_x_coords = self.cell_x_coords
+        current_y_coords = self.cell_y_coords
+
+        # Determine the grid alignment based on the first cell center
+        first_x = current_x_coords[0]
+        first_y = current_y_coords[0]
+
+        # Calculate indices for target grid (aligned to original grid)
+        # x-direction is always ascending
+        x_start = np.ceil((x_range[0] - first_x) / cell_size)
+        x_end = np.floor((x_range[1] - first_x) / cell_size)
+
+        # y-direction may be ascending or descending depending on transform
+        # Determine direction from current_y_coords
+        y_ascending = (
+            len(current_y_coords) > 1 and current_y_coords[1] > current_y_coords[0]
+        )
+
+        if y_ascending:
+            y_start = np.ceil((y_range[0] - first_y) / cell_size)
+            y_end = np.floor((y_range[1] - first_y) / cell_size)
+            y_indices = np.arange(y_start, y_end + 1, dtype=int)
+            target_y_coords = first_y + y_indices * cell_size
+        else:
+            y_start = np.ceil((first_y - y_range[1]) / cell_size)
+            y_end = np.floor((first_y - y_range[0]) / cell_size)
+            y_indices = np.arange(y_start, y_end + 1, dtype=int)
+            target_y_coords = first_y - y_indices * cell_size
+
+        # Generate target coordinates
+        x_indices = np.arange(x_start, x_end + 1, dtype=int)
+
+        if len(x_indices) == 0 or len(y_indices) == 0:
+            msg = "No cells within the specified bounds."
+            raise ValueError(msg)
+
+        target_x_coords = first_x + x_indices * cell_size
+
+        output_shape = (len(target_y_coords), len(target_x_coords))
+        output_arr = np.full(output_shape, np.nan, dtype=float)
+
+        # For each target coordinate, find matching indices in current raster
+        # Use broadcasting to create boolean masks
+        x_match_mask = (
+            np.abs(target_x_coords[:, np.newaxis] - current_x_coords[np.newaxis, :])
+            < COORD_MATCH_TOLERANCE
+        )
+        y_match_mask = (
+            np.abs(target_y_coords[:, np.newaxis] - current_y_coords[np.newaxis, :])
+            < COORD_MATCH_TOLERANCE
+        )
+
+        y_target_indices, y_current_indices = np.where(y_match_mask)
+        x_target_indices, x_current_indices = np.where(x_match_mask)
+
+        for ty_idx, cy_idx in zip(y_target_indices, y_current_indices, strict=False):
+            for tx_idx, cx_idx in zip(
+                x_target_indices, x_current_indices, strict=False
+            ):
+                output_arr[ty_idx, tx_idx] = self.arr[cy_idx, cx_idx]
+
+        transform = rasterio.transform.from_bounds(
+            west=target_x_coords.min() - half_cell_size,
+            south=target_y_coords.min() - half_cell_size,
+            east=target_x_coords.max() + half_cell_size,
+            north=target_y_coords.max() + half_cell_size,
+            width=output_arr.shape[1],
+            height=output_arr.shape[0],
+        )
+
+        # Create the new raster
+        cls = self.__class__
+        new_meta = RasterMeta(
+            cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
+        )
+        return cls(arr=output_arr, raster_meta=new_meta)
 
     def taper_border(self, width: float, *, limit: float = 0.0) -> Self:
         """Taper values to a limiting value around the border of the raster.

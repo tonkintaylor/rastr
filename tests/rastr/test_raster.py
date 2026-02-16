@@ -3072,6 +3072,222 @@ class TestCrop:
             base_raster.crop(bounds_array)
 
 
+class TestToBounds:
+    def test_same_bounds_returns_equal_raster(self, base_raster: Raster):
+        # Arrange
+        bounds = base_raster.bounds
+
+        # Act
+        result = base_raster.to_bounds(bounds)
+
+        # Assert
+        assert result == base_raster
+
+    def test_crop_behavior_when_smaller(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        bounds = (
+            minx + cell_size,
+            miny + cell_size,
+            maxx - cell_size,
+            maxy - cell_size,
+        )
+
+        # Act
+        to_bounds_result = base_raster.to_bounds(bounds)
+        crop_result = base_raster.crop(bounds)
+
+        # Assert
+        assert to_bounds_result == crop_result
+
+    def test_padding_expands_with_nan(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        # Expand by one cell on each side
+        bounds = (
+            minx - cell_size,
+            miny - cell_size,
+            maxx + cell_size,
+            maxy + cell_size,
+        )
+
+        # Act
+        result = base_raster.to_bounds(bounds)
+
+        # Assert
+        # Should be 2 cells larger in each dimension (6x6 instead of 4x4)
+        assert result.arr.shape == (6, 6)
+        assert result.bounds == bounds
+
+        # Check that the center contains original data
+        center_data = result.arr[1:-1, 1:-1]
+        assert np.array_equal(center_data, base_raster.arr)
+
+        # Check that the border is NaN
+        assert np.all(np.isnan(result.arr[0, :]))  # Top row
+        assert np.all(np.isnan(result.arr[-1, :]))  # Bottom row
+        assert np.all(np.isnan(result.arr[:, 0]))  # Left column
+        assert np.all(np.isnan(result.arr[:, -1]))  # Right column
+
+    def test_expand_one_side_only(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        # Expand only on the right side
+        bounds = (minx, miny, maxx + 2 * cell_size, maxy)
+
+        # Act
+        result = base_raster.to_bounds(bounds)
+
+        # Assert
+        # Should be 2 cells wider (4x6 instead of 4x4)
+        assert result.arr.shape == (4, 6)
+
+        # Left 4 columns should match original data
+        assert np.array_equal(result.arr[:, :4], base_raster.arr)
+
+        # Right 2 columns should be NaN
+        assert np.all(np.isnan(result.arr[:, 4:]))
+
+    def test_crop_and_expand_simultaneously(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        # Crop on left, expand on right, crop on bottom, expand on top
+        bounds = (
+            minx + cell_size,  # Crop left
+            miny + cell_size,  # Crop bottom
+            maxx + cell_size,  # Expand right
+            maxy + cell_size,  # Expand top
+        )
+
+        # Act
+        result = base_raster.to_bounds(bounds)
+
+        # Assert
+        # Original is 4x4, crop 1 from left and bottom, add 1 to right and top = 4x4
+        assert result.arr.shape == (4, 4)
+        assert result.bounds == bounds
+
+        # The new raster should have NaN in the top row and right column
+        assert np.all(np.isnan(result.arr[0, :]))  # Top row (new)
+        assert np.all(np.isnan(result.arr[:, -1]))  # Right column (new)
+
+    def test_overflow_strategy_expands(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        # Expand by half a cell on each side
+        shift = cell_size / 2
+        bounds = (minx - shift, miny - shift, maxx + shift, maxy + shift)
+
+        # Act
+        result = base_raster.to_bounds(bounds, strategy="overflow")
+
+        # Assert
+        # With overflow strategy, expanding by half a cell adds one cell on each side
+        # because overflow allows cells up to half_cell_size outside the bounds
+        assert result.arr.shape == (6, 6)  # Two extra rows and columns
+
+        # Check that center contains original data
+        center_data = result.arr[1:-1, 1:-1]
+        assert np.array_equal(center_data, base_raster.arr)
+
+    def test_underflow_strategy_with_expansion(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        bounds = (
+            minx - cell_size,
+            miny - cell_size,
+            maxx + cell_size,
+            maxy + cell_size,
+        )
+
+        # Act
+        result = base_raster.to_bounds(bounds, strategy="underflow")
+
+        # Assert
+        assert result.arr.shape == (6, 6)
+        assert result.bounds == bounds
+
+    def test_invalid_strategy_raises(self, base_raster: Raster):
+        # Arrange
+        bounds = base_raster.bounds
+
+        # Act & Assert
+        with pytest.raises(NotImplementedError, match="Unsupported strategy"):
+            base_raster.to_bounds(bounds, strategy="invalid")  # type: ignore[arg-type]
+
+    def test_invalid_bounds_length_raises(self, base_raster: Raster):
+        # Arrange
+        bounds = (0.0, 0.0, 50.0)  # Only 3 values
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="bounds must be a sequence of length 4"):
+            base_raster.to_bounds(bounds)  # type: ignore[arg-type]
+
+    def test_empty_bounds_raises(self, base_raster: Raster):
+        # Arrange
+        # Bounds with zero width (minx == maxx)
+        bounds = (0.0, 60.0, 0.0, 100.0)
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="No cells within the specified bounds"):
+            base_raster.to_bounds(bounds)
+
+    def test_preserves_crs(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        bounds = (
+            minx - cell_size,
+            miny - cell_size,
+            maxx + cell_size,
+            maxy + cell_size,
+        )
+
+        # Act
+        result = base_raster.to_bounds(bounds)
+
+        # Assert
+        assert result.raster_meta.crs == base_raster.raster_meta.crs
+
+    def test_preserves_cell_size(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        bounds = (
+            minx - cell_size,
+            miny - cell_size,
+            maxx + cell_size,
+            maxy + cell_size,
+        )
+
+        # Act
+        result = base_raster.to_bounds(bounds)
+
+        # Assert
+        assert result.raster_meta.cell_size == base_raster.raster_meta.cell_size
+
+    def test_arraylike_bounds(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        # Expand one cell on right and top
+        bounds_array = np.array([minx, miny, maxx + cell_size, maxy + cell_size])
+
+        # Act
+        result = base_raster.to_bounds(bounds_array)
+
+        # Assert
+        assert isinstance(result, Raster)
+        # Expanding by one cell on right and top adds cells on those sides
+        assert result.arr.shape == (5, 5)
+
+
 class TestPad:
     def test_example(self):
         # Arrange

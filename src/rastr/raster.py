@@ -1495,7 +1495,7 @@ class Raster(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
-    def to_bounds(  # noqa: C901, PLR0912, PLR0915
+    def to_bounds(  # noqa: PLR0915
         self,
         bounds: tuple[float, float, float, float] | Bounds | ArrayLike,
         *,
@@ -1525,26 +1525,19 @@ class Raster(BaseModel):
             )
             raise ValueError(msg)
 
+        if strategy not in ("underflow", "overflow"):
+            msg = f"Unsupported strategy: {strategy}"
+            raise NotImplementedError(msg)
+
         target_minx, target_miny, target_maxx, target_maxy = bounds
         cell_size = self.raster_meta.cell_size
         half_cell_size = cell_size / 2
 
-        # Calculate the range for cell centers based on strategy
-        if strategy == "underflow":
-            # Cell centers must be at least half_cell_size inside the bounds
-            offset = half_cell_size
-            x_range = (target_minx + offset, target_maxx - offset)
-            y_range = (target_miny + offset, target_maxy - offset)
-        elif strategy == "overflow":
-            # Cell centers can be up to half_cell_size outside the bounds
-            offset = half_cell_size
-            x_range = (target_minx - offset, target_maxx + offset)
-            y_range = (target_miny - offset, target_maxy + offset)
-        else:
-            msg = f"Unsupported strategy: {strategy}"
-            raise NotImplementedError(msg)
+        offset = half_cell_size
+        sign = 1 if strategy == "underflow" else -1
+        x_range = (target_minx + sign * offset, target_maxx - sign * offset)
+        y_range = (target_miny + sign * offset, target_maxy - sign * offset)
 
-        # Check if bounds would result in an empty raster
         if x_range[1] < x_range[0] or y_range[1] < y_range[0]:
             msg = "No cells within the specified bounds."
             raise ValueError(msg)
@@ -1571,14 +1564,16 @@ class Raster(BaseModel):
         if y_ascending:
             y_start = np.ceil((y_range[0] - first_y) / cell_size)
             y_end = np.floor((y_range[1] - first_y) / cell_size)
+            y_indices = np.arange(y_start, y_end + 1, dtype=int)
+            target_y_coords = first_y + y_indices * cell_size
         else:
-            # For descending y-coords, we need to flip the logic
             y_start = np.ceil((first_y - y_range[1]) / cell_size)
             y_end = np.floor((first_y - y_range[0]) / cell_size)
+            y_indices = np.arange(y_start, y_end + 1, dtype=int)
+            target_y_coords = first_y - y_indices * cell_size
 
         # Generate target coordinates
         x_indices = np.arange(x_start, x_end + 1, dtype=int)
-        y_indices = np.arange(y_start, y_end + 1, dtype=int)
 
         if len(x_indices) == 0 or len(y_indices) == 0:
             msg = "No cells within the specified bounds."
@@ -1586,12 +1581,6 @@ class Raster(BaseModel):
 
         target_x_coords = first_x + x_indices * cell_size
 
-        if y_ascending:
-            target_y_coords = first_y + y_indices * cell_size
-        else:
-            target_y_coords = first_y - y_indices * cell_size
-
-        # Create output array filled with NaN
         output_shape = (len(target_y_coords), len(target_x_coords))
         output_arr = np.full(output_shape, np.nan, dtype=float)
 
@@ -1610,22 +1599,15 @@ class Raster(BaseModel):
             < tolerance
         )
 
-        # Find matching y and x pairs
-        # For each target cell, check if both x and y match
-        for target_y_idx in range(len(target_y_coords)):
-            current_y_matches = np.where(y_match_mask[target_y_idx, :])[0]
-            if len(current_y_matches) > 0:
-                current_y_idx = current_y_matches[0]
+        y_target_indices, y_current_indices = np.where(y_match_mask)
+        x_target_indices, x_current_indices = np.where(x_match_mask)
 
-                for target_x_idx in range(len(target_x_coords)):
-                    current_x_matches = np.where(x_match_mask[target_x_idx, :])[0]
-                    if len(current_x_matches) > 0:
-                        current_x_idx = current_x_matches[0]
-                        output_arr[target_y_idx, target_x_idx] = self.arr[
-                            current_y_idx, current_x_idx
-                        ]
+        for ty_idx, cy_idx in zip(y_target_indices, y_current_indices, strict=False):
+            for tx_idx, cx_idx in zip(
+                x_target_indices, x_current_indices, strict=False
+            ):
+                output_arr[ty_idx, tx_idx] = self.arr[cy_idx, cx_idx]
 
-        # Calculate the new transform
         transform = rasterio.transform.from_bounds(
             west=target_x_coords.min() - half_cell_size,
             south=target_y_coords.min() - half_cell_size,

@@ -1495,7 +1495,7 @@ class Raster(BaseModel):
         )
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
-    def to_bounds(  # noqa: C901, PLR0912, PLR0915
+    def to_bounds(  # noqa: PLR0915
         self,
         bounds: tuple[float, float, float, float] | Bounds | ArrayLike,
         *,
@@ -1595,25 +1595,32 @@ class Raster(BaseModel):
         output_shape = (len(target_y_coords), len(target_x_coords))
         output_arr = np.full(output_shape, np.nan, dtype=float)
 
-        # Map current cells to target array
-        # Find which indices in current arrays overlap with target arrays
-        for target_y_idx, target_y in enumerate(target_y_coords):
-            for target_x_idx, target_x in enumerate(target_x_coords):
-                # Find matching coordinates in current raster
-                x_matches = np.where(
-                    np.isclose(current_x_coords, target_x, rtol=1e-9, atol=1e-9)
-                )[0]
-                y_matches = np.where(
-                    np.isclose(current_y_coords, target_y, rtol=1e-9, atol=1e-9)
-                )[0]
+        # Map current cells to target array using vectorized operations
+        # Build boolean masks for overlapping coordinates
+        tolerance = 1e-9
 
-                if len(x_matches) > 0 and len(y_matches) > 0:
-                    # Copy value from current raster
-                    current_y_idx = y_matches[0]
-                    current_x_idx = x_matches[0]
-                    output_arr[target_y_idx, target_x_idx] = self.arr[
-                        current_y_idx, current_x_idx
-                    ]
+        # For each target coordinate, find matching indices in current raster
+        # Use broadcasting to create a boolean mask
+        x_match_mask = (
+            np.abs(target_x_coords[:, np.newaxis] - current_x_coords[np.newaxis, :])
+            < tolerance
+        )
+        y_match_mask = (
+            np.abs(target_y_coords[:, np.newaxis] - current_y_coords[np.newaxis, :])
+            < tolerance
+        )
+
+        # Find indices where there are matches
+        target_y_indices, current_y_indices = np.where(y_match_mask)
+        target_x_indices, current_x_indices = np.where(x_match_mask)
+
+        # Copy values for all matching cells
+        # Use advanced indexing to copy all matching cells at once
+        for ty_idx, cy_idx in zip(target_y_indices, current_y_indices, strict=False):
+            for tx_idx, cx_idx in zip(
+                target_x_indices, current_x_indices, strict=False
+            ):
+                output_arr[ty_idx, tx_idx] = self.arr[cy_idx, cx_idx]
 
         # Calculate the new transform
         transform = rasterio.transform.from_bounds(

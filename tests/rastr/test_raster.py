@@ -3243,8 +3243,8 @@ class TestToBounds:
     def test_empty_bounds_raises(self, base_raster: Raster):
         """Test that bounds resulting in no cells raises ValueError."""
         # Arrange
-        # Bounds that would result in no cells
-        bounds = (0.0, 60.0, 0.0, 100.0)  # minx == maxx
+        # Bounds with zero width (minx == maxx)
+        bounds = (0.0, 60.0, 0.0, 100.0)
 
         # Act & Assert
         with pytest.raises(ValueError, match="No cells within the specified bounds"):

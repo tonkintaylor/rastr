@@ -1586,7 +1586,7 @@ class Raster(BaseModel):
         output_arr = np.full(output_shape, np.nan, dtype=float)
 
         # For each target coordinate, find matching indices in current raster
-        # Use broadcasting to create boolean masks
+        # Use broadcasting to create boolean masks for coordinate matching
         x_match_mask = (
             np.abs(target_x_coords[:, np.newaxis] - current_x_coords[np.newaxis, :])
             < COORD_MATCH_TOLERANCE
@@ -1596,9 +1596,12 @@ class Raster(BaseModel):
             < COORD_MATCH_TOLERANCE
         )
 
+        # Find which target indices match which current indices
         y_target_indices, y_current_indices = np.where(y_match_mask)
         x_target_indices, x_current_indices = np.where(x_match_mask)
 
+        # Create meshgrid of all combinations of matching y and x coordinates
+        # For each y match, pair it with each x match to fill the grid
         for ty_idx, cy_idx in zip(y_target_indices, y_current_indices, strict=False):
             for tx_idx, cx_idx in zip(
                 x_target_indices, x_current_indices, strict=False

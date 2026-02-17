@@ -3287,6 +3287,34 @@ class TestToBounds:
         # Expanding by one cell on right and top adds cells on those sides
         assert result.arr.shape == (5, 5)
 
+    def test_crop_preserves_values_not_nan(self, base_raster: Raster):
+        # Arrange
+        minx, miny, maxx, maxy = base_raster.bounds
+        cell_size = base_raster.raster_meta.cell_size
+        # Crop to inner 2x2 region
+        bounds = (
+            minx + cell_size,
+            miny + cell_size,
+            maxx - cell_size,
+            maxy - cell_size,
+        )
+
+        # Act
+        result = base_raster.to_bounds(bounds)
+
+        # Assert
+        # Result should have 2x2 shape (cropped from 4x4)
+        assert result.arr.shape == (2, 2)
+        # Result should contain actual values from the cropped region, not NaN
+        assert not np.all(np.isnan(result.arr))
+        # All values should be valid (not NaN)
+        assert not np.any(np.isnan(result.arr))
+        # Values should match the center 2x2 of the original raster
+        # base_raster is 4x4 with values 1-16 reshaped
+        # Center 2x2 should be values from rows [1,2] and cols [1,2]
+        expected_values = base_raster.arr[1:3, 1:3]
+        assert np.array_equal(result.arr, expected_values)
+
 
 class TestPad:
     def test_example(self):

@@ -3305,8 +3305,6 @@ class TestToBounds:
         # Assert
         # Result should have 2x2 shape (cropped from 4x4)
         assert result.arr.shape == (2, 2)
-        # Result should contain actual values from the cropped region, not NaN
-        assert not np.all(np.isnan(result.arr))
         # All values should be valid (not NaN)
         assert not np.any(np.isnan(result.arr))
         # Values should match the center 2x2 of the original raster

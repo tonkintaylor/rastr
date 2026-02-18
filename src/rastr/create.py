@@ -25,6 +25,7 @@ from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
 from rastr.gis.interpolate import InterpolationError, interpn_kernel
 from rastr.meta import RasterMeta, infer_cell_size
 from rastr.raster import Raster, RasterModel
+from rastr.utils import ensure_pair
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
@@ -113,7 +114,8 @@ def raster_distance_from_polygon(
         distance_extent = snap_raster.bbox.difference(polygon)
     elif extent_polygon is not None and snap_raster is None:
         x, y = create_point_grid(
-            bounds=extent_polygon.bounds, cell_size=raster_meta.cell_size
+            bounds=extent_polygon.bounds,
+            cell_size=raster_meta.temp_cell_size,
         )
         distance_extent = extent_polygon.difference(polygon)
     else:
@@ -144,7 +146,7 @@ def full_raster(
     fill_value: float = np.nan,
 ) -> Raster:
     """Create a raster with a specified fill value for all cells."""
-    shape = get_point_grid_shape(bounds=bounds, cell_size=raster_meta.cell_size)
+    shape = get_point_grid_shape(bounds=bounds, cell_size=raster_meta.temp_cell_size)
     arr = np.full(shape, fill_value, dtype=np.float32)
     return Raster(arr=arr, raster_meta=raster_meta)
 
@@ -185,20 +187,27 @@ def rasterize_gdf(
     # Get the bounds from the GeoDataFrame and expand them to include potential gaps
     bounds = gdf.total_bounds
     min_x, min_y, max_x, max_y = bounds
-    cell_size = raster_meta.cell_size
+    cell_width = raster_meta.cell_width
+    cell_height = raster_meta.cell_height
 
     # Expand bounds by at least one cell size to ensure there are potential gaps
-    buffer = cell_size
-    expanded_bounds = (min_x - buffer, min_y - buffer, max_x + buffer, max_y + buffer)
+    expanded_bounds = (
+        min_x - cell_width,
+        min_y - cell_height,
+        max_x + cell_width,
+        max_y + cell_height,
+    )
 
     # Create point grid to get raster dimensions and transform
-    shape = get_point_grid_shape(bounds=expanded_bounds, cell_size=cell_size)
+    shape = get_point_grid_shape(
+        bounds=expanded_bounds, cell_size=raster_meta.temp_cell_size
+    )
 
     # Create the affine transform for rasterization
     xs, ys = get_affine_sign(raster_meta.crs)
     transform = Affine.translation(
         expanded_bounds[0], expanded_bounds[3]
-    ) * Affine.scale(xs * cell_size, ys * cell_size)
+    ) * Affine.scale(xs * cell_width, ys * cell_height)
 
     # Create rasters for each target column using rasterio.features.rasterize
     rasters = []
@@ -228,7 +237,7 @@ def rasterize_gdf(
 def rasterize_z_gdf(
     gdf: gpd.GeoDataFrame,
     *,
-    cell_size: float,
+    cell_size: tuple[float, float] | float,
     crs: CRS | str,
     agg: Literal["mean", "min", "max"] = "mean",
 ) -> RasterModel:
@@ -241,7 +250,8 @@ def rasterize_z_gdf(
 
     Args:
         gdf: GeoDataFrame containing 3D geometries with Z coordinates.
-        cell_size: Desired cell size for the output raster.
+        cell_size: Desired cell size for the output raster as (width, height) or a
+            single value for square cells.
         crs: Coordinate reference system for the output raster.
         agg: Aggregation function to use for overlapping values ("mean", "min", "max").
 
@@ -252,6 +262,7 @@ def rasterize_z_gdf(
         ValueError: If any geometries are not 3D.
     """
     crs = CRS.from_user_input(crs)
+    cell_size = ensure_pair(cell_size)
 
     if len(gdf) == 0:
         msg = "Cannot rasterize an empty GeoDataFrame."
@@ -433,7 +444,7 @@ def raster_from_point_cloud(
     z: ArrayLike,
     *,
     crs: CRS | str,
-    cell_size: float | None = None,
+    cell_size: tuple[float, float] | float | None = None,
 ) -> Raster:
     """Create a raster from a point cloud via interpolation.
 
@@ -458,6 +469,9 @@ def raster_from_point_cloud(
         ValueError: If any (x, y) points have different z values, or if they are all
                     collinear.
     """
+
+    cell_size = ensure_pair(cell_size) if cell_size is not None else None
+
     crs = CRS.from_user_input(crs)
     x, y, z = _validate_xyz(
         np.asarray(x).ravel(), np.asarray(y).ravel(), np.asarray(z).ravel()
@@ -542,7 +556,7 @@ def raster_from_contours(
     *,
     geometry: Collection[BaseGeometry] | gpd.GeoSeries,
     crs: CRS | str | None = None,
-    cell_size: float | None = None,
+    cell_size: tuple[float, float] | float | None = None,
 ) -> Raster:
     """Create a raster from contour geometries with associated values.
 
@@ -589,13 +603,15 @@ def raster_from_contours(
     if cell_size is None:
         cell_size = _infer_cell_size_from_geometry(geometry)
 
+    cell_size = ensure_pair(cell_size)
+
     coords: list[tuple[float, ...]] = []
     z_values: list[float] = []
     for value, geom in zip(values, geometry, strict=True):
         # Extract (x, y, z) points from contour geometries
         # Segmentize to ensure contours are treated like continuous curves instead
         # of a collection of points with gaps.
-        geom = segmentize(geom, max_segment_length=cell_size / 2)
+        geom = segmentize(geom, max_segment_length=min(cell_size) / 2)
         geom_coords = list(_extract_coords(geom))
         coords.extend(geom_coords)
 

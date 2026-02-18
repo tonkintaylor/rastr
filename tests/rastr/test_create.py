@@ -1176,12 +1176,10 @@ class TestRasterizeZGDF:
         polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
         gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
 
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="mean"
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs, agg="mean"
         )
 
         assert isinstance(result, Raster)
@@ -1224,12 +1222,10 @@ class TestRasterizeZGDF:
         polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
         gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
 
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="min"
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs, agg="min"
         )
 
         assert isinstance(result, Raster)
@@ -1271,12 +1267,10 @@ class TestRasterizeZGDF:
         polygon2 = self._create_3d_polygon(coords_2d_2, z_values_2)
         gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
 
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="max"
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs, agg="max"
         )
 
         assert isinstance(result, Raster)
@@ -1292,14 +1286,14 @@ class TestRasterizeZGDF:
         import geopandas as gpd
 
         gdf = gpd.GeoDataFrame(geometry=[], crs=_PROJECTED_CRS)
-        raster_meta = RasterMeta(
-            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(1.0, -1.0))
 
         with pytest.raises(
             ValueError, match=r"Cannot rasterize an empty GeoDataFrame."
         ):
-            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
+            rasterize_z_gdf(
+                gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            )
 
     def test_2d_polygons_converted_to_3d(self):
         """Test that 2D polygons are converted to 3D with NaN Z values."""
@@ -1309,13 +1303,13 @@ class TestRasterizeZGDF:
         polygon_2d = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
         gdf = gpd.GeoDataFrame(geometry=[polygon_2d], crs=_PROJECTED_CRS)
 
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         # Should raise an error because 2D polygons don't have Z coordinates
         with pytest.raises(ValueError, match="not 3D"):
-            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
+            rasterize_z_gdf(
+                gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            )
 
     def test_mixed_2d_3d_polygons(self):
         """Test with mix of 2D and 3D polygons."""
@@ -1337,13 +1331,13 @@ class TestRasterizeZGDF:
         polygon_2d = Polygon([(2, 0), (3, 0), (3, 1), (2, 1)])
 
         gdf = gpd.GeoDataFrame(geometry=[polygon_3d, polygon_2d], crs=_PROJECTED_CRS)
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         # Should raise an error because not all polygons are 3D
         with pytest.raises(ValueError, match="not 3D"):
-            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
+            rasterize_z_gdf(
+                gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            )
 
     def test_polygons_with_nan_z_values(self):
         """Test polygons where some vertices have NaN Z values."""
@@ -1363,12 +1357,10 @@ class TestRasterizeZGDF:
         polygon = self._create_3d_polygon(coords_2d, z_values)
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1396,12 +1388,10 @@ class TestRasterizeZGDF:
         polygon = self._create_3d_polygon(coords_2d, z_values)
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1432,11 +1422,11 @@ class TestRasterizeZGDF:
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
         raster_meta = RasterMeta(
-            cell_size=0.25, crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
+            crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1469,12 +1459,10 @@ class TestRasterizeZGDF:
             polygons.append(polygon)
 
         gdf = gpd.GeoDataFrame(geometry=polygons, crs=_PROJECTED_CRS)
-        raster_meta = RasterMeta(
-            cell_size=0.1, crs=_PROJECTED_CRS, transform=Affine.scale(0.1, -0.1)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.1, -0.1))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1503,11 +1491,11 @@ class TestRasterizeZGDF:
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
         raster_meta = RasterMeta(
-            cell_size=0.01, crs=_PROJECTED_CRS, transform=Affine.scale(0.01, -0.01)
+            crs=_PROJECTED_CRS, transform=Affine.scale(0.01, -0.01)
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1534,17 +1522,39 @@ class TestRasterizeZGDF:
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
         custom_transform = Affine.scale(0.5, -0.5) * Affine.translation(100, 200)
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=custom_transform
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=custom_transform)
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
-        assert result.raster_meta.cell_size == 0.5
+        assert result.raster_meta.square_cell_size == 0.5
         assert result.raster_meta.crs == _PROJECTED_CRS
         # Note: The output transform may be modified due to bounds expansion
+
+    def test_non_square_cells(self):
+        """Test that rasterize_z_gdf preserves non-square cell dimensions."""
+        import geopandas as gpd
+
+        coords_2d = np.array(
+            [
+                [0.0, 0.0],
+                [4.0, 0.0],
+                [4.0, 2.0],
+                [0.0, 2.0],
+                [0.0, 0.0],
+            ]
+        )
+        z_values = np.array([0.0, 10.0, 20.0, 10.0, 0.0])
+
+        polygon = self._create_3d_polygon(coords_2d, z_values)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
+
+        result = rasterize_z_gdf(gdf, cell_size=(2.0, 0.5), crs=_PROJECTED_CRS)
+
+        assert result.raster_meta.cell_width == pytest.approx(2.0)
+        assert result.raster_meta.cell_height == pytest.approx(0.5)
+        assert result.shape == (int(2 / 0.5 + 1), int(4 / 2 + 1))
 
     def test_output_dtype_float64(self):
         """Test that output raster has float64 dtype."""
@@ -1564,12 +1574,10 @@ class TestRasterizeZGDF:
         polygon = self._create_3d_polygon(coords_2d, z_values)
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
-        raster_meta = RasterMeta(
-            cell_size=0.5, crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert result.arr.dtype == np.float64
@@ -1606,11 +1614,11 @@ class TestRasterizeZGDF:
         gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
 
         raster_meta = RasterMeta(
-            cell_size=0.25, crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
+            crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1655,11 +1663,11 @@ class TestRasterizeZGDF:
         gdf = gpd.GeoDataFrame(geometry=[polygon1, polygon2], crs=_PROJECTED_CRS)
 
         raster_meta = RasterMeta(
-            cell_size=0.25, crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
+            crs=_PROJECTED_CRS, transform=Affine.scale(0.25, -0.25)
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1953,6 +1961,27 @@ class TestRasterFromPointCloud:
         assert isinstance(raster, Raster)
         assert raster.arr.shape == (3, 3)
 
+    def test_non_square_cells(self):
+        # Arrange
+        x = [0, 0, 4, 4]
+        y = [0, 2, 0, 2]
+        z = [10, 20, 30, 40]
+
+        # Act
+        raster = raster_from_point_cloud(
+            x=x,
+            y=y,
+            z=z,
+            crs="EPSG:2193",
+            cell_size=(2.0, 0.5),
+        )
+
+        # Assert
+        assert (
+            raster.raster_meta.cell_width,
+            raster.raster_meta.cell_height,
+        ) == pytest.approx((2.0, 0.5))
+
     def test_xy_are_nan_warns(self):
         # Arrange
         x = [0, 0, np.nan, 1, 3]
@@ -2053,7 +2082,7 @@ class TestRasterFromContours:
 
         # Check metadata
         assert isinstance(result, Raster)
-        assert result.cell_size == 1.0
+        assert result.meta.square_cell_size == 1.0
         assert result.crs == _PROJECTED_CRS
 
         # Check that raster is as expected
@@ -2370,6 +2399,20 @@ class TestRasterFromContours:
         left_mask = x < x_thresh
         left_values = raster_array[left_mask & ~np.isnan(raster_array)]
         assert np.all(left_values == 10.0)
+
+    def test_non_square_cells(self):
+        line_bottom = LineString([(0.0, 0.0), (4.0, 0.0)])
+        line_top = LineString([(0.0, 2.0), (4.0, 2.0)])
+
+        result = raster_from_contours(
+            values=[0.0, 20.0],
+            geometry=[line_bottom, line_top],
+            crs=_PROJECTED_CRS,
+            cell_size=(2.0, 0.5),
+        )
+
+        assert result.raster_meta.cell_width == pytest.approx(2.0)
+        assert result.raster_meta.cell_height == pytest.approx(0.5)
 
 
 class TestExtractCoords:

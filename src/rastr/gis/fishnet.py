@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from shapely import box
@@ -108,4 +108,7 @@ def create_fishnet(
         xx.ravel() + cell_width / 2,
         yy.ravel() + cell_height / 2,
     )
-    return gpd.GeoSeries(polygons).array
+
+    # GeoSeries.array is typed as ExtensionArray in geopandas stubs, but at runtime
+    # this is a GeometryArray for polygon geometries.
+    return cast("GeometryArray", gpd.GeoSeries(polygons).array)

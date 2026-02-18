@@ -2687,7 +2687,6 @@ class TestRaster:
             level_count: int,
         ) -> None:
             meta = RasterMeta(
-                cell_size=float(min(abs(x_scale), abs(y_scale))),
                 crs=CRS.from_epsg(2193),
                 transform=Affine(x_scale, 0.0, origin_x, 0.0, y_scale, origin_y),
             )

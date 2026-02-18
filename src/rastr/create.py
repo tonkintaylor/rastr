@@ -644,7 +644,9 @@ def raster_from_contours(
     return raster
 
 
-def _infer_cell_size_from_geometry(geometry: Collection[BaseGeometry]) -> float:
+def _infer_cell_size_from_geometry(
+    geometry: Collection[BaseGeometry],
+) -> tuple[float, float]:
     # Extract the coordinates without segmentization
     coords: list[tuple[float, ...]] = []
     for geom in geometry:

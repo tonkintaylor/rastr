@@ -5,13 +5,15 @@ from typing import TYPE_CHECKING
 import numpy as np
 from shapely import BufferCapStyle, BufferJoinStyle
 
+from rastr.utils import ensure_pair
+
 if TYPE_CHECKING:
     from geopandas.array import GeometryArray
     from numpy.typing import ArrayLike, NDArray
 
 
 def create_point_grid(
-    *, bounds: tuple[float, float, float, float], cell_size: float
+    *, bounds: tuple[float, float, float, float], cell_size: tuple[float, float] | float
 ) -> tuple[NDArray, NDArray]:
     """Create a regular grid of point coordinates for raster centers.
 
@@ -20,29 +22,43 @@ def create_point_grid(
 
     Args:
         bounds: (xmin, ymin, xmax, ymax) bounding box.
-        cell_size: Size of each grid cell.
+        cell_size: Size of each grid cell as (width, height) or a single value for
+            square cells.
 
     Returns:
         Tuple of (x_coords, y_coords) meshgrids for raster cell centers.
     """
+    cell_size = ensure_pair(cell_size)
+    x_width, y_height = cell_size
+
     xmin, ymin, xmax, ymax = bounds
 
     # Use the original logic with np.arange for exact compatibility
-    x_coords = np.arange(xmin + cell_size / 2, xmax + cell_size / 2, cell_size)
-    y_coords = np.arange(ymax - cell_size / 2, ymin - cell_size / 2, -cell_size)
+    x_coords = np.arange(xmin + x_width / 2, xmax + x_width / 2, x_width)
+    y_coords = np.arange(ymax - y_height / 2, ymin - y_height / 2, -y_height)
 
     x_points, y_points = np.meshgrid(x_coords, y_coords)  # type: ignore[reportAssignmentType]
     return x_points, y_points
 
 
 def get_point_grid_shape(
-    *, bounds: tuple[float, float, float, float] | ArrayLike, cell_size: float
+    *,
+    bounds: tuple[float, float, float, float] | ArrayLike,
+    cell_size: tuple[float, float] | float,
 ) -> tuple[int, int]:
-    """Calculate the shape of the point grid based on bounds and cell size."""
+    """Calculate the shape of the point grid based on bounds and cell size.
+
+    Args:
+        bounds: (xmin, ymin, xmax, ymax) bounding box.
+        cell_size: Size of each grid cell as (width, height) or a single value for
+            square cells.
+    """
+    cell_size = ensure_pair(cell_size)
+    x_width, y_height = cell_size
 
     xmin, ymin, xmax, ymax = np.asarray(bounds)
-    ncols_exact = (xmax - xmin) / cell_size
-    nrows_exact = (ymax - ymin) / cell_size
+    ncols_exact = (xmax - xmin) / x_width
+    nrows_exact = (ymax - ymin) / y_height
 
     # Use round for values very close to integers to avoid floating-point
     # sensitivity while maintaining ceil behavior for truly fractional values

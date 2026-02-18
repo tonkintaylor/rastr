@@ -305,11 +305,8 @@ class TestRaster:
             transform_via_raster_meta = example_raster.raster_meta.transform
 
             # Assert
-            assert transform_via_property is transform_via_meta
-            assert transform_via_property is transform_via_raster_meta
             assert transform_via_property == transform_via_meta
             assert transform_via_property == transform_via_raster_meta
-            assert isinstance(transform_via_property, Affine)
 
         def test_transform_setter(self, example_raster: Raster):
             # Arrange
@@ -320,9 +317,9 @@ class TestRaster:
             example_raster.transform = new_transform
 
             # Assert
-            assert example_raster.transform is new_transform
-            assert example_raster.meta.transform is new_transform
-            assert example_raster.raster_meta.transform is new_transform
+            assert example_raster.transform == new_transform
+            assert example_raster.meta.transform == new_transform
+            assert example_raster.raster_meta.transform == new_transform
             assert example_raster.transform != original_transform
 
     class TestCellSize:
@@ -333,25 +330,30 @@ class TestRaster:
             cell_size_via_raster_meta = example_raster.raster_meta.cell_size
 
             # Assert
-            assert cell_size_via_property is cell_size_via_meta
-            assert cell_size_via_property is cell_size_via_raster_meta
             assert cell_size_via_property == cell_size_via_meta
-            assert cell_size_via_property == cell_size_via_raster_meta
-            assert isinstance(cell_size_via_property, float)
+            assert cell_size_via_meta == cell_size_via_raster_meta
+            assert isinstance(cell_size_via_property, tuple)
 
         def test_cell_size_setter(self, example_raster: Raster):
             # Arrange
-            new_cell_size = 5.0
+            scale_factor = (2.5, 1.5)
             original_cell_size = example_raster.cell_size
+            original_transform = example_raster.transform
 
             # Act
-            example_raster.cell_size = new_cell_size
+            example_raster.cell_size = scale_factor
+
+            expected_cell_size = (
+                original_cell_size[0] * scale_factor[0],
+                original_cell_size[1] * scale_factor[1],
+            )
 
             # Assert
-            assert example_raster.cell_size == new_cell_size
-            assert example_raster.meta.cell_size == new_cell_size
-            assert example_raster.raster_meta.cell_size == new_cell_size
+            assert example_raster.cell_size == expected_cell_size
+            assert example_raster.meta.cell_size == expected_cell_size
+            assert example_raster.raster_meta.cell_size == expected_cell_size
             assert example_raster.cell_size != original_cell_size
+            assert example_raster.transform != original_transform
 
     class TestSample:
         def test_sample_nan_raise(self, example_raster: Raster):

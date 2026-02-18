@@ -22,6 +22,7 @@ import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
+from affine import Affine
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import Transformer
 from pyproj.crs.crs import CRS
@@ -41,7 +42,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import geopandas as gpd
-    from affine import Affine
     from branca.colormap import LinearColormap as BrancaLinearColormap
     from folium import Map
     from matplotlib.axes import Axes
@@ -136,14 +136,17 @@ class Raster(BaseModel):
         self.meta.transform = value
 
     @property
-    def cell_size(self) -> float:
+    def cell_size(self) -> tuple[float, float]:
         """Convenience property to access the cell size via meta."""
         return self.meta.cell_size
 
     @cell_size.setter
-    def cell_size(self, value: float) -> None:
+    def cell_size(self, value: tuple[float, float] | float) -> None:
         """Set the cell size via meta."""
-        raise NotImplementedError
+        cell_size = ensure_pair(value)
+        self.meta.transform = (
+            Affine.scale(cell_size[0], cell_size[1]) * self.meta.transform
+        )
 
     @property
     def has_square_cells(self) -> bool:

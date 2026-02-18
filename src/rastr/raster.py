@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import math
 import warnings
 from collections.abc import Collection
 from contextlib import contextmanager
@@ -143,9 +144,24 @@ class Raster(BaseModel):
     @cell_size.setter
     def cell_size(self, value: tuple[float, float] | float) -> None:
         """Set the cell size via meta."""
-        cell_size = ensure_pair(value)
-        self.meta.transform = (
-            Affine.scale(cell_size[0], cell_size[1]) * self.meta.transform
+        new_cell_size = ensure_pair(value)
+        current_transform = self.meta.transform
+
+        # Preserve the sign of a and e (handles different coordinate systems)
+        sign_a = math.copysign(1, current_transform.a)
+        sign_e = math.copysign(1, current_transform.e)
+
+        # Set new a and e values directly while preserving other transform parameters
+        new_a = new_cell_size[0] * sign_a
+        new_e = new_cell_size[1] * sign_e
+
+        self.meta.transform = Affine(
+            new_a,
+            current_transform.b,
+            current_transform.c,
+            current_transform.d,
+            new_e,
+            current_transform.f,
         )
 
     @property

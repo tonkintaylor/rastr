@@ -336,24 +336,33 @@ class TestRaster:
 
         def test_cell_size_setter(self, example_raster: Raster):
             # Arrange
-            scale_factor = (2.5, 1.5)
+            new_cell_size = (5.0, 3.0)
             original_cell_size = example_raster.cell_size
             original_transform = example_raster.transform
 
             # Act
-            example_raster.cell_size = scale_factor
-
-            expected_cell_size = (
-                original_cell_size[0] * scale_factor[0],
-                original_cell_size[1] * scale_factor[1],
-            )
+            example_raster.cell_size = new_cell_size
 
             # Assert
-            assert example_raster.cell_size == expected_cell_size
-            assert example_raster.meta.cell_size == expected_cell_size
-            assert example_raster.raster_meta.cell_size == expected_cell_size
+            assert example_raster.cell_size == new_cell_size
+            assert example_raster.meta.cell_size == new_cell_size
+            assert example_raster.raster_meta.cell_size == new_cell_size
             assert example_raster.cell_size != original_cell_size
             assert example_raster.transform != original_transform
+
+        def test_cell_size_setter_idempotent(self, example_raster: Raster):
+            # Arrange
+            new_cell_size = (5.0, 3.0)
+
+            # Act
+            example_raster.cell_size = new_cell_size
+            transform_after_first = example_raster.transform
+            example_raster.cell_size = new_cell_size
+            transform_after_second = example_raster.transform
+
+            # Assert
+            assert example_raster.cell_size == new_cell_size
+            assert transform_after_first == transform_after_second
 
     class TestSample:
         def test_sample_nan_raise(self, example_raster: Raster):

@@ -143,10 +143,11 @@ class Raster(BaseModel):
     @cell_size.setter
     def cell_size(self, value: tuple[float, float] | float) -> None:
         """Set the cell size via meta."""
-        cell_size = ensure_pair(value)
-        self.meta.transform = (
-            Affine.scale(cell_size[0], cell_size[1]) * self.meta.transform
-        )
+        new_cell_size = ensure_pair(value)
+        current_cell_size = self.meta.cell_size
+        scale_x = new_cell_size[0] / current_cell_size[0]
+        scale_y = new_cell_size[1] / current_cell_size[1]
+        self.meta.transform = Affine.scale(scale_x, scale_y) * self.meta.transform
 
     @property
     def has_square_cells(self) -> bool:

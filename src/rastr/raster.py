@@ -142,7 +142,7 @@ class Raster(BaseModel):
     @cell_size.setter
     def cell_size(self, value: float) -> None:
         """Set the cell size via meta."""
-        self.meta.cell_size = value
+        raise NotImplementedError
 
     def __init__(
         self,
@@ -371,7 +371,6 @@ class Raster(BaseModel):
             raise ValueError(msg)
 
         new_meta = RasterMeta(
-            cell_size=self.raster_meta.cell_size,
             crs=crs_obj,
             transform=self.raster_meta.transform,
         )
@@ -1404,7 +1403,6 @@ class Raster(BaseModel):
 
         # Create new raster metadata
         new_meta = RasterMeta(
-            cell_size=cell_size,
             crs=self.raster_meta.crs,
             transform=new_transform,
         )
@@ -1491,9 +1489,7 @@ class Raster(BaseModel):
 
         # Update the raster
         cls = self.__class__
-        new_meta = RasterMeta(
-            cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
-        )
+        new_meta = RasterMeta(crs=self.raster_meta.crs, transform=transform)
         return cls(arr=cropped_arr, raster_meta=new_meta)
 
     def to_bounds(
@@ -1616,9 +1612,7 @@ class Raster(BaseModel):
 
         # Create the new raster
         cls = self.__class__
-        new_meta = RasterMeta(
-            cell_size=cell_size, crs=self.raster_meta.crs, transform=transform
-        )
+        new_meta = RasterMeta(crs=self.raster_meta.crs, transform=transform)
         return cls(arr=output_arr, raster_meta=new_meta)
 
     def taper_border(self, width: float, *, limit: float = 0.0) -> Self:
@@ -1750,7 +1744,6 @@ class Raster(BaseModel):
 
         # Create new metadata
         new_meta = RasterMeta(
-            cell_size=self.raster_meta.cell_size,
             crs=self.raster_meta.crs,
             transform=new_transform,
         )
@@ -1811,7 +1804,7 @@ class Raster(BaseModel):
                 resampling=Resampling.bilinear,
             )
 
-            # Create new RasterMeta with updated transform and cell size
+            # Create new RasterMeta with updated transform
             new_raster_meta = RasterMeta(
                 transform=dataset.transform
                 * dataset.transform.scale(
@@ -1819,7 +1812,6 @@ class Raster(BaseModel):
                     (dataset.height / new_height),
                 ),
                 crs=self.raster_meta.crs,
-                cell_size=cell_size,
             )
 
             return cls(arr=new_arr, raster_meta=new_raster_meta)

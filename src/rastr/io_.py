@@ -47,7 +47,6 @@ def read_raster_inmem(
         raw_arr = raw_arr.squeeze()
 
         # Extract metadata
-        cell_size = dst.res[0]
         if crs is None:
             try:
                 crs = CRS.from_user_input(dst.crs)
@@ -69,7 +68,7 @@ def read_raster_inmem(
         if nodata is not None:
             arr[raw_arr == nodata] = np.nan
 
-    raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
+    raster_meta = RasterMeta(crs=crs, transform=transform)
     raster_obj = cls(arr=arr, raster_meta=raster_meta)
     return raster_obj
 
@@ -111,7 +110,6 @@ def read_raster_mosaic_inmem(
                 "transform": transform,
             }
         )
-        cell_size = sources[0].res[0]
         if crs is None:
             crs = CRS.from_user_input(sources[0].crs)
 
@@ -127,7 +125,7 @@ def read_raster_mosaic_inmem(
         if nodata is not None:
             arr[raw_arr == nodata] = np.nan
 
-        raster_meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
+        raster_meta = RasterMeta(crs=crs, transform=transform)
         raster_obj = Raster(arr=arr, raster_meta=raster_meta)
         return raster_obj
     finally:

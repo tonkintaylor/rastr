@@ -18,21 +18,24 @@ class RasterMeta(BaseModel, extra="forbid"):
     """Raster metadata.
 
     Attributes:
-        cell_size: Cell size in meters.
         crs: Coordinate reference system.
         transform: The affine transformation associated with the raster. This is based
                    on the CRS, the cell size, as well as the offset/origin.
     """
 
-    cell_size: float
     crs: InstanceOf[CRS]
     transform: InstanceOf[Affine]
+
+    @property
+    def cell_size(self) -> float:
+        """Cell size derived from the transform's x-pixel width."""
+
+        return abs(self.transform.a)
 
     @classmethod
     def example(cls) -> Self:
         """Create an example RasterMeta object."""
         return cls(
-            cell_size=2.0,
             crs=CRS.from_epsg(2193),
             transform=Affine.scale(2.0, 2.0),
         )
@@ -110,7 +113,6 @@ class RasterMeta(BaseModel, extra="forbid"):
         transform = infer_transform(x, y, cell_size=cell_size, crs=crs)
 
         raster_meta = cls(
-            cell_size=cell_size,
             crs=crs,
             transform=transform,
         )

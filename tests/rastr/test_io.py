@@ -37,7 +37,6 @@ class TestReadRasterInMem:
         raster_obj = read_raster_inmem(raster_path)
 
         assert raster_obj.arr.shape == (2, 2)
-        assert raster_obj.raster_meta.cell_size == 0.01495024875620743
         assert raster_obj.raster_meta.crs.to_epsg() == 4326
         assert raster_obj.raster_meta.transform == Affine(
             0.01495024875620743,
@@ -58,7 +57,6 @@ class TestReadRasterInMem:
         raster_obj = read_raster_inmem(raster_path)
 
         assert raster_obj.arr.shape == (2, 2)
-        assert raster_obj.raster_meta.cell_size == 0.01495024875620743
         assert raster_obj.raster_meta.crs.to_epsg() == 4326
         assert raster_obj.raster_meta.transform == Affine(
             0.01495024875620743,
@@ -188,7 +186,7 @@ class TestReadRasterMosaicInMem:
         # Assert
         assert raster.arr.shape == (2, 4)
         assert raster.raster_meta.transform == transform1
-        assert raster.raster_meta.cell_size == 1
+        assert raster.raster_meta.square_cell_size == 1
         assert np.isnan(raster.arr[1, 1])
         expected = np.array([[1, 2, 5, 6], [3, np.nan, 7, 8]], dtype=np.float32)
         np.testing.assert_allclose(raster.arr, expected, equal_nan=True)
@@ -298,7 +296,6 @@ class TestWriteRaster:
     @pytest.fixture
     def example_raster(self) -> Raster:
         meta = RasterMeta(
-            cell_size=2.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
         )
@@ -333,7 +330,6 @@ class TestWriteRaster:
     def test_preserves_dtype(self, tmp_path: Path) -> None:
         # Arrange
         meta = RasterMeta(
-            cell_size=2.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
         )

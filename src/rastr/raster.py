@@ -34,6 +34,7 @@ from rastr.gis.cast import cast_multilinestring
 from rastr.gis.fishnet import create_fishnet
 from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
+from rastr.utils import ensure_pair
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -143,6 +144,16 @@ class Raster(BaseModel):
     def cell_size(self, value: float) -> None:
         """Set the cell size via meta."""
         raise NotImplementedError
+
+    @property
+    def has_square_cells(self) -> bool:
+        """Check if the raster has square cells."""
+        return self.meta.has_square_cells
+
+    @property
+    def square_cell_size(self) -> float:
+        """Convenience property to access the square cell size via meta."""
+        return self.meta.square_cell_size
 
     def __init__(
         self,
@@ -807,7 +818,9 @@ class Raster(BaseModel):
         """Create a GeoDataFrame representation of the raster."""
         import geopandas as gpd
 
-        polygons = create_fishnet(bounds=self.bounds, res=self.raster_meta.cell_size)
+        polygons = create_fishnet(
+            bounds=self.bounds, res=self.raster_meta.temp_cell_size
+        )
         point_tuples = [polygon.centroid.coords[0] for polygon in polygons]
         raster_gdf = gpd.GeoDataFrame(
             {
@@ -1212,11 +1225,15 @@ class Raster(BaseModel):
             New raster containing the gradient magnitude in units of raster cell units
             per unit distance (e.g. per meter).
         """
+        if not self.has_square_cells:
+            msg = "Sobel filter currently only supports square rasters."
+            raise NotImplementedError(msg)
+
         from skimage import filters
 
         new_raster = self.model_copy()
         # Scale by cell size to convert to per unit distance
-        new_raster.arr = filters.sobel(self.arr) / self.cell_size
+        new_raster.arr = filters.sobel(self.arr) / self.square_cell_size
         return new_raster
 
     def blur(self, sigma: float, *, preserve_nan: bool = True) -> Self:
@@ -1232,7 +1249,8 @@ class Raster(BaseModel):
         """
         from scipy.ndimage import gaussian_filter
 
-        cell_sigma = sigma / self.raster_meta.cell_size
+        cell_width, cell_height = self.raster_meta.temp_cell_size
+        cell_sigma = (sigma / cell_height, sigma / cell_width)
 
         if preserve_nan:
             # Save the original NaN mask
@@ -1286,11 +1304,17 @@ class Raster(BaseModel):
         """
         from skimage import morphology
 
+        if not self.has_square_cells:
+            msg = "Dilate currently only supports rasters with square cells."
+            raise NotImplementedError(msg)
+
+        cell_size = self.square_cell_size
+
         # Round up to nearest cell
-        cell_radius = int(np.ceil(radius / self.cell_size))
+        cell_radius = int(np.ceil(radius / cell_size))
 
         # Calculate actual radius based on rounded cell count
-        radius_m = cell_radius * self.cell_size
+        radius_m = cell_radius * cell_size
 
         # Store original NaN mask and shape
         original_nan_mask = np.isnan(self.arr)
@@ -1356,7 +1380,8 @@ class Raster(BaseModel):
 
         If the width is not an exact multiple of the cell size, the padding may be
         slightly larger than the specified width, i.e. the value is rounded up to
-        the nearest whole number of cells.
+        the nearest whole number of cells. For non-square cells, padding is computed
+        independently in x and y directions.
 
         Args:
             width: The width of the padding, in the same units as the raster CRS
@@ -1364,31 +1389,32 @@ class Raster(BaseModel):
                    extends.
             value: The constant value to use for padding. Default is NaN.
         """
-        cell_size = self.raster_meta.cell_size
+        cell_width, cell_height = self.raster_meta.temp_cell_size
 
         # Calculate number of cells to pad in each direction
-        pad_cells = int(np.ceil(width / cell_size))
+        pad_cols = int(np.ceil(width / cell_width))
+        pad_rows = int(np.ceil(width / cell_height))
 
         # Get current bounds
         xmin, ymin, xmax, ymax = self.bounds
 
         # Calculate new bounds with padding
-        new_xmin = xmin - (pad_cells * cell_size)
-        new_ymin = ymin - (pad_cells * cell_size)
-        new_xmax = xmax + (pad_cells * cell_size)
-        new_ymax = ymax + (pad_cells * cell_size)
+        new_xmin = xmin - (pad_cols * cell_width)
+        new_ymin = ymin - (pad_rows * cell_height)
+        new_xmax = xmax + (pad_cols * cell_width)
+        new_ymax = ymax + (pad_rows * cell_height)
 
         # Create padded array
-        new_height = self.arr.shape[0] + 2 * pad_cells
-        new_width = self.arr.shape[1] + 2 * pad_cells
+        new_height = self.arr.shape[0] + 2 * pad_rows
+        new_width = self.arr.shape[1] + 2 * pad_cols
 
         # Create new array filled with the padding value
         padded_arr = np.full((new_height, new_width), value, dtype=self.arr.dtype)
 
         # Copy original array into the center of the padded array
         padded_arr[
-            pad_cells : pad_cells + self.arr.shape[0],
-            pad_cells : pad_cells + self.arr.shape[1],
+            pad_rows : pad_rows + self.arr.shape[0],
+            pad_cols : pad_cols + self.arr.shape[1],
         ] = self.arr
 
         # Create new transform for the padded raster
@@ -1440,9 +1466,10 @@ class Raster(BaseModel):
         minx, miny, maxx, maxy = bounds
         arr = self.arr
 
-        # Get the half cell size for cropping
-        cell_size = self.raster_meta.cell_size
-        half_cell_size = cell_size / 2
+        # Get half cell sizes for cropping
+        cell_width, cell_height = self.raster_meta.temp_cell_size
+        half_cell_width = cell_width / 2
+        half_cell_height = cell_height / 2
 
         # Get the cell centre coordinates as 1D arrays
         x_coords = self.cell_x_coords
@@ -1450,18 +1477,18 @@ class Raster(BaseModel):
 
         # Get the indices to crop the array
         if strategy == "underflow":
-            x_idx = (x_coords >= minx + half_cell_size) & (
-                x_coords <= maxx - half_cell_size
+            x_idx = (x_coords >= minx + half_cell_width) & (
+                x_coords <= maxx - half_cell_width
             )
-            y_idx = (y_coords >= miny + half_cell_size) & (
-                y_coords <= maxy - half_cell_size
+            y_idx = (y_coords >= miny + half_cell_height) & (
+                y_coords <= maxy - half_cell_height
             )
         elif strategy == "overflow":
-            x_idx = (x_coords > minx - half_cell_size) & (
-                x_coords < maxx + half_cell_size
+            x_idx = (x_coords > minx - half_cell_width) & (
+                x_coords < maxx + half_cell_width
             )
-            y_idx = (y_coords > miny - half_cell_size) & (
-                y_coords < maxy + half_cell_size
+            y_idx = (y_coords > miny - half_cell_height) & (
+                y_coords < maxy + half_cell_height
             )
         else:
             msg = f"Unsupported cropping strategy: {strategy}"
@@ -1479,10 +1506,10 @@ class Raster(BaseModel):
         x_coords = x_coords[x_idx]
         y_coords = y_coords[y_idx]
         transform = rasterio.transform.from_bounds(
-            west=x_coords.min() - half_cell_size,
-            south=y_coords.min() - half_cell_size,
-            east=x_coords.max() + half_cell_size,
-            north=y_coords.max() + half_cell_size,
+            west=x_coords.min() - half_cell_width,
+            south=y_coords.min() - half_cell_height,
+            east=x_coords.max() + half_cell_width,
+            north=y_coords.max() + half_cell_height,
             width=cropped_arr.shape[1],
             height=cropped_arr.shape[0],
         )
@@ -1527,13 +1554,19 @@ class Raster(BaseModel):
             raise NotImplementedError(msg)
 
         target_minx, target_miny, target_maxx, target_maxy = bounds
-        cell_size = self.raster_meta.cell_size
-        half_cell_size = cell_size / 2
+        cell_width, cell_height = self.raster_meta.temp_cell_size
+        half_cell_width = cell_width / 2
+        half_cell_height = cell_height / 2
 
-        offset = half_cell_size
         sign = 1 if strategy == "underflow" else -1
-        x_range = (target_minx + sign * offset, target_maxx - sign * offset)
-        y_range = (target_miny + sign * offset, target_maxy - sign * offset)
+        x_range = (
+            target_minx + sign * half_cell_width,
+            target_maxx - sign * half_cell_width,
+        )
+        y_range = (
+            target_miny + sign * half_cell_height,
+            target_maxy - sign * half_cell_height,
+        )
 
         if x_range[1] < x_range[0] or y_range[1] < y_range[0]:
             msg = "No cells within the specified bounds."
@@ -1549,8 +1582,8 @@ class Raster(BaseModel):
 
         # Calculate indices for target grid (aligned to original grid)
         # x-direction is always ascending
-        x_start = np.ceil((x_range[0] - first_x) / cell_size)
-        x_end = np.floor((x_range[1] - first_x) / cell_size)
+        x_start = np.ceil((x_range[0] - first_x) / cell_width)
+        x_end = np.floor((x_range[1] - first_x) / cell_width)
 
         # y-direction may be ascending or descending depending on transform
         # Determine direction from current_y_coords
@@ -1559,15 +1592,15 @@ class Raster(BaseModel):
         )
 
         if y_ascending:
-            y_start = np.ceil((y_range[0] - first_y) / cell_size)
-            y_end = np.floor((y_range[1] - first_y) / cell_size)
+            y_start = np.ceil((y_range[0] - first_y) / cell_height)
+            y_end = np.floor((y_range[1] - first_y) / cell_height)
             y_indices = np.arange(y_start, y_end + 1, dtype=int)
-            target_y_coords = first_y + y_indices * cell_size
+            target_y_coords = first_y + y_indices * cell_height
         else:
-            y_start = np.ceil((first_y - y_range[1]) / cell_size)
-            y_end = np.floor((first_y - y_range[0]) / cell_size)
+            y_start = np.ceil((first_y - y_range[1]) / cell_height)
+            y_end = np.floor((first_y - y_range[0]) / cell_height)
             y_indices = np.arange(y_start, y_end + 1, dtype=int)
-            target_y_coords = first_y - y_indices * cell_size
+            target_y_coords = first_y - y_indices * cell_height
 
         # Generate target coordinates
         x_indices = np.arange(x_start, x_end + 1, dtype=int)
@@ -1576,7 +1609,7 @@ class Raster(BaseModel):
             msg = "No cells within the specified bounds."
             raise ValueError(msg)
 
-        target_x_coords = first_x + x_indices * cell_size
+        target_x_coords = first_x + x_indices * cell_width
 
         output_shape = (len(target_y_coords), len(target_x_coords))
         output_arr = np.full(output_shape, np.nan, dtype=float)
@@ -1602,10 +1635,10 @@ class Raster(BaseModel):
                 output_arr[ty_idx, tx_idx] = self.arr[cy_idx, cx_idx]
 
         transform = rasterio.transform.from_bounds(
-            west=target_x_coords.min() - half_cell_size,
-            south=target_y_coords.min() - half_cell_size,
-            east=target_x_coords.max() + half_cell_size,
-            north=target_y_coords.max() + half_cell_size,
+            west=target_x_coords.min() - half_cell_width,
+            south=target_y_coords.min() - half_cell_height,
+            east=target_x_coords.max() + half_cell_width,
+            north=target_y_coords.max() + half_cell_height,
             width=output_arr.shape[1],
             height=output_arr.shape[0],
         )
@@ -1634,9 +1667,9 @@ class Raster(BaseModel):
             limit: The limiting value to taper to at the edges. Default is zero.
         """
 
-        # Determine the width in cell units (possibly fractional)
-        cell_size = self.raster_meta.cell_size
-        width_in_cells = width / cell_size
+        cell_width, cell_height = self.raster_meta.temp_cell_size
+        width_in_cols = width / cell_width
+        width_in_rows = width / cell_height
 
         # Calculate the distance from the edge in cell units
         arr_height, arr_width = self.arr.shape
@@ -1645,17 +1678,24 @@ class Raster(BaseModel):
         dist_from_right = arr_width - 1 - x_indices
         dist_from_top = y_indices
         dist_from_bottom = arr_height - 1 - y_indices
-        dist_from_edge = np.minimum.reduce(
-            [dist_from_left, dist_from_right, dist_from_top, dist_from_bottom]
+        dist_from_edge_cols = np.minimum(dist_from_left, dist_from_right)
+        dist_from_edge_rows = np.minimum(dist_from_top, dist_from_bottom)
+
+        # Distance from cell centres to nearest border edge in CRS units
+        dist_from_edge = np.minimum(
+            dist_from_edge_cols * cell_width,
+            dist_from_edge_rows * cell_height,
         )
 
-        # Mask the arrays to only the area within the width from the edge, rounding up
-        mask = dist_from_edge < np.ceil(width_in_cells)
+        # Maintain edge-band behavior by rounding up separately per axis
+        within_x_band = dist_from_edge_cols < np.ceil(width_in_cols)
+        within_y_band = dist_from_edge_rows < np.ceil(width_in_rows)
+        mask = within_x_band | within_y_band
         masked_dist_arr = np.where(mask, dist_from_edge, np.nan)
         masked_arr = np.where(mask, self.arr, np.nan)
 
         # Calculate the tapering factor based on the distance from the edge
-        taper_factor = np.clip(masked_dist_arr / width_in_cells, 0.0, 1.0)
+        taper_factor = np.clip(masked_dist_arr / width, 0.0, 1.0)
         tapered_values = limit + (masked_arr - limit) * taper_factor
 
         # Create the new raster array
@@ -1771,7 +1811,10 @@ class Raster(BaseModel):
         return self._trim_value(value_mask=(self.arr == 0), value_name="zero")
 
     def resample(
-        self, cell_size: float, *, method: Literal["bilinear"] = "bilinear"
+        self,
+        cell_size: tuple[float, float] | float,
+        *,
+        method: Literal["bilinear"] = "bilinear",
     ) -> Self:
         """Resample the raster data to a new resolution.
 
@@ -1782,21 +1825,27 @@ class Raster(BaseModel):
         will not necessary be the same as the original raster.
 
         Args:
-            cell_size: The desired cell size for the resampled raster.
+            cell_size: The desired cell size for the resampled raster. This can be a
+            single float for square cells, or a tuple of (cell_width, cell_height) for
+            rectangular cells.
             method: The resampling method to use. Only 'bilinear' is supported.
         """
         if method not in ("bilinear",):
             msg = f"Unsupported resampling method: {method}"
             raise NotImplementedError(msg)
 
-        factor = self.raster_meta.cell_size / cell_size
+        target_cell_width, target_cell_height = ensure_pair(cell_size)
+        source_cell_width, source_cell_height = self.raster_meta.temp_cell_size
+
+        x_factor = source_cell_width / target_cell_width
+        y_factor = source_cell_height / target_cell_height
 
         cls = self.__class__
         # Use the rasterio dataset with proper context management
         with self.to_rasterio_dataset() as dataset:
             # N.B. the new height and width may increase slightly.
-            new_height = int(np.ceil(dataset.height * factor))
-            new_width = int(np.ceil(dataset.width * factor))
+            new_height = int(np.ceil(dataset.height * y_factor))
+            new_width = int(np.ceil(dataset.width * x_factor))
 
             # Resample via rasterio
             (new_arr,) = dataset.read(  # Assume exactly one band

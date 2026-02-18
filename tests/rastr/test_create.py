@@ -692,6 +692,28 @@ class TestRasterizeGDF:
         assert len(result) == 1
         assert isinstance(result[0], Raster)
 
+    def test_non_square_cells(self):
+        import geopandas as gpd
+
+        # arrange — two adjacent polygons with distinct values
+        polygons = [
+            Polygon([(0, 0), (0, 1), (2, 1), (2, 0)]),
+            Polygon([(2, 0), (2, 1), (4, 1), (4, 0)]),
+        ]
+        gdf = gpd.GeoDataFrame(
+            {"value": [10.0, 20.0], "geometry": polygons}, crs=_PROJECTED_CRS
+        )
+        raster_meta = RasterMeta(
+            crs=_PROJECTED_CRS, transform=Affine(2.0, 0, 0, 0, -0.5, 0)
+        )
+
+        # act
+        result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
+
+        # assert
+        assert result[0].raster_meta.cell_width == pytest.approx(2.0)
+        assert result[0].raster_meta.cell_height == pytest.approx(0.5)
+
 
 class TestInterpolateZInGeometry:
     """Test suite for _interpolate_z_in_geometry function."""

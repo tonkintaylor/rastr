@@ -8,6 +8,7 @@ from pydantic import BaseModel, InstanceOf
 from pyproj import CRS
 
 from rastr.gis.crs import get_affine_sign
+from rastr.utils import ensure_pair
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -125,17 +126,20 @@ class RasterMeta(BaseModel, extra="forbid"):
         x: np.ndarray,
         y: np.ndarray,
         *,
-        cell_size: float | None = None,
+        cell_size: tuple[float, float] | float | None = None,
         crs: CRS,
     ) -> tuple[Self, tuple[int, int]]:
         """Automatically get recommended raster metadata (and shape) using data points.
 
         The cell size can be provided, or a heuristic will be used based on the spacing
-        of the (x, y) points.
+        of the (x, y) points. Square cells are assumed unless a `(cell_width,
+        cell_height)` pair is explicitly provided.
         """
         # Heuristic for cell size if not provided
         if cell_size is None:
             cell_size = infer_cell_size(x, y)
+
+        cell_size = ensure_pair(cell_size)
 
         shape = infer_shape(x, y, cell_size=cell_size)
         transform = infer_transform(x, y, cell_size=cell_size, crs=crs)
@@ -151,49 +155,68 @@ def infer_transform(
     x: np.ndarray,
     y: np.ndarray,
     *,
-    cell_size: float | None = None,
+    cell_size: tuple[float, float] | float | None = None,
     crs: CRS,
 ) -> Affine:
-    """Infer a suitable raster transform based on the bounds of (x, y) data points."""
+    """Infer a suitable raster transform based on the bounds of (x, y) data points.
+
+    Square cells are assumed unless a `(cell_width, cell_height)` pair is explicitly
+    provided.
+    """
     if cell_size is None:
         cell_size = infer_cell_size(x, y)
 
+    cell_size = ensure_pair(cell_size)
+
     (xs, ys) = get_affine_sign(crs)
     return Affine.translation(*infer_origin(x, y, cell_size=cell_size)) * Affine.scale(
-        xs * cell_size, ys * cell_size
+        xs * cell_size[0], ys * cell_size[1]
     )
 
 
 def infer_origin(
-    x: np.ndarray, y: np.ndarray, *, cell_size: float
+    x: np.ndarray, y: np.ndarray, *, cell_size: tuple[float, float]
 ) -> tuple[float, float]:
-    """Infer a suitable raster origin based on the bounds of (x, y) data points."""
+    """Infer a suitable raster origin based on the bounds of (x, y) data points.
+
+    Use equal values in `cell_size` for square cells, or distinct values for
+    rectangular cells.
+    """
     # Compute bounds from data
     minx, _miny, _maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
-    origin = (minx - cell_size / 2, maxy + cell_size / 2)
+    origin = (minx - cell_size[0] / 2, maxy + cell_size[1] / 2)
     return origin
 
 
 def infer_shape(
-    x: np.ndarray, y: np.ndarray, *, cell_size: float | None = None
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    cell_size: tuple[float, float] | float | None = None,
 ) -> tuple[int, int]:
-    """Infer a suitable raster shape based on the bounds of (x, y) data points."""
+    """Infer a suitable raster shape based on the bounds of (x, y) data points.
+
+    Square cells are assumed unless a `(cell_width, cell_height)` pair is explicitly
+    provided.
+    """
     if cell_size is None:
         cell_size = infer_cell_size(x, y)
+
+    cell_size = ensure_pair(cell_size)
 
     # Compute bounds from data
     minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
     # Compute grid shape
-    width = max(1, int(np.ceil((maxx - minx) / cell_size)) + 1)
-    height = max(1, int(np.ceil((maxy - miny) / cell_size)) + 1)
+    width = max(1, int(np.ceil((maxx - minx) / cell_size[0])) + 1)
+    height = max(1, int(np.ceil((maxy - miny) / cell_size[1])) + 1)
     shape = (height, width)
 
     return shape
 
 
-def infer_cell_size(x: np.ndarray, y: np.ndarray) -> float:
+def infer_cell_size(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
     """Infer a suitable cell size based on the spacing of (x, y) data points.
 
     When points are distributed regularly, this corresponds to the distance between
@@ -204,6 +227,8 @@ def infer_cell_size(x: np.ndarray, y: np.ndarray) -> float:
     clusters.
 
     This is based on a heuristic which has been found to work well in practice.
+
+    The inferred result uses square cells, i.e. `(cell_size, cell_size)`.
     """
     from scipy.spatial import KDTree
 
@@ -214,4 +239,4 @@ def infer_cell_size(x: np.ndarray, y: np.ndarray) -> float:
     distances: np.ndarray
     cell_size = float(np.percentile(distances[distances > 0], 5))
 
-    return cell_size
+    return cell_size, cell_size

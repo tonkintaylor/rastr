@@ -31,7 +31,6 @@ def float32_raster() -> Raster:
     """Create a float32 raster for testing dtype preservation."""
     arr = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
     meta = RasterMeta(
-        cell_size=1.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
     )
@@ -43,7 +42,6 @@ def float64_raster() -> Raster:
     """Create a float64 raster for testing dtype preservation."""
     arr = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
     meta = RasterMeta(
-        cell_size=1.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
     )
@@ -55,7 +53,6 @@ def float16_raster() -> Raster:
     """Create a float16 raster for testing dtype preservation."""
     arr = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float16)
     meta = RasterMeta(
-        cell_size=1.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
     )

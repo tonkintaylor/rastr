@@ -818,9 +818,7 @@ class Raster(BaseModel):
         """Create a GeoDataFrame representation of the raster."""
         import geopandas as gpd
 
-        polygons = create_fishnet(
-            bounds=self.bounds, res=self.raster_meta.temp_cell_size
-        )
+        polygons = create_fishnet(bounds=self.bounds, res=self.raster_meta.cell_size)
         point_tuples = [polygon.centroid.coords[0] for polygon in polygons]
         raster_gdf = gpd.GeoDataFrame(
             {
@@ -1249,7 +1247,7 @@ class Raster(BaseModel):
         """
         from scipy.ndimage import gaussian_filter
 
-        cell_width, cell_height = self.raster_meta.temp_cell_size
+        cell_width, cell_height = self.raster_meta.cell_size
         cell_sigma = (sigma / cell_height, sigma / cell_width)
 
         if preserve_nan:
@@ -1389,7 +1387,7 @@ class Raster(BaseModel):
                    extends.
             value: The constant value to use for padding. Default is NaN.
         """
-        cell_width, cell_height = self.raster_meta.temp_cell_size
+        cell_width, cell_height = self.raster_meta.cell_size
 
         # Calculate number of cells to pad in each direction
         pad_cols = int(np.ceil(width / cell_width))
@@ -1467,7 +1465,7 @@ class Raster(BaseModel):
         arr = self.arr
 
         # Get half cell sizes for cropping
-        cell_width, cell_height = self.raster_meta.temp_cell_size
+        cell_width, cell_height = self.raster_meta.cell_size
         half_cell_width = cell_width / 2
         half_cell_height = cell_height / 2
 
@@ -1554,7 +1552,7 @@ class Raster(BaseModel):
             raise NotImplementedError(msg)
 
         target_minx, target_miny, target_maxx, target_maxy = bounds
-        cell_width, cell_height = self.raster_meta.temp_cell_size
+        cell_width, cell_height = self.raster_meta.cell_size
         half_cell_width = cell_width / 2
         half_cell_height = cell_height / 2
 
@@ -1667,7 +1665,7 @@ class Raster(BaseModel):
             limit: The limiting value to taper to at the edges. Default is zero.
         """
 
-        cell_width, cell_height = self.raster_meta.temp_cell_size
+        cell_width, cell_height = self.raster_meta.cell_size
         width_in_cols = width / cell_width
         width_in_rows = width / cell_height
 
@@ -1835,7 +1833,7 @@ class Raster(BaseModel):
             raise NotImplementedError(msg)
 
         target_cell_width, target_cell_height = ensure_pair(cell_size)
-        source_cell_width, source_cell_height = self.raster_meta.temp_cell_size
+        source_cell_width, source_cell_height = self.raster_meta.cell_size
 
         x_factor = source_cell_width / target_cell_width
         y_factor = source_cell_height / target_cell_height

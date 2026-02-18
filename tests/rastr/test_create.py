@@ -1179,7 +1179,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs, agg="mean"
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="mean"
         )
 
         assert isinstance(result, Raster)
@@ -1225,7 +1225,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs, agg="min"
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="min"
         )
 
         assert isinstance(result, Raster)
@@ -1270,7 +1270,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs, agg="max"
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs, agg="max"
         )
 
         assert isinstance(result, Raster)
@@ -1291,9 +1291,7 @@ class TestRasterizeZGDF:
         with pytest.raises(
             ValueError, match=r"Cannot rasterize an empty GeoDataFrame."
         ):
-            rasterize_z_gdf(
-                gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
-            )
+            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
 
     def test_2d_polygons_converted_to_3d(self):
         """Test that 2D polygons are converted to 3D with NaN Z values."""
@@ -1307,9 +1305,7 @@ class TestRasterizeZGDF:
 
         # Should raise an error because 2D polygons don't have Z coordinates
         with pytest.raises(ValueError, match="not 3D"):
-            rasterize_z_gdf(
-                gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
-            )
+            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
 
     def test_mixed_2d_3d_polygons(self):
         """Test with mix of 2D and 3D polygons."""
@@ -1335,9 +1331,7 @@ class TestRasterizeZGDF:
 
         # Should raise an error because not all polygons are 3D
         with pytest.raises(ValueError, match="not 3D"):
-            rasterize_z_gdf(
-                gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
-            )
+            rasterize_z_gdf(gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs)
 
     def test_polygons_with_nan_z_values(self):
         """Test polygons where some vertices have NaN Z values."""
@@ -1360,7 +1354,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1391,7 +1385,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1426,7 +1420,7 @@ class TestRasterizeZGDF:
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1462,7 +1456,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.1, -0.1))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1495,7 +1489,7 @@ class TestRasterizeZGDF:
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1525,7 +1519,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=custom_transform)
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert result.raster_meta.square_cell_size == 0.5
@@ -1577,7 +1571,7 @@ class TestRasterizeZGDF:
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(0.5, -0.5))
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert result.arr.dtype == np.float64
@@ -1618,7 +1612,7 @@ class TestRasterizeZGDF:
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)
@@ -1667,7 +1661,7 @@ class TestRasterizeZGDF:
         )
 
         result = rasterize_z_gdf(
-            gdf, cell_size=raster_meta.temp_cell_size, crs=raster_meta.crs
+            gdf, cell_size=raster_meta.cell_size, crs=raster_meta.crs
         )
 
         assert isinstance(result, Raster)

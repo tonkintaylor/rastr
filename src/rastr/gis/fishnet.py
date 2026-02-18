@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from shapely import BufferCapStyle, BufferJoinStyle
+from shapely import box
 
 from rastr.utils import ensure_pair
 
@@ -76,7 +76,7 @@ def get_point_grid_shape(
 
 
 def create_fishnet(
-    *, bounds: tuple[float, float, float, float], res: float
+    *, bounds: tuple[float, float, float, float], res: tuple[float, float] | float
 ) -> GeometryArray:
     """Generate a fishnet of polygons from bounds.
 
@@ -88,22 +88,24 @@ def create_fishnet(
 
     Args:
         bounds: (xmin, ymin, xmax, ymax)
-        res: resolution (cell size)
+        res: Resolution as `(width, height)` or a single value for square cells.
 
     Returns:
         Shapely Polygons.
     """
     import geopandas as gpd
 
+    res = ensure_pair(res)
+    cell_width, cell_height = res
+
     # Use the shared helper function to create the point grid
     xx, yy = create_point_grid(bounds=bounds, cell_size=res)
 
-    # Create points from the grid coordinates
-    points = gpd.points_from_xy(xx.ravel(), yy.ravel())
-
-    # Buffer the points to create square polygons
-    polygons = points.buffer(
-        res / 2, cap_style=BufferCapStyle.square, join_style=BufferJoinStyle.mitre
+    # Create rectangles centered on each grid point
+    polygons = box(
+        xx.ravel() - cell_width / 2,
+        yy.ravel() - cell_height / 2,
+        xx.ravel() + cell_width / 2,
+        yy.ravel() + cell_height / 2,
     )
-
-    return polygons
+    return gpd.GeoSeries(polygons).array

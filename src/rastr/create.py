@@ -115,7 +115,7 @@ def raster_distance_from_polygon(
     elif extent_polygon is not None and snap_raster is None:
         x, y = create_point_grid(
             bounds=extent_polygon.bounds,
-            cell_size=raster_meta.temp_cell_size,
+            cell_size=raster_meta.cell_size,
         )
         distance_extent = extent_polygon.difference(polygon)
     else:
@@ -146,7 +146,7 @@ def full_raster(
     fill_value: float = np.nan,
 ) -> Raster:
     """Create a raster with a specified fill value for all cells."""
-    shape = get_point_grid_shape(bounds=bounds, cell_size=raster_meta.temp_cell_size)
+    shape = get_point_grid_shape(bounds=bounds, cell_size=raster_meta.cell_size)
     arr = np.full(shape, fill_value, dtype=np.float32)
     return Raster(arr=arr, raster_meta=raster_meta)
 
@@ -200,7 +200,7 @@ def rasterize_gdf(
 
     # Create point grid to get raster dimensions and transform
     shape = get_point_grid_shape(
-        bounds=expanded_bounds, cell_size=raster_meta.temp_cell_size
+        bounds=expanded_bounds, cell_size=raster_meta.cell_size
     )
 
     # Create the affine transform for rasterization

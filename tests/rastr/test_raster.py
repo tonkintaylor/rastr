@@ -1214,10 +1214,7 @@ class TestRaster:
             assert result.crs.to_epsg() == 4326
             assert result.arr is example_raster.arr
             assert result.raster_meta.transform == example_raster.raster_meta.transform
-            assert (
-                result.raster_meta.temp_cell_size
-                == example_raster.raster_meta.temp_cell_size
-            )
+            assert result.raster_meta.cell_size == example_raster.raster_meta.cell_size
 
         def test_epsg_code(self, example_raster: Raster) -> None:
             # Arrange
@@ -2853,9 +2850,7 @@ class TestCrop:
         # Assert
         assert cropped.arr.shape == (2, 4)  # Y-crop reduces rows, keeps columns
         assert cropped.bounds == bounds
-        assert (
-            cropped.raster_meta.temp_cell_size == base_raster.raster_meta.temp_cell_size
-        )
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
 
@@ -2872,16 +2867,14 @@ class TestCrop:
         # Assert
         assert cropped.arr.shape == (4, 2)  # X-crop reduces columns, keeps rows
         assert cropped.bounds == bounds
-        assert (
-            cropped.raster_meta.temp_cell_size == base_raster.raster_meta.temp_cell_size
-        )
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
 
     def test_underflow_crops_border_cells(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_width, cell_height = base_raster.raster_meta.temp_cell_size
+        cell_width, cell_height = base_raster.raster_meta.cell_size
         shift = cell_width / 10  # Some cells overlap bounds
         bounds = (minx + shift, miny + shift, maxx - shift, maxy - shift)
         expected_transform = Affine(
@@ -2893,9 +2886,7 @@ class TestCrop:
 
         # Assert
         assert cropped.arr.shape == (2, 2)
-        assert (
-            cropped.raster_meta.temp_cell_size == base_raster.raster_meta.temp_cell_size
-        )
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
         assert cropped.raster_meta.transform == expected_transform
 
@@ -2930,9 +2921,7 @@ class TestCrop:
         assert cropped.arr.shape == (3, 3)  # Should crop one side only
         assert cropped.raster_meta.transform == expected_transform
         assert cropped.bounds == bounds
-        assert (
-            cropped.raster_meta.temp_cell_size == base_raster.raster_meta.temp_cell_size
-        )
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
 
     def test_overflow_crops(self, base_raster: Raster):
@@ -2948,9 +2937,7 @@ class TestCrop:
         assert cropped.arr.shape == (2, 2)  # Cells on both sides are removed
         assert cropped.raster_meta.transform == expected_transform
         assert cropped.bounds == (minx + 10, miny + 10, maxx - 10, maxy - 10)
-        assert (
-            cropped.raster_meta.temp_cell_size == base_raster.raster_meta.temp_cell_size
-        )
+        assert cropped.raster_meta.cell_size == base_raster.raster_meta.cell_size
         assert cropped.raster_meta.crs == base_raster.raster_meta.crs
 
     @pytest.mark.parametrize(
@@ -3299,9 +3286,7 @@ class TestToBounds:
         result = base_raster.to_bounds(bounds)
 
         # Assert
-        assert (
-            result.raster_meta.temp_cell_size == base_raster.raster_meta.temp_cell_size
-        )
+        assert result.raster_meta.cell_size == base_raster.raster_meta.cell_size
 
     def test_arraylike_bounds(self, base_raster: Raster):
         # Arrange
@@ -3424,7 +3409,7 @@ class TestPad:
         padded = raster.pad(width=4.0)  # 2 cells padding
 
         # Assert
-        assert padded.raster_meta.temp_cell_size == raster.raster_meta.temp_cell_size
+        assert padded.raster_meta.cell_size == raster.raster_meta.cell_size
         assert padded.raster_meta.crs == raster.raster_meta.crs
 
         # Check bounds are expanded correctly
@@ -4246,7 +4231,7 @@ class TestResample:
         resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.temp_cell_size == (cell_size, cell_size)
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should approximately double the dimensions (some discretization)
         assert resampled.arr.shape[0] >= 7  # At least 2x original (4)
         assert resampled.arr.shape[1] >= 7
@@ -4260,7 +4245,7 @@ class TestResample:
         resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.temp_cell_size == (cell_size, cell_size)
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should approximately halve the dimensions
         assert resampled.arr.shape[0] <= 3  # At most half original (4)
         assert resampled.arr.shape[1] <= 3
@@ -4268,13 +4253,13 @@ class TestResample:
 
     def test_same_cell_size_returns_similar_raster(self, base_raster: Raster):
         # Arrange
-        original_cell_size = base_raster.raster_meta.temp_cell_size
+        original_cell_size = base_raster.raster_meta.cell_size
 
         # Act
         resampled = base_raster.resample(original_cell_size)
 
         # Assert
-        assert resampled.raster_meta.temp_cell_size == original_cell_size
+        assert resampled.raster_meta.cell_size == original_cell_size
         # Dimensions should be the same or very close due to discretization
         assert abs(resampled.arr.shape[0] - base_raster.arr.shape[0]) <= 1
         assert abs(resampled.arr.shape[1] - base_raster.arr.shape[1]) <= 1
@@ -4287,7 +4272,7 @@ class TestResample:
         resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.temp_cell_size == (cell_size, cell_size)
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should be significantly larger
         assert resampled.arr.shape[0] >= 8
         assert resampled.arr.shape[1] >= 8
@@ -4363,7 +4348,7 @@ class TestResample:
         resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.temp_cell_size == (cell_size, cell_size)
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should result in a very large array
         assert resampled.arr.shape[0] >= 20
         assert resampled.arr.shape[1] >= 20
@@ -4378,7 +4363,7 @@ class TestResample:
 
         # Assert
         assert resampled.raster_meta.crs == original_crs
-        assert resampled.raster_meta.temp_cell_size == (cell_size, cell_size)
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Transform should be updated but maintain CRS
         assert resampled.raster_meta.transform != base_raster.raster_meta.transform
 
@@ -4394,7 +4379,7 @@ class TestResample:
         # Assert
         # Bounds should be similar (allowing for some discretization effects)
         # The resampled raster bounds might be slightly larger due to rounding
-        tolerance = max(*base_raster.raster_meta.temp_cell_size, cell_size) * 2
+        tolerance = max(*base_raster.raster_meta.cell_size, cell_size) * 2
 
         assert abs(new_bounds[0] - original_bounds[0]) <= tolerance  # xmin
         assert abs(new_bounds[1] - original_bounds[1]) <= tolerance  # ymin
@@ -4412,14 +4397,14 @@ class TestResample:
     def test_original_raster_unchanged(self, small_raster: Raster):
         # Arrange
         original_array = small_raster.arr.copy()
-        original_cell_size = small_raster.raster_meta.temp_cell_size
+        original_cell_size = small_raster.raster_meta.cell_size
 
         # Act
         _ = small_raster.resample(cell_size=2.0)
 
         # Assert
         np.testing.assert_array_equal(small_raster.arr, original_array)
-        assert small_raster.raster_meta.temp_cell_size == original_cell_size
+        assert small_raster.raster_meta.cell_size == original_cell_size
 
     def test_with_nan_values(self):
         # Arrange
@@ -4459,7 +4444,7 @@ class TestResample:
         resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.temp_cell_size == pytest.approx((5.0, 20.0))
+        assert resampled.raster_meta.cell_size == pytest.approx((5.0, 20.0))
         assert resampled.arr.shape == (2, 8)
 
     def test_rectangular_to_rectangular_cell_size(self):
@@ -4484,7 +4469,7 @@ class TestResample:
         resampled = raster.resample((5.0, 10.0))
 
         # Assert
-        assert resampled.raster_meta.temp_cell_size == pytest.approx((5.0, 10.0))
+        assert resampled.raster_meta.cell_size == pytest.approx((5.0, 10.0))
         assert resampled.arr.shape == (8, 8)
 
     def test_preserves_dtype_float32(self, float32_raster: Raster):

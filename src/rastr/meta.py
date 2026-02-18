@@ -28,12 +28,7 @@ class RasterMeta(BaseModel, extra="forbid"):
     transform: InstanceOf[Affine]
 
     @property
-    def cell_size(self) -> float:
-        """Cell size derived from the transform's x-pixel width."""
-        raise NotImplementedError
-
-    @property
-    def temp_cell_size(self) -> tuple[float, float]:
+    def cell_size(self) -> tuple[float, float]:
         """Cell size derived from the transform's x-pixel width and y-pixel height."""
         return abs(self.transform.a), abs(self.transform.e)
 
@@ -48,14 +43,14 @@ class RasterMeta(BaseModel, extra="forbid"):
         return abs(self.transform.a)
 
     @property
-    def is_square(self) -> bool:
+    def has_square_cells(self) -> bool:
         """Whether the cells are square (i.e. cell width == cell height)."""
         return self.cell_width == self.cell_height
 
     @property
     def square_cell_size(self) -> float:
         """Cell size if the cells are square, otherwise raises an error."""
-        if not self.is_square:
+        if not self.has_square_cells:
             msg = "Cells are not square, so square_cell_size is undefined."
             raise ValueError(msg)
 

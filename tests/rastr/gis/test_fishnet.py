@@ -77,6 +77,23 @@ class TestFishnet:
 
         assert_polygons_equal(result, expected_polygons)
 
+    def test_non_square_resolution(self):
+        bounds = (0.0, 0.0, 4.0, 2.0)
+        expected_polygons = [
+            Polygon([(0, 0), (2, 0), (2, 0.5), (0, 0.5)]),
+            Polygon([(2, 0), (4, 0), (4, 0.5), (2, 0.5)]),
+            Polygon([(0, 0.5), (2, 0.5), (2, 1.0), (0, 1.0)]),
+            Polygon([(2, 0.5), (4, 0.5), (4, 1.0), (2, 1.0)]),
+            Polygon([(0, 1.0), (2, 1.0), (2, 1.5), (0, 1.5)]),
+            Polygon([(2, 1.0), (4, 1.0), (4, 1.5), (2, 1.5)]),
+            Polygon([(0, 1.5), (2, 1.5), (2, 2.0), (0, 2.0)]),
+            Polygon([(2, 1.5), (4, 1.5), (4, 2.0), (2, 2.0)]),
+        ]
+
+        result = create_fishnet(bounds=bounds, res=(2.0, 0.5))
+
+        assert_polygons_equal(result, expected_polygons)
+
 
 class TestGetPointGridShape:
     def test_matches_create_point_grid_simple(self):

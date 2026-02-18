@@ -29,7 +29,16 @@ class RasterMeta(BaseModel, extra="forbid"):
     @property
     def cell_size(self) -> float:
         """Cell size derived from the transform's x-pixel width."""
+        return abs(self.transform.a)
 
+    @property
+    def cell_height(self) -> float:
+        """Cell height derived from the transform's y-pixel height."""
+        return abs(self.transform.e)
+
+    @property
+    def cell_width(self) -> float:
+        """Cell width derived from the transform's x-pixel width."""
         return abs(self.transform.a)
 
     @classmethod

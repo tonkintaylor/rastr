@@ -213,9 +213,7 @@ class TestRasterDistanceFromPolygon:
 
 class TestFullRaster:
     def test_full_raster(self):
-        raster_meta = RasterMeta(
-            cell_size=1, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0))
         bounds = (0, 0, 3, 3)
         result = full_raster(raster_meta, bounds=bounds)
         assert isinstance(result, Raster)
@@ -226,7 +224,7 @@ class TestFullRaster:
         """Test that full_raster(r.meta, bounds=r.bounds).shape == r.shape."""
         # Create a raster
         transform = Affine.translation(0, 3) * Affine.scale(1.0, -1.0)
-        raster_meta = RasterMeta(cell_size=1.0, crs=_PROJECTED_CRS, transform=transform)
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=transform)
         arr = np.ones((3, 3))
         r1 = Raster(arr=arr, raster_meta=raster_meta)
 
@@ -237,9 +235,7 @@ class TestFullRaster:
 
     def test_full_raster_floating_point_robustness(self):
         """Test that full_raster handles floating-point errors in bounds."""
-        raster_meta = RasterMeta(
-            cell_size=1.0, crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0)
-        )
+        raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=Affine.scale(1.0, 1.0))
 
         # Bounds with tiny floating-point error (simulating computational error)
         bounds_with_fp_error = (0.0, 0.0, 3.0 + 1e-10, 3.0 + 1e-10)

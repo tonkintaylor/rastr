@@ -41,6 +41,11 @@ class RasterMeta(BaseModel, extra="forbid"):
         """Cell width derived from the transform's x-pixel width."""
         return abs(self.transform.a)
 
+    @property
+    def is_square(self) -> bool:
+        """Whether the cells are square (i.e. cell width == cell height)."""
+        return self.cell_width == self.cell_height
+
     @classmethod
     def example(cls) -> Self:
         """Create an example RasterMeta object."""

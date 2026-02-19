@@ -5,7 +5,7 @@ from typing import TypeVar
 T = TypeVar("T")
 
 
-def ensure_pair(value: T | tuple[T, T]) -> tuple[T, T]:
+def _ensure_pair(value: T | tuple[T, T]) -> tuple[T, T]:
     """Ensure the value is a tuple of two elements.
 
     If a single value is provided, it will be duplicated to create a tuple.

@@ -36,7 +36,7 @@ from rastr.gis.cast import cast_multilinestring
 from rastr.gis.fishnet import create_fishnet
 from rastr.gis.smooth import catmull_rom_smooth
 from rastr.meta import RasterMeta
-from rastr.utils import ensure_pair
+from rastr.utils import _ensure_pair
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -144,7 +144,7 @@ class Raster(BaseModel):
     @cell_size.setter
     def cell_size(self, value: tuple[float, float] | float) -> None:
         """Set the cell size via meta."""
-        new_cell_size = ensure_pair(value)
+        new_cell_size = _ensure_pair(value)
         current_transform = self.meta.transform
 
         # Preserve the sign of a and e (handles different coordinate systems)
@@ -1851,7 +1851,7 @@ class Raster(BaseModel):
             msg = f"Unsupported resampling method: {method}"
             raise NotImplementedError(msg)
 
-        target_cell_width, target_cell_height = ensure_pair(cell_size)
+        target_cell_width, target_cell_height = _ensure_pair(cell_size)
         source_cell_width, source_cell_height = self.raster_meta.cell_size
 
         x_factor = source_cell_width / target_cell_width

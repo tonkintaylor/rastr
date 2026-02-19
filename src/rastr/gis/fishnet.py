@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 from shapely import box
 
-from rastr.utils import ensure_pair
+from rastr.utils import _ensure_pair
 
 if TYPE_CHECKING:
     from geopandas.array import GeometryArray
@@ -28,7 +28,7 @@ def create_point_grid(
     Returns:
         Tuple of (x_coords, y_coords) meshgrids for raster cell centers.
     """
-    cell_size = ensure_pair(cell_size)
+    cell_size = _ensure_pair(cell_size)
     x_width, y_height = cell_size
 
     xmin, ymin, xmax, ymax = bounds
@@ -53,7 +53,7 @@ def get_point_grid_shape(
         cell_size: Size of each grid cell as (width, height) or a single value for
             square cells.
     """
-    cell_size = ensure_pair(cell_size)
+    cell_size = _ensure_pair(cell_size)
     x_width, y_height = cell_size
 
     xmin, ymin, xmax, ymax = np.asarray(bounds)
@@ -95,7 +95,7 @@ def create_fishnet(
     """
     import geopandas as gpd
 
-    res = ensure_pair(res)
+    res = _ensure_pair(res)
     cell_width, cell_height = res
 
     # Use the shared helper function to create the point grid

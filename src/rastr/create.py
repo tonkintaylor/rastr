@@ -25,7 +25,7 @@ from rastr.gis.fishnet import create_point_grid, get_point_grid_shape
 from rastr.gis.interpolate import InterpolationError, interpn_kernel
 from rastr.meta import RasterMeta, infer_cell_size
 from rastr.raster import Raster, RasterModel
-from rastr.utils import ensure_pair
+from rastr.utils import _ensure_pair
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
@@ -262,7 +262,7 @@ def rasterize_z_gdf(
         ValueError: If any geometries are not 3D.
     """
     crs = CRS.from_user_input(crs)
-    cell_size = ensure_pair(cell_size)
+    cell_size = _ensure_pair(cell_size)
 
     if len(gdf) == 0:
         msg = "Cannot rasterize an empty GeoDataFrame."
@@ -470,7 +470,7 @@ def raster_from_point_cloud(
                     collinear.
     """
 
-    cell_size = ensure_pair(cell_size) if cell_size is not None else None
+    cell_size = _ensure_pair(cell_size) if cell_size is not None else None
 
     crs = CRS.from_user_input(crs)
     x, y, z = _validate_xyz(
@@ -603,7 +603,7 @@ def raster_from_contours(
     if cell_size is None:
         cell_size = _infer_cell_size_from_geometry(geometry)
 
-    cell_size = ensure_pair(cell_size)
+    cell_size = _ensure_pair(cell_size)
 
     coords: list[tuple[float, ...]] = []
     z_values: list[float] = []

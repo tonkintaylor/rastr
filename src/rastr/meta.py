@@ -8,7 +8,7 @@ from pydantic import BaseModel, InstanceOf
 from pyproj import CRS
 
 from rastr.gis.crs import get_affine_sign
-from rastr.utils import ensure_pair
+from rastr.utils import _ensure_pair
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -134,7 +134,7 @@ class RasterMeta(BaseModel, extra="forbid"):
         if cell_size is None:
             cell_size = infer_cell_size(x, y)
 
-        cell_size = ensure_pair(cell_size)
+        cell_size = _ensure_pair(cell_size)
 
         shape = infer_shape(x, y, cell_size=cell_size)
         transform = infer_transform(x, y, cell_size=cell_size, crs=crs)
@@ -161,7 +161,7 @@ def infer_transform(
     if cell_size is None:
         cell_size = infer_cell_size(x, y)
 
-    cell_size = ensure_pair(cell_size)
+    cell_size = _ensure_pair(cell_size)
 
     (xs, ys) = get_affine_sign(crs)
     return Affine.translation(*infer_origin(x, y, cell_size=cell_size)) * Affine.scale(
@@ -198,7 +198,7 @@ def infer_shape(
     if cell_size is None:
         cell_size = infer_cell_size(x, y)
 
-    cell_size = ensure_pair(cell_size)
+    cell_size = _ensure_pair(cell_size)
 
     # Compute bounds from data
     minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)

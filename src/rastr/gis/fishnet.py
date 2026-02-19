@@ -28,8 +28,7 @@ def create_point_grid(
     Returns:
         Tuple of (x_coords, y_coords) meshgrids for raster cell centers.
     """
-    cell_size = _ensure_pair(cell_size)
-    x_width, y_height = cell_size
+    x_width, y_height = _ensure_pair(cell_size)
 
     xmin, ymin, xmax, ymax = bounds
 
@@ -53,8 +52,7 @@ def get_point_grid_shape(
         cell_size: Size of each grid cell as (width, height) or a single value for
             square cells.
     """
-    cell_size = _ensure_pair(cell_size)
-    x_width, y_height = cell_size
+    x_width, y_height = _ensure_pair(cell_size)
 
     xmin, ymin, xmax, ymax = np.asarray(bounds)
     ncols_exact = (xmax - xmin) / x_width

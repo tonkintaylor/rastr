@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from affine import Affine
-from pydantic import BaseModel, InstanceOf
+from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import CRS
 
 from rastr.gis.crs import get_affine_sign
@@ -26,6 +26,15 @@ class RasterMeta(BaseModel, extra="forbid"):
 
     crs: InstanceOf[CRS]
     transform: InstanceOf[Affine]
+
+    @field_validator("transform")
+    @classmethod
+    def check_non_rotated_non_skewed(cls, v: Affine) -> Affine:
+        """Validator to ensure the transform is non-rotated and non-skewed."""
+        if v.b != 0 or v.d != 0:
+            msg = "Transform must be non-rotated and non-skewed (b and d must be 0)."
+            raise ValueError(msg)
+        return v
 
     @property
     def cell_size(self) -> tuple[float, float]:

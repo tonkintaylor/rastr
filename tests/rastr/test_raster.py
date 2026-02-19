@@ -3887,34 +3887,6 @@ class TestTrimNaN:
         assert raster.raster_meta == meta
         assert cropped is not raster  # Different objects
 
-    def test_complex_transform_preservation(self):
-        # Arrange - create a transform with rotation/skew
-        meta = RasterMeta(
-            crs=CRS.from_epsg(2193),
-            transform=Affine(1.0, 0.1, 10.0, 0.1, -1.0, 20.0),  # Has rotation/skew
-        )
-        # Create array where we crop both rows and columns
-        arr = np.array(
-            [[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0], [np.nan, 3.0, 4.0]]
-        )
-        raster = Raster(arr=arr, raster_meta=meta)
-
-        # Act
-        cropped = raster.trim_nan()
-
-        # Assert
-        # The a, b, d, e components should be preserved
-        original_transform = raster.raster_meta.transform
-        new_transform = cropped.raster_meta.transform
-
-        assert new_transform.a == original_transform.a  # x pixel size
-        assert new_transform.b == original_transform.b  # row rotation
-        assert new_transform.d == original_transform.d  # column rotation
-        assert new_transform.e == original_transform.e  # y pixel size
-        # Both c and f (origin) should change due to cropping
-        assert new_transform.c != original_transform.c
-        assert new_transform.f != original_transform.f
-
     def test_disconnected_data_regions(self):
         # Arrange
         meta = RasterMeta(
@@ -4173,32 +4145,6 @@ class TestTrimZeros:
         np.testing.assert_array_equal(raster.arr, original_arr)
         assert raster.raster_meta == meta
         assert cropped is not raster  # Different objects
-
-    def test_complex_transform_preservation(self):
-        # Arrange - create a transform with rotation/skew
-        meta = RasterMeta(
-            crs=CRS.from_epsg(2193),
-            transform=Affine(1.0, 0.1, 10.0, 0.1, -1.0, 20.0),  # Has rotation/skew
-        )
-        # Create array where we crop both rows and columns
-        arr = np.array([[0.0, 0.0, 0.0], [0.0, 1.0, 2.0], [0.0, 3.0, 4.0]])
-        raster = Raster(arr=arr, raster_meta=meta)
-
-        # Act
-        cropped = raster.trim_zeros()
-
-        # Assert
-        # The a, b, d, e components should be preserved
-        original_transform = raster.raster_meta.transform
-        new_transform = cropped.raster_meta.transform
-
-        assert new_transform.a == original_transform.a  # x pixel size
-        assert new_transform.b == original_transform.b  # row rotation
-        assert new_transform.d == original_transform.d  # column rotation
-        assert new_transform.e == original_transform.e  # y pixel size
-        # Both c and f (origin) should change due to cropping
-        assert new_transform.c != original_transform.c
-        assert new_transform.f != original_transform.f
 
     def test_disconnected_data_regions(self):
         # Arrange

@@ -30,7 +30,7 @@ class RasterMeta(BaseModel, extra="forbid"):
 
     @property
     def cell_size(self) -> tuple[float, float]:
-        """Cell size derived from the transform's x-pixel width and y-pixel height."""
+        """Cell size as (width, height) in CRS units, derived from the transform."""
         return abs(self.transform.a), abs(self.transform.e)
 
     @property

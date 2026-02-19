@@ -7,6 +7,7 @@ from affine import Affine
 from pydantic import BaseModel, InstanceOf
 from pyproj import CRS
 
+from rastr.exceptions import NonSquareCellsError
 from rastr.gis.crs import get_affine_sign
 from rastr.utils import _ensure_pair
 
@@ -52,7 +53,7 @@ class RasterMeta(BaseModel, extra="forbid"):
         """Cell size if the cells are square, otherwise raises an error."""
         if not self.has_square_cells:
             msg = "Cells are not square, so square_cell_size is undefined."
-            raise ValueError(msg)
+            raise NonSquareCellsError(msg)
 
         return self.cell_width
 

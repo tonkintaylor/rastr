@@ -55,7 +55,7 @@ class RasterMeta(BaseModel, extra="forbid"):
     @property
     def has_square_cells(self) -> bool:
         """Whether the cells are square (i.e. cell width == cell height)."""
-        return self.cell_width == self.cell_height
+        return bool(np.isclose(self.cell_width, self.cell_height))
 
     @property
     def square_cell_size(self) -> float:

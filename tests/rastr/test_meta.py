@@ -13,21 +13,21 @@ class TestRaster:
     def test_instantiable(self):
         """Test that Raster can be instantiated."""
         arr = np.array([[1, 2], [3, 4]])
-        meta = RasterMeta(cell_size=1, crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
+        meta = RasterMeta(crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
         raster = Raster(arr=arr, raster_meta=meta)
         assert isinstance(raster, Raster)
 
     def test_3d_fails(self):
         """Test that Raster cannot be instantiated with a 3D array."""
         arr = np.array([[[1, 1], [2, 2]], [[3, 3], [4, 4]]])  # 2 x 2 x 2 array
-        meta = RasterMeta(cell_size=1, crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
+        meta = RasterMeta(crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
 
         with pytest.raises(ValidationError):
             Raster(arr=arr, raster_meta=meta)
 
     def test_2x2x1_fails(self):
         arr = np.array([[[0.23465047], [0.77642868]], [[0.92393235], [0.55804058]]])
-        meta = RasterMeta(cell_size=1, crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
+        meta = RasterMeta(crs=_NZTM_CRS, transform=Affine.scale(1.0, 1.0))
         with pytest.raises(ValidationError):
             Raster(arr=arr, raster_meta=meta)
 
@@ -36,7 +36,6 @@ class TestRaster:
             # Arrange
             arr = np.array([[1, 2], [3, 4]])
             meta = RasterMeta(
-                cell_size=1,
                 crs=_NZTM_CRS,
                 transform=Affine.scale(1.0, 1.0),
             )
@@ -55,7 +54,7 @@ class TestRaster:
         cell_size = 2.0
         crs = _NZTM_CRS
         transform = Affine.translation(100, 200) * Affine.scale(cell_size, -cell_size)
-        meta = RasterMeta(cell_size=cell_size, crs=crs, transform=transform)
+        meta = RasterMeta(crs=crs, transform=transform)
         shape = (2, 3)
 
         # Act
@@ -70,3 +69,10 @@ class TestRaster:
             ]
         )
         np.testing.assert_allclose(coords, expected)
+
+
+class TestRasterMeta:
+    def test_rotated_transform_fails(self):
+        # Arrange / Act / Assert
+        with pytest.raises(NotImplementedError):
+            RasterMeta(crs=_NZTM_CRS, transform=Affine.rotation(30))

@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 @pytest.fixture
 def example_raster():
     meta = RasterMeta(
-        cell_size=2.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
     )
@@ -41,7 +40,6 @@ def example_raster():
 @pytest.fixture
 def example_neg_scaled_raster():
     meta = RasterMeta(
-        cell_size=2.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, -2.0, 0.0),
     )
@@ -53,7 +51,6 @@ def example_neg_scaled_raster():
 @pytest.fixture
 def example_raster_with_zeros():
     meta = RasterMeta(
-        cell_size=1.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
     )
@@ -68,7 +65,6 @@ def example_raster_with_zeros():
 @pytest.fixture
 def stats_test_raster() -> Raster:
     meta = RasterMeta(
-        cell_size=1.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
     )
@@ -80,7 +76,6 @@ def stats_test_raster() -> Raster:
 @pytest.fixture
 def stats_test_raster_with_nans() -> Raster:
     meta = RasterMeta(
-        cell_size=1.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
     )
@@ -131,7 +126,6 @@ class TestRaster:
             # Arrange
             example_raster = example_raster.model_copy(deep=True)
             new_meta = RasterMeta(
-                cell_size=2.0,
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
             )
@@ -167,7 +161,6 @@ class TestRaster:
             """Test that rasters with different meta are not like."""
             # Arrange
             different_meta = RasterMeta(
-                cell_size=2.0,
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
             )
@@ -194,9 +187,8 @@ class TestRaster:
             """Test rasters with both different meta and shape are not like."""
             # Arrange
             different_meta = RasterMeta(
-                cell_size=3.0,
                 crs=CRS.from_epsg(4326),
-                transform=Affine(2.0, 0.0, 10.0, 0.0, 2.0, 20.0),
+                transform=Affine(3.0, 0.0, 10.0, 0.0, 3.0, 20.0),
             )
             different_arr = np.array([[1]], dtype=float)  # 1x1 instead of 2x2
             other_raster = Raster(arr=different_arr, raster_meta=different_meta)
@@ -257,9 +249,8 @@ class TestRaster:
         def test_rasters_with_different_meta_not_equal(self, example_raster: Raster):
             # Arrange
             different_meta = RasterMeta(
-                cell_size=2.0,
                 crs=CRS.from_epsg(4326),
-                transform=Affine(1.0, 0.0, 5.0, 0.0, 1.0, 10.0),
+                transform=Affine(2.0, 0.0, 5.0, 0.0, 2.0, 10.0),
             )
             other_raster = Raster(
                 arr=example_raster.arr.copy(), raster_meta=different_meta
@@ -314,11 +305,8 @@ class TestRaster:
             transform_via_raster_meta = example_raster.raster_meta.transform
 
             # Assert
-            assert transform_via_property is transform_via_meta
-            assert transform_via_property is transform_via_raster_meta
             assert transform_via_property == transform_via_meta
             assert transform_via_property == transform_via_raster_meta
-            assert isinstance(transform_via_property, Affine)
 
         def test_transform_setter(self, example_raster: Raster):
             # Arrange
@@ -329,9 +317,9 @@ class TestRaster:
             example_raster.transform = new_transform
 
             # Assert
-            assert example_raster.transform is new_transform
-            assert example_raster.meta.transform is new_transform
-            assert example_raster.raster_meta.transform is new_transform
+            assert example_raster.transform == new_transform
+            assert example_raster.meta.transform == new_transform
+            assert example_raster.raster_meta.transform == new_transform
             assert example_raster.transform != original_transform
 
     class TestCellSize:
@@ -342,16 +330,15 @@ class TestRaster:
             cell_size_via_raster_meta = example_raster.raster_meta.cell_size
 
             # Assert
-            assert cell_size_via_property is cell_size_via_meta
-            assert cell_size_via_property is cell_size_via_raster_meta
             assert cell_size_via_property == cell_size_via_meta
-            assert cell_size_via_property == cell_size_via_raster_meta
-            assert isinstance(cell_size_via_property, float)
+            assert cell_size_via_meta == cell_size_via_raster_meta
+            assert isinstance(cell_size_via_property, tuple)
 
         def test_cell_size_setter(self, example_raster: Raster):
             # Arrange
-            new_cell_size = 5.0
+            new_cell_size = (5.0, 3.0)
             original_cell_size = example_raster.cell_size
+            original_transform = example_raster.transform
 
             # Act
             example_raster.cell_size = new_cell_size
@@ -361,6 +348,21 @@ class TestRaster:
             assert example_raster.meta.cell_size == new_cell_size
             assert example_raster.raster_meta.cell_size == new_cell_size
             assert example_raster.cell_size != original_cell_size
+            assert example_raster.transform != original_transform
+
+        def test_cell_size_setter_idempotent(self, example_raster: Raster):
+            # Arrange
+            new_cell_size = (5.0, 3.0)
+
+            # Act
+            example_raster.cell_size = new_cell_size
+            transform_after_first = example_raster.transform
+            example_raster.cell_size = new_cell_size
+            transform_after_second = example_raster.transform
+
+            # Assert
+            assert example_raster.cell_size == new_cell_size
+            assert transform_after_first == transform_after_second
 
     class TestSample:
         def test_sample_nan_raise(self, example_raster: Raster):
@@ -384,7 +386,6 @@ class TestRaster:
         def test_raster_meta_with_irrelevant_fields(self):
             with pytest.raises(ValidationError):
                 RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
                     irrelevant_field="irrelevant",  # type: ignore[reportCallIssue]
@@ -395,7 +396,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -636,7 +636,6 @@ class TestRaster:
         def test_basic(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -662,7 +661,6 @@ class TestRaster:
                 pass
 
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -684,7 +682,6 @@ class TestRaster:
         def test_crs_mismatch(self):
             # Arrange
             raster_meta1 = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -694,7 +691,6 @@ class TestRaster:
             )
 
             raster_meta2 = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -710,7 +706,6 @@ class TestRaster:
         def test_right_add_float(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -728,7 +723,6 @@ class TestRaster:
         def test_shape_mismatch(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -749,7 +743,6 @@ class TestRaster:
         def test_add_string_fails(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -787,7 +780,6 @@ class TestRaster:
         def test_basic(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -810,7 +802,6 @@ class TestRaster:
         def test_crs_mismatch(self):
             # Arrange
             raster_meta1 = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -820,7 +811,6 @@ class TestRaster:
             )
 
             raster_meta2 = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -836,7 +826,6 @@ class TestRaster:
         def test_right_mul_float(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -854,7 +843,6 @@ class TestRaster:
         def test_shape_mismatch(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -875,7 +863,6 @@ class TestRaster:
         def test_mul_string_fails(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -902,7 +889,6 @@ class TestRaster:
         def test_basic(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -927,7 +913,6 @@ class TestRaster:
         def test_crs_mismatch(self):
             # Arrange
             raster_meta1 = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -937,7 +922,6 @@ class TestRaster:
             )
 
             raster_meta2 = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(4326),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -953,7 +937,6 @@ class TestRaster:
         def test_right_div_float(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -971,7 +954,6 @@ class TestRaster:
         def test_shape_mismatch(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -992,7 +974,6 @@ class TestRaster:
         def test_div_string_fails(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1014,7 +995,6 @@ class TestRaster:
         def test_basic(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1037,7 +1017,6 @@ class TestRaster:
         def test_right_subtract_float(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1066,7 +1045,6 @@ class TestRaster:
         def test_mixed_values(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1081,7 +1059,7 @@ class TestRaster:
             # Assert
             np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
             assert result.raster_meta == raster_meta
-            assert result.raster_meta.cell_size == 1.0
+            assert result.raster_meta.square_cell_size == 1.0
             assert result.raster_meta.crs == CRS.from_epsg(2193)
 
         def test_preserves_dtype_float32(self, float32_raster: Raster):
@@ -1108,7 +1086,6 @@ class TestRaster:
                 pass
 
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1127,7 +1104,6 @@ class TestRaster:
         def test_basic_values(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1147,7 +1123,6 @@ class TestRaster:
         def test_basic_values(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1169,7 +1144,6 @@ class TestRaster:
         def test_both_bounds(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1188,7 +1162,6 @@ class TestRaster:
         def test_only_min(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1207,7 +1180,6 @@ class TestRaster:
         def test_only_max(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1226,7 +1198,6 @@ class TestRaster:
         def test_preserves_dtype(self):
             # Arrange
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -1401,7 +1372,6 @@ class TestRaster:
         def test_custom_nodata_value(self, tmp_path: Path):
             # Arrange
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
             )
@@ -1421,7 +1391,6 @@ class TestRaster:
         def test_nodata_replaces_nan_in_array(self, tmp_path: Path):
             # Arrange
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
             )
@@ -1444,7 +1413,6 @@ class TestRaster:
             # Arrange
             filename = tmp_path / "test_default_nodata.tif"
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0),
             )
@@ -1475,7 +1443,6 @@ class TestRaster:
             # Arrange a minimal raster
             arr = np.array([[1.0, 2.0], [3.0, 4.0]])
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
             )
@@ -1625,7 +1592,6 @@ class TestRaster:
         def test_different_size_raster(self):
             # Arrange
             meta = RasterMeta(
-                cell_size=2.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(2.0, 0.0, 0.0, 0.0, 2.0, 0.0),
             )
@@ -1772,7 +1738,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, float("nan")], [np.nan, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1790,7 +1755,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 0], [0, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1809,7 +1773,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, np.nan], [np.nan, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1826,7 +1789,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 2], [3, 2]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1843,7 +1805,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 0], [0, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1861,7 +1822,6 @@ class TestRaster:
             raster = Raster(
                 arr=original_arr.copy(),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1878,7 +1838,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 2], [3, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1895,7 +1854,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 0, 2], [0, -999, 2]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1914,7 +1872,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, np.nan, 0], [np.nan, 2, 0]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1933,7 +1890,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 0], [0, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1948,7 +1904,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 0], [0, 4]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -1963,7 +1918,6 @@ class TestRaster:
             raster = Raster(
                 arr=np.array([[1, 1], [2, 2]]),
                 raster_meta=RasterMeta(
-                    cell_size=1.0,
                     crs=CRS.from_epsg(2193),
                     transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                 ),
@@ -2043,15 +1997,15 @@ class TestRaster:
         def test_happy_path(self):
             # Arrange
             arr = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64)
-            cell_size = 2.0
             raster_meta = RasterMeta(
-                cell_size=cell_size,
                 crs=CRS.from_epsg(4326),
-                transform=rasterio.transform.from_origin(0, 0, 1, 1),
+                transform=rasterio.transform.from_origin(0, 0, 2.0, 2.0),
             )
             raster = Raster(arr=arr, raster_meta=raster_meta)
+
             # Act
             result = raster.sobel()
+
             # Assert
             expected = (
                 np.array(
@@ -2064,13 +2018,29 @@ class TestRaster:
                         [2.23607, 2.54951, 2.23607],
                     ]
                 )
-                / cell_size
+                / raster_meta.square_cell_size
             )
             np.testing.assert_almost_equal(result.arr, expected, decimal=5)
             assert result.meta == raster_meta
 
+        def test_non_square_cells_raises_not_implemented_error(self):
+            # Arrange
+            arr = np.array([[1, 2], [3, 4]], dtype=np.float64)
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(4326),
+                transform=rasterio.transform.from_origin(0, 0, 1.0, 2.0),
+            )
+            raster = Raster(arr=arr, raster_meta=raster_meta)
+
+            # Act / Assert
+            with pytest.raises(
+                NotImplementedError,
+                match=r"Sobel filter currently only supports square rasters\.",
+            ):
+                raster.sobel()
+
     class TestBlur:
-        def test_numeric_propertoes(self, example_raster: Raster):
+        def test_numeric_properties(self, example_raster: Raster):
             # Act
             blurred_raster = example_raster.blur(sigma=1.0)
 
@@ -2107,7 +2077,6 @@ class TestRaster:
         def test_preserve_nan_preserves_nan_mask(self):
             # Arrange
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -2133,7 +2102,6 @@ class TestRaster:
         def test_preserve_nan_blurs_valid_values(self):
             # Arrange
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -2156,7 +2124,6 @@ class TestRaster:
         def test_preserve_nan_without_nans_behaves_normally(self):
             # Arrange
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -2175,7 +2142,6 @@ class TestRaster:
         def test_default_preserve_nan_is_true(self):
             # Arrange
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -2200,7 +2166,6 @@ class TestRaster:
         def test_preserve_nan_false_spreads_nans(self):
             # Arrange
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -2220,6 +2185,38 @@ class TestRaster:
             # Assert - NaNs should spread into data
             assert np.all(np.isnan(blurred.arr))
 
+        def test_non_square_cells_use_axis_specific_sigma(self):
+            # Arrange
+            meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(2.0, 0.0, 0.0, 0.0, 4.0, 0.0),
+            )
+            arr = np.array(
+                [
+                    [0.0, 1.0, 2.0, 3.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                ]
+            )
+            raster = Raster(arr=arr, raster_meta=meta)
+            sigma = 8.0
+            expected_output = np.full_like(arr, fill_value=42.0)
+
+            # Act
+            with patch(
+                "scipy.ndimage.gaussian_filter",
+                autospec=True,
+                return_value=expected_output,
+            ) as mock_gaussian_filter:
+                blurred = raster.blur(sigma=sigma, preserve_nan=False)
+
+            # Assert
+            mock_gaussian_filter.assert_called_once()
+            call_args, call_kwargs = mock_gaussian_filter.call_args
+            np.testing.assert_array_equal(call_args[0], arr)
+            assert call_kwargs["sigma"] == pytest.approx((sigma / 4.0, sigma / 2.0))
+            np.testing.assert_array_equal(blurred.arr, expected_output)
+
     class TestDilate:
         def test_happy_path(self):
             # Arrange
@@ -2233,21 +2230,20 @@ class TestRaster:
                 dtype=np.float64,
             )
             raster_meta = RasterMeta(
-                cell_size=2.0,
                 crs=CRS.from_epsg(4326),
                 transform=rasterio.transform.from_origin(0, 0, 1, 1),
             )
-            raster = Raster(arr=arr, meta=raster_meta)
+            raster = Raster(arr=arr, raster_meta=raster_meta)
             # Act
             result = raster.dilate(radius=2)
             # Assert
-            # With radius=2 and cell_size=2.0, cell_radius=ceil(2/2.0)=1
-            # Each point dilates by 1 cell (the disk radius) in all directions
+            # With radius=2 and unit cells, cell radius is 2 cells in each direction.
+            # Given the point layout, dilation fills the full array extent.
             expected = np.array(
                 [
-                    [0, 1, 0, 1, 0],
                     [1, 1, 1, 1, 1],
-                    [0, 1, 0, 1, 0],
+                    [1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1],
                     [1, 1, 1, 1, 1],
                 ],
                 dtype=np.float64,
@@ -2266,7 +2262,6 @@ class TestRaster:
                 dtype=np.float64,
             )
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=rasterio.transform.from_origin(0, 3, 1, 1),
             )
@@ -2336,7 +2331,6 @@ class TestRaster:
             cell_size = 1.0
             height, _width = arr.shape
             raster_meta = RasterMeta(
-                cell_size=cell_size,
                 crs=CRS.from_epsg(2193),
                 transform=rasterio.transform.from_origin(
                     0, height, cell_size, cell_size
@@ -2378,7 +2372,6 @@ class TestRaster:
             # Arrange
             arr = np.full((5, 5), np.nan, dtype=np.float64)
             raster_meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(4326),
                 transform=rasterio.transform.from_origin(0, 5, 1, 1),
             )
@@ -2412,7 +2405,6 @@ class TestRaster:
                 dtype=np.float64,
             )
             raster_meta = RasterMeta(
-                cell_size=2.0,
                 crs=CRS.from_epsg(4326),
                 transform=rasterio.transform.from_origin(0, 14, 2, 2),
             )
@@ -2441,6 +2433,23 @@ class TestRaster:
             )
             np.testing.assert_array_equal(result_2_5.arr, expected)
             np.testing.assert_array_equal(result_4.arr, expected)
+
+        def test_non_square_cells_raises_not_implemented_error(self):
+            # Arrange
+            arr = np.zeros((7, 7), dtype=np.float64)
+            arr[3, 3] = 1.0
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(2.0, 0.0, 0.0, 0.0, -1.0, 7.0),
+            )
+            raster = Raster(arr=arr, meta=raster_meta)
+
+            # Act / Assert
+            with pytest.raises(
+                NotImplementedError,
+                match=r"Dilate currently only supports rasters with square cells\.",
+            ):
+                raster.dilate(radius=2.0)
 
     class TestExtrapolate:
         class TestNearest:
@@ -2476,7 +2485,6 @@ class TestRaster:
                 raster = Raster(
                     arr=np.array([[np.nan, np.nan], [np.nan, np.nan]]),
                     raster_meta=RasterMeta(
-                        cell_size=1.0,
                         crs=CRS.from_epsg(2193),
                         transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
                     ),
@@ -2607,7 +2615,6 @@ class TestRaster:
                 ]
             )
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
@@ -2689,7 +2696,6 @@ class TestRaster:
             level_count: int,
         ) -> None:
             meta = RasterMeta(
-                cell_size=float(min(abs(x_scale), abs(y_scale))),
                 crs=CRS.from_epsg(2193),
                 transform=Affine(x_scale, 0.0, origin_x, 0.0, y_scale, origin_y),
             )
@@ -2724,7 +2730,6 @@ class TestRaster:
                 dtype=float,
             )
             meta = RasterMeta(
-                cell_size=1.0,
                 crs=CRS.from_epsg(2193),
                 transform=Affine(1.0, 0.0, 509.0, 0.0, 1.0, 510.0),
             )
@@ -2803,7 +2808,6 @@ class TestRaster:
 @pytest.fixture
 def base_raster():
     meta = RasterMeta(
-        cell_size=10.0,  # 10-meter cells
         crs=CRS.from_epsg(2193),
         transform=Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0),  # Standard NZTM-like
     )
@@ -2815,7 +2819,6 @@ def base_raster():
 @pytest.fixture
 def small_raster():
     meta = RasterMeta(
-        cell_size=5.0,
         crs=CRS.from_epsg(2193),
         transform=Affine(5.0, 0.0, 0.0, 0.0, -5.0, 10.0),
     )
@@ -2847,9 +2850,9 @@ class TestCrop:
     def test_crop_y_only(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
-        bounds = (minx, miny + cell_size, maxx, maxy - cell_size)
-        expected_transform = Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0 - cell_size)
+        cell_height = base_raster.raster_meta.cell_height
+        bounds = (minx, miny + cell_height, maxx, maxy - cell_height)
+        expected_transform = Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0 - cell_height)
 
         # Act
         cropped = base_raster.crop(bounds)
@@ -2864,9 +2867,9 @@ class TestCrop:
     def test_crop_x_only(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
-        bounds = (minx + cell_size, miny, maxx - cell_size, maxy)
-        expected_transform = Affine(10.0, 0.0, minx + cell_size, 0.0, -10.0, 100.0)
+        cell_width = base_raster.raster_meta.cell_width
+        bounds = (minx + cell_width, miny, maxx - cell_width, maxy)
+        expected_transform = Affine(10.0, 0.0, minx + cell_width, 0.0, -10.0, 100.0)
 
         # Act
         cropped = base_raster.crop(bounds)
@@ -2881,11 +2884,11 @@ class TestCrop:
     def test_underflow_crops_border_cells(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
-        shift = base_raster.raster_meta.cell_size / 10  # Some cells overlap bounds
+        cell_width, cell_height = base_raster.raster_meta.cell_size
+        shift = cell_width / 10  # Some cells overlap bounds
         bounds = (minx + shift, miny + shift, maxx - shift, maxy - shift)
         expected_transform = Affine(
-            10.0, 0.0, minx + cell_size, 0.0, -10.0, 100.0 - cell_size
+            10.0, 0.0, minx + cell_width, 0.0, -10.0, 100.0 - cell_height
         )  # Cells overlapping bounds are clipped
 
         # Act
@@ -2900,7 +2903,8 @@ class TestCrop:
     def test_overflow_doesnt_crop(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        shift = base_raster.raster_meta.cell_size / 10  # Some cells overlap bounds
+        cell_size = base_raster.raster_meta.square_cell_size
+        shift = cell_size / 10  # Some cells overlap bounds
         bounds = (minx + shift, miny + shift, maxx - shift, maxy - shift)
 
         # Act
@@ -2969,7 +2973,6 @@ class TestCrop:
         """
         # Arrange: Create a non-square raster with distinctive values
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
@@ -3000,6 +3003,29 @@ class TestCrop:
 
         assert cropped.arr.shape == expected_shape
         np.testing.assert_array_equal(cropped.arr, expected_array)
+
+    def test_crop_non_square_cells(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(2.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.arange(1, 13, dtype=float).reshape(3, 4)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Crop to middle two columns and all rows
+        bounds = (2.0, 0.0, 6.0, 3.0)
+
+        # Act
+        cropped = raster.crop(bounds)
+
+        # Assert
+        assert cropped.arr.shape == (3, 2)
+        assert cropped.bounds == bounds
+        assert (
+            cropped.raster_meta.cell_width,
+            cropped.raster_meta.cell_height,
+        ) == pytest.approx((2.0, 1.0))
 
     def test_unsupported_crop_strategy(self, base_raster: Raster):
         # Arrange
@@ -3086,7 +3112,7 @@ class TestToBounds:
     def test_crop_behavior_when_smaller(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         bounds = (
             minx + cell_size,
             miny + cell_size,
@@ -3104,7 +3130,7 @@ class TestToBounds:
     def test_padding_expands_with_nan(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         # Expand by one cell on each side
         bounds = (
             minx - cell_size,
@@ -3134,7 +3160,7 @@ class TestToBounds:
     def test_expand_one_side_only(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         # Expand only on the right side
         bounds = (minx, miny, maxx + 2 * cell_size, maxy)
 
@@ -3154,7 +3180,7 @@ class TestToBounds:
     def test_crop_and_expand_simultaneously(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         # Crop on left, expand on right, crop on bottom, expand on top
         bounds = (
             minx + cell_size,  # Crop left
@@ -3178,7 +3204,7 @@ class TestToBounds:
     def test_overflow_strategy_expands(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         # Expand by half a cell on each side
         shift = cell_size / 2
         bounds = (minx - shift, miny - shift, maxx + shift, maxy + shift)
@@ -3198,7 +3224,7 @@ class TestToBounds:
     def test_underflow_strategy_with_expansion(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         bounds = (
             minx - cell_size,
             miny - cell_size,
@@ -3241,7 +3267,7 @@ class TestToBounds:
     def test_preserves_crs(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         bounds = (
             minx - cell_size,
             miny - cell_size,
@@ -3258,7 +3284,7 @@ class TestToBounds:
     def test_preserves_cell_size(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         bounds = (
             minx - cell_size,
             miny - cell_size,
@@ -3275,7 +3301,7 @@ class TestToBounds:
     def test_arraylike_bounds(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         # Expand one cell on right and top
         bounds_array = np.array([minx, miny, maxx + cell_size, maxy + cell_size])
 
@@ -3286,6 +3312,27 @@ class TestToBounds:
         assert isinstance(result, Raster)
         # Expanding by one cell on right and top adds cells on those sides
         assert result.arr.shape == (5, 5)
+
+    def test_non_square_cells(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(2.0, 0.0, 0.0, 0.0, -1.0, 3.0),
+        )
+        arr = np.arange(1, 13, dtype=float).reshape(3, 4)
+        raster = Raster(arr=arr, raster_meta=meta)
+        bounds = (2.0, 0.0, 6.0, 3.0)
+
+        # Act
+        result = raster.to_bounds(bounds)
+
+        # Assert
+        assert result.arr.shape == (3, 2)
+        assert result.bounds == bounds
+        assert (
+            result.raster_meta.cell_width,
+            result.raster_meta.cell_height,
+        ) == pytest.approx((2.0, 1.0))
 
 
 class TestPad:
@@ -3385,6 +3432,28 @@ class TestPad:
         assert new_xmax == pytest.approx(orig_xmax + expected_padding)
         assert new_ymax == pytest.approx(orig_ymax + expected_padding)
 
+    def test_pad_non_square_cells(self):
+        # Arrange
+        raster = Raster(
+            arr=np.array([[1, 2], [3, 4]], dtype=float),
+            raster_meta=RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(2.0, 0.0, 0.0, 0.0, -1.0, 2.0),
+            ),
+        )
+
+        # Act
+        padded = raster.pad(width=1.5)
+
+        # Assert
+        # pad_cols=ceil(1.5/2.0)=1, pad_rows=ceil(1.5/1.0)=2
+        assert padded.arr.shape == (6, 4)
+        assert padded.bounds == (-2.0, -2.0, 6.0, 4.0)
+        assert (
+            padded.raster_meta.cell_width,
+            padded.raster_meta.cell_height,
+        ) == pytest.approx((2.0, 1.0))
+
     def test_pad_zero_width(self):
         # Arrange
         raster = Raster(
@@ -3424,7 +3493,7 @@ class TestTaperBorder:
 
         # Act
         w = 2.5
-        s = raster.raster_meta.cell_size
+        s = raster.raster_meta.square_cell_size
         f = w / s
         softened = raster.taper_border(width=w)
 
@@ -3457,6 +3526,24 @@ class TestTaperBorder:
         assert np.all(softened.arr[-1, :] == 20.0)
         assert np.all(softened.arr[:, 0] == 20.0)
         assert np.all(softened.arr[:, -1] == 20.0)
+
+    def test_non_square_cells(self):
+        # Arrange
+        raster = Raster(
+            arr=np.arange(1, 26, dtype=float).reshape(5, 5),
+            raster_meta=RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(2.0, 0.0, 0.0, 0.0, -1.0, 5.0),
+            ),
+        )
+
+        # Act
+        softened = raster.taper_border(width=1.5)
+
+        # Assert
+        assert softened.arr[2, 2] == pytest.approx(13.0)
+        assert softened.arr[1, 2] == pytest.approx(8.0 * (1.0 / 1.5))
+        assert softened.arr[0, 2] == pytest.approx(0.0)
 
     def test_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that taper_border() preserves dtype."""
@@ -3503,7 +3590,7 @@ class TestClip:
     def test_multipolygon(self, base_raster: Raster):
         # Arrange
         minx, miny, maxx, maxy = base_raster.bounds
-        cell_size = base_raster.raster_meta.cell_size
+        cell_size = base_raster.raster_meta.square_cell_size
         poly1 = box(
             minx + cell_size, miny + cell_size, maxx - cell_size, maxy - cell_size
         )
@@ -3573,7 +3660,6 @@ class TestTrimNaN:
     def test_nan_edges_all_sides(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 5.0),
         )
@@ -3597,7 +3683,6 @@ class TestTrimNaN:
     def test_nan_top_bottom_only(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=2.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(2.0, 0.0, 0.0, 0.0, -2.0, 8.0),
         )
@@ -3627,7 +3712,6 @@ class TestTrimNaN:
     def test_nan_left_right_only(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.5,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.5, 0.0, 0.0, 0.0, -1.5, 6.0),
         )
@@ -3656,7 +3740,6 @@ class TestTrimNaN:
     def test_asymmetric_nan_borders(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
         )
@@ -3681,7 +3764,6 @@ class TestTrimNaN:
     def test_single_non_nan_cell(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 4.0),
         )
@@ -3705,7 +3787,6 @@ class TestTrimNaN:
     def test_all_nan_raises_error(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
@@ -3719,7 +3800,6 @@ class TestTrimNaN:
     def test_mixed_nan_and_finite_values(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 4.0),
         )
@@ -3744,9 +3824,7 @@ class TestTrimNaN:
     def test_preserve_metadata(self):
         # Arrange
         original_crs = CRS.from_epsg(4326)  # Different CRS
-        original_cell_size = 0.5
         meta = RasterMeta(
-            cell_size=original_cell_size,
             crs=original_crs,
             transform=Affine(0.5, 0.0, 0.0, 0.0, -0.5, 2.0),
         )
@@ -3758,7 +3836,7 @@ class TestTrimNaN:
 
         # Assert
         assert cropped.raster_meta.crs == original_crs
-        assert cropped.raster_meta.cell_size == original_cell_size
+        assert cropped.raster_meta.square_cell_size == 0.5
         # Only transform should change
         assert cropped.raster_meta.transform != raster.raster_meta.transform
 
@@ -3768,7 +3846,6 @@ class TestTrimNaN:
             pass
 
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
@@ -3790,7 +3867,6 @@ class TestTrimNaN:
     def test_original_raster_unchanged(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
@@ -3811,39 +3887,9 @@ class TestTrimNaN:
         assert raster.raster_meta == meta
         assert cropped is not raster  # Different objects
 
-    def test_complex_transform_preservation(self):
-        # Arrange - create a transform with rotation/skew
-        meta = RasterMeta(
-            cell_size=1.0,
-            crs=CRS.from_epsg(2193),
-            transform=Affine(1.0, 0.1, 10.0, 0.1, -1.0, 20.0),  # Has rotation/skew
-        )
-        # Create array where we crop both rows and columns
-        arr = np.array(
-            [[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0], [np.nan, 3.0, 4.0]]
-        )
-        raster = Raster(arr=arr, raster_meta=meta)
-
-        # Act
-        cropped = raster.trim_nan()
-
-        # Assert
-        # The a, b, d, e components should be preserved
-        original_transform = raster.raster_meta.transform
-        new_transform = cropped.raster_meta.transform
-
-        assert new_transform.a == original_transform.a  # x pixel size
-        assert new_transform.b == original_transform.b  # row rotation
-        assert new_transform.d == original_transform.d  # column rotation
-        assert new_transform.e == original_transform.e  # y pixel size
-        # Both c and f (origin) should change due to cropping
-        assert new_transform.c != original_transform.c
-        assert new_transform.f != original_transform.f
-
     def test_disconnected_data_regions(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
         )
@@ -3897,7 +3943,6 @@ class TestTrimZeros:
     def test_zero_edges_all_sides(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 5.0),
         )
@@ -3921,7 +3966,6 @@ class TestTrimZeros:
     def test_zero_top_bottom_only(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=2.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(2.0, 0.0, 0.0, 0.0, -2.0, 8.0),
         )
@@ -3951,7 +3995,6 @@ class TestTrimZeros:
     def test_zero_left_right_only(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.5,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.5, 0.0, 0.0, 0.0, -1.5, 6.0),
         )
@@ -3980,7 +4023,6 @@ class TestTrimZeros:
     def test_asymmetric_zero_borders(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
         )
@@ -4005,7 +4047,6 @@ class TestTrimZeros:
     def test_single_non_zero_cell(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 4.0),
         )
@@ -4029,7 +4070,6 @@ class TestTrimZeros:
     def test_all_zeros_raises_error(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
@@ -4043,9 +4083,7 @@ class TestTrimZeros:
     def test_preserve_metadata(self):
         # Arrange
         original_crs = CRS.from_epsg(4326)  # Different CRS
-        original_cell_size = 0.5
         meta = RasterMeta(
-            cell_size=original_cell_size,
             crs=original_crs,
             transform=Affine(0.5, 0.0, 0.0, 0.0, -0.5, 2.0),
         )
@@ -4057,7 +4095,7 @@ class TestTrimZeros:
 
         # Assert
         assert cropped.raster_meta.crs == original_crs
-        assert cropped.raster_meta.cell_size == original_cell_size
+        assert cropped.raster_meta.square_cell_size == 0.5
         # Only transform should change
         assert cropped.raster_meta.transform != raster.raster_meta.transform
 
@@ -4067,7 +4105,6 @@ class TestTrimZeros:
             pass
 
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
@@ -4089,7 +4126,6 @@ class TestTrimZeros:
     def test_original_raster_unchanged(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 3.0),
         )
@@ -4110,37 +4146,9 @@ class TestTrimZeros:
         assert raster.raster_meta == meta
         assert cropped is not raster  # Different objects
 
-    def test_complex_transform_preservation(self):
-        # Arrange - create a transform with rotation/skew
-        meta = RasterMeta(
-            cell_size=1.0,
-            crs=CRS.from_epsg(2193),
-            transform=Affine(1.0, 0.1, 10.0, 0.1, -1.0, 20.0),  # Has rotation/skew
-        )
-        # Create array where we crop both rows and columns
-        arr = np.array([[0.0, 0.0, 0.0], [0.0, 1.0, 2.0], [0.0, 3.0, 4.0]])
-        raster = Raster(arr=arr, raster_meta=meta)
-
-        # Act
-        cropped = raster.trim_zeros()
-
-        # Assert
-        # The a, b, d, e components should be preserved
-        original_transform = raster.raster_meta.transform
-        new_transform = cropped.raster_meta.transform
-
-        assert new_transform.a == original_transform.a  # x pixel size
-        assert new_transform.b == original_transform.b  # row rotation
-        assert new_transform.d == original_transform.d  # column rotation
-        assert new_transform.e == original_transform.e  # y pixel size
-        # Both c and f (origin) should change due to cropping
-        assert new_transform.c != original_transform.c
-        assert new_transform.f != original_transform.f
-
     def test_disconnected_data_regions(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 6.0),
         )
@@ -4179,7 +4187,7 @@ class TestResample:
         resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == cell_size
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should approximately double the dimensions (some discretization)
         assert resampled.arr.shape[0] >= 7  # At least 2x original (4)
         assert resampled.arr.shape[1] >= 7
@@ -4193,7 +4201,7 @@ class TestResample:
         resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == cell_size
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should approximately halve the dimensions
         assert resampled.arr.shape[0] <= 3  # At most half original (4)
         assert resampled.arr.shape[1] <= 3
@@ -4220,7 +4228,7 @@ class TestResample:
         resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == cell_size
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should be significantly larger
         assert resampled.arr.shape[0] >= 8
         assert resampled.arr.shape[1] >= 8
@@ -4233,7 +4241,8 @@ class TestResample:
         resampled = base_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == cell_size
+        assert resampled.raster_meta.has_square_cells
+        assert resampled.raster_meta.square_cell_size <= cell_size
         # Should be much smaller, potentially 1x1
         assert resampled.arr.shape[0] >= 1
         assert resampled.arr.shape[1] >= 1
@@ -4295,7 +4304,7 @@ class TestResample:
         resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == cell_size
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Should result in a very large array
         assert resampled.arr.shape[0] >= 20
         assert resampled.arr.shape[1] >= 20
@@ -4310,7 +4319,7 @@ class TestResample:
 
         # Assert
         assert resampled.raster_meta.crs == original_crs
-        assert resampled.raster_meta.cell_size == cell_size
+        assert resampled.raster_meta.cell_size == (cell_size, cell_size)
         # Transform should be updated but maintain CRS
         assert resampled.raster_meta.transform != base_raster.raster_meta.transform
 
@@ -4326,7 +4335,7 @@ class TestResample:
         # Assert
         # Bounds should be similar (allowing for some discretization effects)
         # The resampled raster bounds might be slightly larger due to rounding
-        tolerance = max(base_raster.raster_meta.cell_size, cell_size) * 2
+        tolerance = max(*base_raster.raster_meta.cell_size, cell_size) * 2
 
         assert abs(new_bounds[0] - original_bounds[0]) <= tolerance  # xmin
         assert abs(new_bounds[1] - original_bounds[1]) <= tolerance  # ymin
@@ -4356,7 +4365,6 @@ class TestResample:
     def test_with_nan_values(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=10.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(10.0, 0.0, 0.0, 0.0, -10.0, 100.0),
         )
@@ -4368,7 +4376,7 @@ class TestResample:
 
         # Assert
         assert isinstance(resampled, Raster)
-        assert resampled.raster_meta.cell_size == 5.0
+        assert resampled.raster_meta.square_cell_size == 5.0
         # Should handle NaN values gracefully
         assert not np.all(np.isnan(resampled.arr))  # Some non-NaN values
 
@@ -4380,8 +4388,45 @@ class TestResample:
         resampled = small_raster.resample(cell_size)
 
         # Assert
-        assert resampled.raster_meta.cell_size == cell_size
+        assert resampled.raster_meta.has_square_cells
+        assert resampled.raster_meta.square_cell_size <= cell_size
         assert isinstance(resampled, Raster)
+
+    def test_square_to_rectangular_cell_size(self, base_raster: Raster):
+        # Arrange
+        cell_size = (5.0, 20.0)
+
+        # Act
+        resampled = base_raster.resample(cell_size)
+
+        # Assert
+        assert resampled.raster_meta.cell_size == pytest.approx((5.0, 20.0))
+        assert resampled.arr.shape == (2, 8)
+
+    def test_rectangular_to_rectangular_cell_size(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(10.0, 0.0, 0.0, 0.0, -20.0, 80.0),
+        )
+        raster = Raster(
+            arr=np.array(
+                [
+                    [1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0],
+                ]
+            ),
+            raster_meta=meta,
+        )
+
+        # Act
+        resampled = raster.resample((5.0, 10.0))
+
+        # Assert
+        assert resampled.raster_meta.cell_size == pytest.approx((5.0, 10.0))
+        assert resampled.arr.shape == (8, 8)
 
     def test_preserves_dtype_float32(self, float32_raster: Raster):
         """Test that resample() preserves dtype."""
@@ -4506,7 +4551,6 @@ class TestExplore:
         # Hard-coded test data and simple raster with known min/max
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
@@ -4548,7 +4592,6 @@ class TestExplore:
         # Arrange a minimal raster
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
@@ -4565,7 +4608,6 @@ class TestExplore:
         # Arrange a minimal raster
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
@@ -4589,7 +4631,6 @@ class TestExplore:
         # Arrange a homogeneous raster
         arr = np.array([[1.0, 1.0], [1.0, 1.0]])
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
@@ -4608,7 +4649,6 @@ class TestExplore:
         # Arrange a raster with negative x scaling
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
@@ -4625,7 +4665,6 @@ class TestExplore:
         # Arrange a raster that should trigger only x-flip (a < 0, e < 0)
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(-1.0, 0.0, 0.0, 0.0, -1.0, 2.0),
         )
@@ -4642,7 +4681,6 @@ class TestExplore:
         # Arrange a raster that should trigger both x-flip and y-flip (a < 0, e > 0)
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(-1.0, 0.0, 0.0, 0.0, 1.0, 2.0),
         )
@@ -4756,7 +4794,6 @@ class TestRasterStatistics:
         # Arrange
         tiny_arr = np.array([[1.0]])
         tiny_meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
         )
@@ -4772,7 +4809,6 @@ class TestRasterStatistics:
         # Arrange
         tiny_arr = np.array([[1.0]])
         tiny_meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
         )
@@ -4828,7 +4864,6 @@ class TestUnique:
     def test_example(self):
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
         )
@@ -4846,7 +4881,6 @@ class TestUnique:
         """Test unique when all values are NaN."""
         # Arrange
         meta = RasterMeta(
-            cell_size=1.0,
             crs=CRS.from_epsg(2193),
             transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
         )

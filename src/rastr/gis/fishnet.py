@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
-from shapely import BufferCapStyle, BufferJoinStyle
+from shapely import box
+
+from rastr.utils import _ensure_pair
 
 if TYPE_CHECKING:
     from geopandas.array import GeometryArray
@@ -11,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def create_point_grid(
-    *, bounds: tuple[float, float, float, float], cell_size: float
+    *, bounds: tuple[float, float, float, float], cell_size: tuple[float, float] | float
 ) -> tuple[NDArray, NDArray]:
     """Create a regular grid of point coordinates for raster centers.
 
@@ -20,29 +22,41 @@ def create_point_grid(
 
     Args:
         bounds: (xmin, ymin, xmax, ymax) bounding box.
-        cell_size: Size of each grid cell.
+        cell_size: Size of each grid cell as (width, height) or a single value for
+            square cells.
 
     Returns:
         Tuple of (x_coords, y_coords) meshgrids for raster cell centers.
     """
+    x_width, y_height = _ensure_pair(cell_size)
+
     xmin, ymin, xmax, ymax = bounds
 
     # Use the original logic with np.arange for exact compatibility
-    x_coords = np.arange(xmin + cell_size / 2, xmax + cell_size / 2, cell_size)
-    y_coords = np.arange(ymax - cell_size / 2, ymin - cell_size / 2, -cell_size)
+    x_coords = np.arange(xmin + x_width / 2, xmax + x_width / 2, x_width)
+    y_coords = np.arange(ymax - y_height / 2, ymin - y_height / 2, -y_height)
 
     x_points, y_points = np.meshgrid(x_coords, y_coords)  # type: ignore[reportAssignmentType]
     return x_points, y_points
 
 
 def get_point_grid_shape(
-    *, bounds: tuple[float, float, float, float] | ArrayLike, cell_size: float
+    *,
+    bounds: tuple[float, float, float, float] | ArrayLike,
+    cell_size: tuple[float, float] | float,
 ) -> tuple[int, int]:
-    """Calculate the shape of the point grid based on bounds and cell size."""
+    """Calculate the shape of the point grid based on bounds and cell size.
+
+    Args:
+        bounds: (xmin, ymin, xmax, ymax) bounding box.
+        cell_size: Size of each grid cell as (width, height) or a single value for
+            square cells.
+    """
+    x_width, y_height = _ensure_pair(cell_size)
 
     xmin, ymin, xmax, ymax = np.asarray(bounds)
-    ncols_exact = (xmax - xmin) / cell_size
-    nrows_exact = (ymax - ymin) / cell_size
+    ncols_exact = (xmax - xmin) / x_width
+    nrows_exact = (ymax - ymin) / y_height
 
     # Use round for values very close to integers to avoid floating-point
     # sensitivity while maintaining ceil behavior for truly fractional values
@@ -60,7 +74,7 @@ def get_point_grid_shape(
 
 
 def create_fishnet(
-    *, bounds: tuple[float, float, float, float], res: float
+    *, bounds: tuple[float, float, float, float], res: tuple[float, float] | float
 ) -> GeometryArray:
     """Generate a fishnet of polygons from bounds.
 
@@ -72,22 +86,27 @@ def create_fishnet(
 
     Args:
         bounds: (xmin, ymin, xmax, ymax)
-        res: resolution (cell size)
+        res: Resolution as `(width, height)` or a single value for square cells.
 
     Returns:
         Shapely Polygons.
     """
     import geopandas as gpd
 
+    res = _ensure_pair(res)
+    cell_width, cell_height = res
+
     # Use the shared helper function to create the point grid
     xx, yy = create_point_grid(bounds=bounds, cell_size=res)
 
-    # Create points from the grid coordinates
-    points = gpd.points_from_xy(xx.ravel(), yy.ravel())
-
-    # Buffer the points to create square polygons
-    polygons = points.buffer(
-        res / 2, cap_style=BufferCapStyle.square, join_style=BufferJoinStyle.mitre
+    # Create rectangles centered on each grid point
+    polygons = box(
+        xx.ravel() - cell_width / 2,
+        yy.ravel() - cell_height / 2,
+        xx.ravel() + cell_width / 2,
+        yy.ravel() + cell_height / 2,
     )
 
-    return polygons
+    # GeoSeries.array is typed as ExtensionArray in geopandas stubs, but at runtime
+    # this is a GeometryArray for polygon geometries.
+    return cast("GeometryArray", gpd.GeoSeries(polygons).array)

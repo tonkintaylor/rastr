@@ -162,12 +162,12 @@ def infer_transform(
     if cell_size is None:
         cell_size = infer_cell_size(x, y)
 
-    cell_size = _ensure_pair(cell_size)
+    cell_width, cell_height = _ensure_pair(cell_size)
 
     (xs, ys) = get_affine_sign(crs)
-    return Affine.translation(*infer_origin(x, y, cell_size=cell_size)) * Affine.scale(
-        xs * cell_size[0], ys * cell_size[1]
-    )
+    return Affine.translation(
+        *infer_origin(x, y, cell_size=(cell_width, cell_height))
+    ) * Affine.scale(xs * cell_width, ys * cell_height)
 
 
 def infer_origin(
@@ -178,10 +178,12 @@ def infer_origin(
     Use equal values in `cell_size` for square cells, or distinct values for
     rectangular cells.
     """
+    cell_width, cell_height = cell_size
+
     # Compute bounds from data
     minx, _miny, _maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
-    origin = (minx - cell_size[0] / 2, maxy + cell_size[1] / 2)
+    origin = (minx - cell_width / 2, maxy + cell_height / 2)
     return origin
 
 
@@ -199,14 +201,14 @@ def infer_shape(
     if cell_size is None:
         cell_size = infer_cell_size(x, y)
 
-    cell_size = _ensure_pair(cell_size)
+    cell_width, cell_height = _ensure_pair(cell_size)
 
     # Compute bounds from data
     minx, miny, maxx, maxy = np.min(x), np.min(y), np.max(x), np.max(y)
 
     # Compute grid shape
-    width = max(1, int(np.ceil((maxx - minx) / cell_size[0])) + 1)
-    height = max(1, int(np.ceil((maxy - miny) / cell_size[1])) + 1)
+    width = max(1, int(np.ceil((maxx - minx) / cell_width)) + 1)
+    height = max(1, int(np.ceil((maxy - miny) / cell_height)) + 1)
     shape = (height, width)
 
     return shape

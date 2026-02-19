@@ -33,8 +33,11 @@ class RasterMeta(BaseModel, extra="forbid"):
     def check_non_rotated_non_skewed(cls, v: Affine) -> Affine:
         """Validator to ensure the transform is non-rotated and non-skewed."""
         if v.b != 0 or v.d != 0:
-            msg = "Transform must be non-rotated and non-skewed (b and d must be 0)."
-            raise ValueError(msg)
+            msg = (
+                "Only non-rotated and non-skewed transforms are currently supported"
+                " (i.e. affine coefficients `b` and `d` must be 0)."
+            )
+            raise NotImplementedError(msg)
         return v
 
     @property

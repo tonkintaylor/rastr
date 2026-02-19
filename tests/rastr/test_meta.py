@@ -74,5 +74,5 @@ class TestRaster:
 class TestRasterMeta:
     def test_rotated_transform_fails(self):
         # Arrange / Act / Assert
-        with pytest.raises(ValidationError):
+        with pytest.raises(NotImplementedError):
             RasterMeta(crs=_NZTM_CRS, transform=Affine.rotation(30))

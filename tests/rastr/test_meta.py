@@ -69,3 +69,10 @@ class TestRaster:
             ]
         )
         np.testing.assert_allclose(coords, expected)
+
+
+class TestRasterMeta:
+    def test_rotated_transform_fails(self):
+        # Arrange / Act / Assert
+        with pytest.raises(ValidationError):
+            RasterMeta(crs=_NZTM_CRS, transform=Affine.rotation(30))

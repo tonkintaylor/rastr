@@ -1183,6 +1183,82 @@ class TestRaster:
             assert result.arr.dtype == np.int32
             assert result.raster_meta == raster_meta
 
+    class TestAstype:
+        def test_converts_to_float32(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.astype("float32")
+
+            # Assert
+            assert result.arr.dtype == np.float32
+            assert result.raster_meta == raster_meta
+
+        def test_converts_to_int16(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.astype(np.int16)
+
+            # Assert
+            assert result.arr.dtype == np.int16
+            np.testing.assert_array_equal(result.arr, np.array([[1, 2], [3, 4]]))
+
+        def test_preserves_values(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1, 2], [3, 4]], dtype=np.int32),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.astype(np.float64)
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1.0, 2.0], [3.0, 4.0]])
+            )
+
+        def test_subclass_return_type(self):
+            # Arrange
+            class MyRaster(Raster):
+                pass
+
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = MyRaster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster.astype("float32")
+
+            # Assert
+            assert isinstance(result, MyRaster)
+
     class TestSetCRS:
         def test_crs_object(self, example_raster: Raster) -> None:
             # Arrange

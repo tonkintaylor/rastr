@@ -4873,3 +4873,76 @@ class TestUnique:
         # Assert
         assert isinstance(result, np.ndarray)
         assert result.dtype == np.float32
+
+
+class TestOne:
+    def test_single_value(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        )
+        arr = np.array([[5.0, 5.0], [5.0, 5.0]], dtype=float)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        result = raster.one()
+
+        # Assert
+        assert result == 5.0
+
+    def test_single_value_with_nans(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        )
+        arr = np.array([[5.0, np.nan], [np.nan, 5.0]], dtype=float)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        result = raster.one()
+
+        # Assert
+        assert result == 5.0
+
+    def test_returns_float(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        )
+        arr = np.array([[3.0, 3.0]], dtype=float)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act
+        result = raster.one()
+
+        # Assert
+        assert isinstance(result, float)
+
+    def test_multiple_values_raises(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        )
+        arr = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=float)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="4 distinct"):
+            raster.one()
+
+    def test_all_nan_raises(self):
+        # Arrange
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        )
+        arr = np.array([[np.nan, np.nan], [np.nan, np.nan]], dtype=float)
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="no non-NaN"):
+            raster.one()

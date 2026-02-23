@@ -1032,6 +1032,36 @@ class Raster(BaseModel):
         """
         return np.unique(self.arr.flatten())
 
+    def one(self) -> float:
+        """Return the single distinct non-NaN value in the raster.
+
+        Raises a ValueError if the raster contains no non-NaN values (empty) or if
+        it contains more than one distinct non-NaN value.
+
+        This is useful in migration contexts where a quantity was previously a scalar
+        float but has been changed to a raster. Calling `.one()` safely extracts the
+        scalar value until spatial variability is fully supported downstream.
+
+        Returns:
+            The single distinct non-NaN cell value.
+
+        Raises:
+            ValueError: If the raster is empty (all NaN) or contains multiple distinct
+                non-NaN values.
+        """
+        unique_values = self.arr[~np.isnan(self.arr)]
+        distinct = np.unique(unique_values)
+        if distinct.size == 0:
+            msg = "Raster contains no non-NaN values."
+            raise ValueError(msg)
+        if distinct.size > 1:
+            msg = (
+                f"Raster contains {distinct.size} distinct non-NaN values;"
+                " expected exactly 1."
+            )
+            raise ValueError(msg)
+        return float(distinct[0])
+
     def fillna(self, value: float) -> Self:
         """Fill NaN values in the raster with a specified value.
 

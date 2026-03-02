@@ -1011,6 +1011,144 @@ class TestRaster:
             result = -float32_raster
             assert result.arr.dtype == np.float32
 
+    class TestArrayUfunc:
+        def test_ndarray_truediv_raster(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]]),
+                raster_meta=raster_meta,
+            )
+            arr = np.ones((2, 2)) * 2.0
+
+            # Act
+            result = arr / raster
+
+            # Assert
+            assert isinstance(result, Raster)
+            np.testing.assert_array_equal(
+                result.arr, np.array([[2.0, 1.0], [2 / 3, 0.5]])
+            )
+
+        def test_raster_truediv_ndarray(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[2.0, 4.0], [6.0, 8.0]]),
+                raster_meta=raster_meta,
+            )
+            arr = np.ones((2, 2)) * 2.0
+
+            # Act
+            result = raster / arr
+
+            # Assert
+            assert isinstance(result, Raster)
+            np.testing.assert_array_equal(
+                result.arr, np.array([[1.0, 2.0], [3.0, 4.0]])
+            )
+
+        def test_ndarray_add_raster(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]]),
+                raster_meta=raster_meta,
+            )
+            arr = np.ones((2, 2))
+
+            # Act
+            result = arr + raster
+
+            # Assert
+            assert isinstance(result, Raster)
+            np.testing.assert_array_equal(
+                result.arr, np.array([[2.0, 3.0], [4.0, 5.0]])
+            )
+
+        def test_ndarray_multiply_raster(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]]),
+                raster_meta=raster_meta,
+            )
+            arr = np.full((2, 2), 3.0)
+
+            # Act
+            result = arr * raster
+
+            # Assert
+            assert isinstance(result, Raster)
+            np.testing.assert_array_equal(
+                result.arr, np.array([[3.0, 6.0], [9.0, 12.0]])
+            )
+
+        def test_ndarray_subtract_raster(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]]),
+                raster_meta=raster_meta,
+            )
+            arr = np.full((2, 2), 5.0)
+
+            # Act
+            result = arr - raster
+
+            # Assert
+            assert isinstance(result, Raster)
+            np.testing.assert_array_equal(
+                result.arr, np.array([[4.0, 3.0], [2.0, 1.0]])
+            )
+
+        def test_shape_mismatch_raises(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]]),
+                raster_meta=raster_meta,
+            )
+            arr = np.ones((3, 3))
+
+            # Act
+            with pytest.raises(TypeError):
+                arr / raster
+
+        def test_unsupported_ufunc_raises(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster = Raster(
+                arr=np.array([[1.0, 2.0], [3.0, 4.0]]),
+                raster_meta=raster_meta,
+            )
+            arr = np.ones((2, 2))
+
+            # Act
+            with pytest.raises(TypeError):
+                np.power(arr, raster)
+
     class TestAbs:
         def test_mixed_values(self):
             # Arrange

@@ -59,6 +59,9 @@ MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 CONTOUR_PERTURB_EPS = 1e-10
 COORD_MATCH_TOLERANCE = 1e-9
 P = ParamSpec("P")
+_RASTER_SUPPORTED_UFUNCS: frozenset[np.ufunc] = frozenset(
+    {np.add, np.subtract, np.multiply, np.true_divide}
+)
 
 
 @contextmanager
@@ -280,6 +283,31 @@ class Raster(BaseModel):
     def __neg__(self) -> Self:
         cls = self.__class__
         return cls(arr=-self.arr, raster_meta=self.raster_meta)
+
+    def __array_ufunc__(
+        self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any
+    ) -> Self:
+        """Support NumPy ufuncs between ndarrays and Rasters.
+
+        Carries out the ufunc on the underlying array when the ndarray operand
+        has the same shape as this Raster.  Returns ``NotImplemented`` for
+        unsupported ufuncs, unsupported methods, or shape mismatches.
+        """
+        if method != "__call__" or ufunc not in _RASTER_SUPPORTED_UFUNCS:
+            return NotImplemented
+        new_inputs = []
+        for inp in inputs:
+            if isinstance(inp, np.ndarray):
+                if inp.shape != self.shape:
+                    return NotImplemented
+                new_inputs.append(inp)
+            elif isinstance(inp, Raster):
+                new_inputs.append(inp.arr)
+            else:
+                new_inputs.append(inp)
+        cls = self.__class__
+        result_arr = ufunc(*new_inputs, **kwargs)
+        return cls(arr=result_arr, raster_meta=self.raster_meta)
 
     def abs(self) -> Self:
         """Compute the absolute value of the raster.

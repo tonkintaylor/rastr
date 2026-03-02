@@ -911,7 +911,7 @@ class TestRaster:
                 transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             )
             raster1 = Raster(
-                arr=np.array([[1, 2], [3, 4]]),
+                arr=np.array([[1, 2], [3, 4]], dtype=float),
                 raster_meta=raster_meta,
             )
 
@@ -919,7 +919,9 @@ class TestRaster:
             result = 2.0 / raster1
 
             # Assert
-            np.testing.assert_array_equal(result.arr, np.array([[0.5, 1], [1.5, 2]]))
+            np.testing.assert_array_equal(
+                result.arr, np.array([[2.0 / 1, 2.0 / 2], [2.0 / 3, 2.0 / 4]])
+            )
 
         def test_shape_mismatch(self):
             # Arrange

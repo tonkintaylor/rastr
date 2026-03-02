@@ -268,22 +268,10 @@ class Raster(BaseModel):
         else:
             return NotImplemented
 
-    def __rtruediv__(self, other: float | Self) -> Self:
+    def __rtruediv__(self, other: float) -> Self:
         cls = self.__class__
         if isinstance(other, float | int):
             new_arr = other / self.arr
-            return cls(arr=new_arr, raster_meta=self.raster_meta)
-        elif isinstance(other, Raster):
-            if self.raster_meta != other.raster_meta:
-                msg = (
-                    "Rasters must have the same metadata (e.g. CRS, cell size, etc.) "
-                    "to be divided"
-                )
-                raise ValueError(msg)
-            if self.arr.shape != other.arr.shape:
-                msg = "Rasters must have the same shape to be divided"
-                raise ValueError(msg)
-            new_arr = other.arr / self.arr
             return cls(arr=new_arr, raster_meta=self.raster_meta)
         else:
             return NotImplemented

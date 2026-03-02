@@ -923,6 +923,29 @@ class TestRaster:
                 result.arr, np.array([[2.0 / 1, 2.0 / 2], [2.0 / 3, 2.0 / 4]])
             )
 
+        def test_right_div_raster(self):
+            # Arrange
+            raster_meta = RasterMeta(
+                crs=CRS.from_epsg(2193),
+                transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            )
+            raster1 = Raster(
+                arr=np.array([[1, 2], [3, 4]], dtype=float),
+                raster_meta=raster_meta,
+            )
+            raster2 = Raster(
+                arr=np.array([[5, 6], [7, 8]], dtype=float),
+                raster_meta=raster_meta,
+            )
+
+            # Act
+            result = raster1.__rtruediv__(raster2)
+
+            # Assert
+            np.testing.assert_array_equal(
+                result.arr, np.array([[5 / 1, 6 / 2], [7 / 3, 8 / 4]])
+            )
+
         def test_shape_mismatch(self):
             # Arrange
             raster_meta = RasterMeta(

@@ -270,7 +270,7 @@ class Raster(BaseModel):
 
     def __rtruediv__(self, other: float) -> Self:
         if not isinstance(other, float | int):
-            raise NotImplementedError
+            return NotImplemented
         cls = self.__class__
         new_arr = other / self.arr
         return cls(arr=new_arr, raster_meta=self.raster_meta)

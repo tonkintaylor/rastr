@@ -270,8 +270,11 @@ class Raster(BaseModel):
 
     def __rtruediv__(self, other: float) -> Self:
         cls = self.__class__
-        new_arr = other / self.arr
-        return cls(arr=new_arr, raster_meta=self.raster_meta)
+        if isinstance(other, float | int):
+            new_arr = other / self.arr
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
+        else:
+            return NotImplemented
 
     def __sub__(self, other: float | Self) -> Self:
         return self + (-other)

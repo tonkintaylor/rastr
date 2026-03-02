@@ -269,12 +269,11 @@ class Raster(BaseModel):
             return NotImplemented
 
     def __rtruediv__(self, other: float) -> Self:
+        if not isinstance(other, float | int):
+            raise NotImplementedError
         cls = self.__class__
-        if isinstance(other, float | int):
-            new_arr = other / self.arr
-            return cls(arr=new_arr, raster_meta=self.raster_meta)
-        else:
-            return NotImplemented
+        new_arr = other / self.arr
+        return cls(arr=new_arr, raster_meta=self.raster_meta)
 
     def __sub__(self, other: float | Self) -> Self:
         return self + (-other)

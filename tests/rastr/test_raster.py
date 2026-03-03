@@ -1022,7 +1022,7 @@ class TestRaster:
                 arr=np.array([[1.0, 2.0], [3.0, 4.0]]),
                 raster_meta=raster_meta,
             )
-            arr = np.ones((2, 2)) * 2.0
+            arr = np.full((2, 2), 2.0)
 
             # Act
             result = arr / raster
@@ -1043,7 +1043,7 @@ class TestRaster:
                 arr=np.array([[2.0, 4.0], [6.0, 8.0]]),
                 raster_meta=raster_meta,
             )
-            arr = np.ones((2, 2)) * 2.0
+            arr = np.full((2, 2), 2.0)
 
             # Act
             result = raster / arr

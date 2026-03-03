@@ -319,6 +319,15 @@ class Raster(BaseModel):
         has the same shape as this Raster.  Returns ``NotImplemented`` for
         unsupported ufuncs, unsupported methods, or shape mismatches.
         """
+
+        # There are over 60 ufuncs and not all output 2D arrays. For example, reduction
+        # ops like np.sum and np.min return scalars while some ufuncs can supposedly
+        # return tuples (np.modf). Some would also create types with are currently
+        # unsupported by rastr, like np.greater creating bool. Therefore, we choose
+        # to whitelist supported ufuncs, and aim to gradually expand this list. This
+        # approach allows us to fail fast with a clear error message when an unsupported
+        # ufunc is used, rather than silently passing and potentially producing
+        # unexpected results.
         if method != "__call__" or ufunc not in _RASTER_SUPPORTED_UFUNCS:
             return NotImplemented
         new_inputs = []

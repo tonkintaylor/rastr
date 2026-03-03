@@ -1149,7 +1149,9 @@ class TestRaster:
 
             # Act
             with pytest.raises(TypeError):
-                np.power(arr, raster)
+                # pyright error is correctly identifying that np.power does not support
+                # Raster, but we want to test that it raises the expected error
+                np.power(arr, raster)  # pyright: ignore[reportCallIssue, reportArgumentType]
 
     class TestAbs:
         def test_mixed_values(self):

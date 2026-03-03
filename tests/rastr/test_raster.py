@@ -1149,8 +1149,9 @@ class TestRaster:
 
             # Act
             with pytest.raises(TypeError):
-                # pyright error is correctly identifying that np.power does not support
-                # Raster, but we want to test that it raises the expected error
+                # pyright error is correctly identifying that np.power is not supported
+                # between ndarray and Raster, but we want to test that it raises the
+                # expected error
                 np.power(arr, raster)  # pyright: ignore[reportCallIssue, reportArgumentType]
 
     class TestAbs:

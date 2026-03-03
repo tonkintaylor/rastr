@@ -137,6 +137,7 @@ from rastr import Raster
 
 - [`Raster.apply(func)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.apply) - apply a function to cell values.
 - [`Raster.abs()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.abs) - absolute value of cell values.
+- [`Raster.astype(dtype)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.astype) - cast cell values to a specified dtype.
 - [`Raster.clamp()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.clamp) - clip cell values to an `(a_min, a_max)` range.
 - [`Raster.exp()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.exp) - exponential of cell values.
 - [`Raster.log()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.log) - logarithm of cell values.

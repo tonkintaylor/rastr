@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from folium import Map
     from matplotlib.axes import Axes
     from matplotlib.image import AxesImage
-    from numpy.typing import ArrayLike, NDArray
+    from numpy.typing import ArrayLike, DTypeLike, NDArray
     from rasterio.io import BufferedDatasetWriter, DatasetReader, DatasetWriter
     from shapely.geometry.base import BaseGeometry
     from typing_extensions import Self
@@ -403,6 +403,21 @@ class Raster(BaseModel):
             arr=np.clip(self.arr, a_min, a_max),
             raster_meta=self.raster_meta,
         )
+
+    def astype(self, dtype: DTypeLike) -> Self:
+        """Cast the raster array to a specified dtype.
+
+        Returns a new raster with the array cast to the given dtype. The original
+        raster is not modified.
+
+        Args:
+            dtype: Target data type (e.g. ``"float32"``, ``np.int16``).
+
+        Returns:
+            A new Raster instance with the array cast to the specified dtype.
+        """
+        cls = self.__class__
+        return cls(arr=self.arr.astype(dtype), raster_meta=self.raster_meta)
 
     def set_crs(self, crs: CRS | str, *, allow_override: bool = False) -> Self:
         """Set the CRS of the raster without reprojecting.

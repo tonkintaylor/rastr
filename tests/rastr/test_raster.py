@@ -1133,7 +1133,10 @@ class TestRaster:
 
             # Act
             with pytest.raises(TypeError):
-                arr / raster
+                # pyright error is correctly identifying that the shapes are
+                # incompatible for the operation, but we want to test that it raises the
+                # expected error
+                arr / raster  # pyright: ignore[reportOperatorIssue]
 
         def test_unsupported_ufunc_raises(self):
             # Arrange

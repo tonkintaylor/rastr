@@ -202,7 +202,7 @@ class Raster(BaseModel):
 
     __hash__ = BaseModel.__hash__
 
-    def __add__(self, other: float | Self) -> Self:
+    def __add__(self, other: float | Self | ArrayLike) -> Self:
         cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr + other
@@ -225,10 +225,10 @@ class Raster(BaseModel):
         else:
             return NotImplemented
 
-    def __radd__(self, other: float) -> Self:
+    def __radd__(self, other: float | ArrayLike) -> Self:
         return self + other
 
-    def __mul__(self, other: float | Self) -> Self:
+    def __mul__(self, other: float | Self | ArrayLike) -> Self:
         cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr * other
@@ -248,10 +248,10 @@ class Raster(BaseModel):
         else:
             return NotImplemented
 
-    def __rmul__(self, other: float) -> Self:
+    def __rmul__(self, other: float | ArrayLike) -> Self:
         return self * other
 
-    def __truediv__(self, other: float | Self) -> Self:
+    def __truediv__(self, other: float | Self | ArrayLike) -> Self:
         cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr / other
@@ -271,14 +271,36 @@ class Raster(BaseModel):
         else:
             return NotImplemented
 
-    def __rtruediv__(self, other: float) -> Self:
+    def __rtruediv__(self, other: float | ArrayLike) -> Self:
         return self / other
 
-    def __sub__(self, other: float | Self) -> Self:
-        return self + (-other)
+    def __sub__(self, other: float | Self | ArrayLike) -> Self:
+        cls = self.__class__
+        if isinstance(other, float | int):
+            new_arr = self.arr - other
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
+        elif isinstance(other, Raster):
+            if self.raster_meta != other.raster_meta:
+                msg = (
+                    "Rasters must have the same metadata (e.g. CRS, cell size, etc.) "
+                    "to be subtracted"
+                )
+                raise ValueError(msg)
+            if self.arr.shape != other.arr.shape:
+                msg = "Rasters must have the same shape to be subtracted"
+                raise ValueError(msg)
+            new_arr = self.arr - other.arr
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
+        else:
+            return NotImplemented
 
-    def __rsub__(self, other: float) -> Self:
-        return -self + other
+    def __rsub__(self, other: float | ArrayLike) -> Self:
+        cls = self.__class__
+        if isinstance(other, float | int):
+            new_arr = other - self.arr
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
+        else:
+            return NotImplemented
 
     def __neg__(self) -> Self:
         cls = self.__class__

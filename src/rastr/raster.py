@@ -59,6 +59,9 @@ MATPLOTLIB_INSTALLED = importlib.util.find_spec("matplotlib") is not None
 CONTOUR_PERTURB_EPS = 1e-10
 COORD_MATCH_TOLERANCE = 1e-9
 P = ParamSpec("P")
+_RASTER_SUPPORTED_UFUNCS: frozenset[np.ufunc] = frozenset(
+    {np.add, np.subtract, np.multiply, np.true_divide}
+)
 
 
 @contextmanager
@@ -199,7 +202,7 @@ class Raster(BaseModel):
 
     __hash__ = BaseModel.__hash__
 
-    def __add__(self, other: float | Self) -> Self:
+    def __add__(self, other: float | Self | ArrayLike) -> Self:
         cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr + other
@@ -222,10 +225,10 @@ class Raster(BaseModel):
         else:
             return NotImplemented
 
-    def __radd__(self, other: float) -> Self:
+    def __radd__(self, other: float | ArrayLike) -> Self:
         return self + other
 
-    def __mul__(self, other: float | Self) -> Self:
+    def __mul__(self, other: float | Self | ArrayLike) -> Self:
         cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr * other
@@ -245,10 +248,10 @@ class Raster(BaseModel):
         else:
             return NotImplemented
 
-    def __rmul__(self, other: float) -> Self:
+    def __rmul__(self, other: float | ArrayLike) -> Self:
         return self * other
 
-    def __truediv__(self, other: float | Self) -> Self:
+    def __truediv__(self, other: float | Self | ArrayLike) -> Self:
         cls = self.__class__
         if isinstance(other, float | int):
             new_arr = self.arr / other
@@ -275,15 +278,71 @@ class Raster(BaseModel):
         new_arr = other / self.arr
         return cls(arr=new_arr, raster_meta=self.raster_meta)
 
-    def __sub__(self, other: float | Self) -> Self:
-        return self + (-other)
+    def __sub__(self, other: float | Self | ArrayLike) -> Self:
+        cls = self.__class__
+        if isinstance(other, float | int):
+            new_arr = self.arr - other
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
+        elif isinstance(other, Raster):
+            if self.raster_meta != other.raster_meta:
+                msg = (
+                    "Rasters must have the same metadata (e.g. CRS, cell size, etc.) "
+                    "to be subtracted"
+                )
+                raise ValueError(msg)
+            if self.arr.shape != other.arr.shape:
+                msg = "Rasters must have the same shape to be subtracted"
+                raise ValueError(msg)
+            new_arr = self.arr - other.arr
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
+        else:
+            return NotImplemented
 
-    def __rsub__(self, other: float) -> Self:
-        return -self + other
+    def __rsub__(self, other: float | ArrayLike) -> Self:
+        cls = self.__class__
+        if isinstance(other, float | int):
+            new_arr = other - self.arr
+            return cls(arr=new_arr, raster_meta=self.raster_meta)
+        else:
+            return NotImplemented
 
     def __neg__(self) -> Self:
         cls = self.__class__
         return cls(arr=-self.arr, raster_meta=self.raster_meta)
+
+    def __array_ufunc__(
+        self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any
+    ) -> Self:
+        """Support NumPy ufuncs between ndarrays and Rasters.
+
+        Carries out the ufunc on the underlying array when the ndarray operand
+        has the same shape as this Raster.  Returns ``NotImplemented`` for
+        unsupported ufuncs, unsupported methods, or shape mismatches.
+        """
+
+        # There are over 60 ufuncs and not all output 2D arrays. For example, reduction
+        # ops like np.sum and np.min return scalars while some ufuncs can supposedly
+        # return tuples (np.modf). Some would also create types with are currently
+        # unsupported by rastr, like np.greater creating bool. Therefore, we choose
+        # to whitelist supported ufuncs, and aim to gradually expand this list. This
+        # approach allows us to fail fast with a clear error message when an unsupported
+        # ufunc is used, rather than silently passing and potentially producing
+        # unexpected results.
+        if method != "__call__" or ufunc not in _RASTER_SUPPORTED_UFUNCS:
+            return NotImplemented
+        new_inputs = []
+        for inp in inputs:
+            if isinstance(inp, np.ndarray):
+                if inp.shape != self.shape:
+                    return NotImplemented
+                new_inputs.append(inp)
+            elif isinstance(inp, Raster):
+                new_inputs.append(inp.arr)
+            else:
+                new_inputs.append(inp)
+        cls = self.__class__
+        result_arr = ufunc(*new_inputs, **kwargs)
+        return cls(arr=result_arr, raster_meta=self.raster_meta)
 
     def abs(self) -> Self:
         """Compute the absolute value of the raster.

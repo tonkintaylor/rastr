@@ -1132,7 +1132,7 @@ class TestRaster:
             arr = np.ones((3, 3))
 
             # Act
-            with pytest.raises(TypeError):
+            with pytest.raises(ValueError, match="shapes must be equal"):
                 # pyright error is correctly identifying that the shapes are
                 # incompatible for the operation, but we want to test that it raises the
                 # expected error

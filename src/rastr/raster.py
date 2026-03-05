@@ -334,7 +334,12 @@ class Raster(BaseModel):
         for inp in inputs:
             if isinstance(inp, np.ndarray):
                 if inp.shape != self.shape:
-                    return NotImplemented
+                    msg = (
+                        f"Cannot apply ufunc '{ufunc.__name__}' between ndarray of"
+                        f" shape {inp.shape} and Raster of shape {self.shape}:"
+                        " shapes must be equal."
+                    )
+                    raise ValueError(msg)
                 new_inputs.append(inp)
             elif isinstance(inp, Raster):
                 new_inputs.append(inp.arr)

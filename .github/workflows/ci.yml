@@ -76,7 +76,7 @@ jobs:
     strategy:
       matrix:
         python_version: ["3.10", "3.14"]
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os: ["ubuntu-latest"]
         dependencies: ["lockfile"]
         sonarqube: ["false"]
         include:
@@ -94,6 +94,17 @@ jobs:
           - dependencies: "max"
             python_version: "3.14"
             os: "ubuntu-latest"
+            checks: "false"
+          # Cross-platform spot-checks on latest Python only (cost-reduced from full matrix)
+          - python_version: "3.14"
+            os: "windows-latest"
+            dependencies: "lockfile"
+            sonarqube: "false"
+            checks: "false"
+          - python_version: "3.14"
+            os: "macos-latest"
+            dependencies: "lockfile"
+            sonarqube: "false"
             checks: "false"
 
   code-analysis:
@@ -138,3 +149,4 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+

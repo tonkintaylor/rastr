@@ -239,3 +239,9 @@ doc/source/_apidoc/
 
 # GitHub Copilot scratchpad
 .github/scratchpad.md
+
+# Agent skills
+.agents/skills/*
+skills-lock.json
+.worktrees/*
+.scratch/*

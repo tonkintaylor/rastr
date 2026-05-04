@@ -1,0 +1,67 @@
+name: "Copilot Setup Steps"
+permissions: {}
+on:
+    workflow_dispatch:
+    push:
+        paths:
+            - .github/workflows/copilot-setup-steps.yml
+    pull_request:
+        paths:
+            - .github/workflows/copilot-setup-steps.yml
+jobs:
+    copilot-setup-steps:
+        runs-on: ubuntu-latest
+        environment: copilot
+        permissions:
+            contents: read # Required to checkout for the uv lockfile
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  persist-credentials: false
+
+            - name: Generate GitHub App token
+              id: app-token
+              uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+              with:
+                  client-id: ${{ secrets.SKILLS_APP_ID }}
+                  private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
+                  owner: tonkintaylor
+                  repositories: .github-private
+
+            - name: Authenticate gh CLI and git with App token
+              env:
+                  GH_TOKEN: ${{ steps.app-token.outputs.token }}
+              run: |
+                  # Configure gh CLI
+                  gh auth setup-git
+
+                  # Also set a credential helper so plain git clones work
+                  git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+            - name: Set up uv
+              uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+              with:
+                  version: latest
+                  activate-environment: true
+
+            - name: Set up Node.js
+              uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+              with:
+                  cache: "npm"
+                  cache-dependency-path: ".github/workflows/copilot-setup-steps.yml"
+
+            - name: Install external agent skills
+              env:
+                  GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                  GIT_CONFIG_COUNT: "1"
+                  GIT_CONFIG_KEY_0: core.autocrlf
+                  GIT_CONFIG_VALUE_0: "false"
+              run: |
+                  npx skills add tonkintaylor/.github-private --skill '*' --agent github-copilot --yes
+
+            - name: Setup dependencies
+              run: uv sync
+
+            - name: Install prek hooks
+              run: uvx prek install

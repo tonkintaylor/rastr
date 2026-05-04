@@ -27,6 +27,7 @@ jobs:
                   client-id: ${{ secrets.SKILLS_APP_ID }}
                   private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
                   owner: tonkintaylor
+                  repositories: .github-private
 
             - name: Authenticate gh CLI and git with App token
               env:

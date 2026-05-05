@@ -5026,6 +5026,82 @@ class TestRasterStatistics:
         all_nan_slice_raster.quantile(0.8)
 
 
+class TestCxmax:
+    """Test the cxmax method of the Raster class."""
+
+    def test_basic(self, stats_test_raster: Raster) -> None:
+        """Test cxmax returns coordinate of maximum value."""
+        # The 3x3 array is [[1,2,3],[4,5,6],[7,8,9]] with cell size 2.
+        # Max value 9 is at row=2, col=2.
+        # x = (2 + 0.5) * 2 = 5, y = (2 + 0.5) * 2 = 5
+        x, y = stats_test_raster.cxmax()
+        assert x == pytest.approx(5.0)
+        assert y == pytest.approx(5.0)
+
+    def test_with_nans(self, stats_test_raster_with_nans: Raster) -> None:
+        """Test cxmax ignores NaN values."""
+        # Array is [[1,2,nan],[4,nan,6],[7,8,9]], max=9 at row=2, col=2
+        x, y = stats_test_raster_with_nans.cxmax()
+        assert x == pytest.approx(5.0)
+        assert y == pytest.approx(5.0)
+
+    def test_all_nan_raises(self) -> None:
+        """Test cxmax raises ValueError for all-NaN raster."""
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        all_nan = Raster(arr=np.full((3, 3), np.nan), raster_meta=meta)
+        with pytest.raises(ValueError, match="Cannot find cxmax"):
+            all_nan.cxmax()
+
+    def test_negative_scale(self, example_neg_scaled_raster: Raster) -> None:
+        """Test cxmax with negative y-scale transform."""
+        # Array is [[1,2],[3,4]], max=4 at row=1, col=1
+        # transform Affine(2.0, 0.0, 0.0, 0.0, -2.0, 0.0)
+        # x = (1 + 0.5) * 2 = 3, y = (1 + 0.5) * -2 = -3
+        x, y = example_neg_scaled_raster.cxmax()
+        assert x == pytest.approx(3.0)
+        assert y == pytest.approx(-3.0)
+
+
+class TestCxmin:
+    """Test the cxmin method of the Raster class."""
+
+    def test_basic(self, stats_test_raster: Raster) -> None:
+        """Test cxmin returns coordinate of minimum value."""
+        # Min value 1 is at row=0, col=0.
+        # x = (0 + 0.5) * 2 = 1, y = (0 + 0.5) * 2 = 1
+        x, y = stats_test_raster.cxmin()
+        assert x == pytest.approx(1.0)
+        assert y == pytest.approx(1.0)
+
+    def test_with_nans(self, stats_test_raster_with_nans: Raster) -> None:
+        """Test cxmin ignores NaN values."""
+        # Array is [[1,2,nan],[4,nan,6],[7,8,9]], min=1 at row=0, col=0
+        x, y = stats_test_raster_with_nans.cxmin()
+        assert x == pytest.approx(1.0)
+        assert y == pytest.approx(1.0)
+
+    def test_all_nan_raises(self) -> None:
+        """Test cxmin raises ValueError for all-NaN raster."""
+        meta = RasterMeta(
+            crs=CRS.from_epsg(2193),
+            transform=Affine(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        )
+        all_nan = Raster(arr=np.full((3, 3), np.nan), raster_meta=meta)
+        with pytest.raises(ValueError, match="Cannot find cxmin"):
+            all_nan.cxmin()
+
+    def test_negative_scale(self, example_neg_scaled_raster: Raster) -> None:
+        """Test cxmin with negative y-scale transform."""
+        # Array is [[1,2],[3,4]], min=1 at row=0, col=0
+        # x = (0 + 0.5) * 2 = 1, y = (0 + 0.5) * -2 = -1
+        x, y = example_neg_scaled_raster.cxmin()
+        assert x == pytest.approx(1.0)
+        assert y == pytest.approx(-1.0)
+
+
 class TestNormalize:
     def test_example(self, example_raster: Raster):
         # Act

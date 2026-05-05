@@ -22,6 +22,7 @@ import rasterio.features
 import rasterio.plot
 import rasterio.sample
 import rasterio.transform
+from affine import Affine
 from pydantic import BaseModel, InstanceOf, field_validator
 from pyproj import Transformer
 from pyproj.crs.crs import CRS
@@ -41,7 +42,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import geopandas as gpd
-    from affine import Affine
     from branca.colormap import LinearColormap as BrancaLinearColormap
     from folium import Map
     from matplotlib.axes import Axes
@@ -1929,12 +1929,15 @@ class Raster(BaseModel):
                 resampling=Resampling.bilinear,
             )
 
-            # Create new RasterMeta with updated transform
+            # Create new RasterMeta with the exact requested cell size
             new_raster_meta = RasterMeta(
-                transform=dataset.transform
-                * dataset.transform.scale(
-                    (dataset.width / new_width),
-                    (dataset.height / new_height),
+                transform=Affine(
+                    target_cell_width,
+                    dataset.transform.b,
+                    dataset.transform.c,
+                    dataset.transform.d,
+                    -target_cell_height,
+                    dataset.transform.f,
                 ),
                 crs=self.raster_meta.crs,
             )

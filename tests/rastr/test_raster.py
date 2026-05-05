@@ -4630,6 +4630,21 @@ class TestResample:
         result = float64_raster.resample(cell_size=0.5)
         assert result.arr.dtype == np.float64
 
+    def test_non_multiple_dimensions_produce_exact_cell_size(self):
+        """Regression: non-multiple dimensions must not drift cell size."""
+        arr = np.random.default_rng(42).random((101, 99)).astype(np.float32)
+        meta = RasterMeta(
+            transform=Affine(0.5, 0, 100.0, 0, -0.5, 200.0),
+            crs=CRS.from_epsg(2193),
+        )
+        raster = Raster(arr=arr, raster_meta=meta)
+
+        resampled = raster.resample(2.0)
+
+        assert resampled.raster_meta.cell_size == (2.0, 2.0)
+        assert resampled.raster_meta.has_square_cells
+        assert resampled.raster_meta.square_cell_size == 2.0
+
 
 class TestReplacePolygon:
     def test_single_polygon_full_extent_of_raster(self, example_raster: Raster):

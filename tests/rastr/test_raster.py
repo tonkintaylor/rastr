@@ -322,6 +322,52 @@ class TestRaster:
             assert example_raster.raster_meta.transform == new_transform
             assert example_raster.transform != original_transform
 
+    class TestOrigin:
+        def test_origin_getter(self, example_raster: Raster):
+            # Act
+            origin = example_raster.origin
+
+            # Assert
+            assert origin == (example_raster.transform.c, example_raster.transform.f)
+
+        def test_origin_getter_with_offset(self):
+            # Arrange
+            meta = RasterMeta(
+                crs=CRS.from_epsg(4326),
+                transform=Affine(0.1, 0.0, 160.0, 0.0, -0.1, -30.0),
+            )
+            raster = Raster(arr=np.ones((10, 10)), raster_meta=meta)
+
+            # Act
+            origin = raster.origin
+
+            # Assert
+            assert origin == (160.0, -30.0)
+
+        def test_origin_setter(self, example_raster: Raster):
+            # Arrange
+            new_origin = (100.0, 200.0)
+
+            # Act
+            example_raster.origin = new_origin
+
+            # Assert
+            assert example_raster.origin == new_origin
+            assert example_raster.transform.c == 100.0
+            assert example_raster.transform.f == 200.0
+
+        def test_origin_setter_preserves_scale(self, example_raster: Raster):
+            # Arrange
+            original_a = example_raster.transform.a
+            original_e = example_raster.transform.e
+
+            # Act
+            example_raster.origin = (50.0, 60.0)
+
+            # Assert
+            assert example_raster.transform.a == original_a
+            assert example_raster.transform.e == original_e
+
     class TestCellSize:
         def test_cell_size_getter(self, example_raster: Raster):
             # Act
@@ -1481,6 +1527,71 @@ class TestRaster:
 
             # Assert
             assert result.crs.to_epsg() == example_raster.crs.to_epsg()
+
+    class TestSetOrigin:
+        def test_set_x(self, example_raster: Raster) -> None:
+            # Act
+            result = example_raster.set_origin(x=100.0)
+
+            # Assert
+            assert result.origin == (100.0, example_raster.origin[1])
+            assert np.array_equal(result.arr, example_raster.arr)
+            assert result.crs == example_raster.crs
+
+        def test_set_y(self, example_raster: Raster) -> None:
+            # Act
+            result = example_raster.set_origin(y=200.0)
+
+            # Assert
+            assert result.origin == (example_raster.origin[0], 200.0)
+            assert np.array_equal(result.arr, example_raster.arr)
+
+        def test_set_both(self, example_raster: Raster) -> None:
+            # Act
+            result = example_raster.set_origin(x=50.0, y=60.0)
+
+            # Assert
+            assert result.origin == (50.0, 60.0)
+            assert np.array_equal(result.arr, example_raster.arr)
+
+        def test_no_op_when_neither_provided(self, example_raster: Raster) -> None:
+            # Act
+            result = example_raster.set_origin()
+
+            # Assert
+            assert result.origin == example_raster.origin
+            assert result is not example_raster
+
+        def test_returns_new_instance(self, example_raster: Raster) -> None:
+            # Act
+            result = example_raster.set_origin(x=100.0)
+
+            # Assert
+            assert result is not example_raster
+            assert result.raster_meta is not example_raster.raster_meta
+
+        def test_preserves_cell_size(self, example_raster: Raster) -> None:
+            # Act
+            result = example_raster.set_origin(x=100.0, y=200.0)
+
+            # Assert
+            assert result.cell_size == example_raster.cell_size
+
+        def test_longitude_wrapping_use_case(self) -> None:
+            # Arrange - raster with non-standard longitude
+            meta = RasterMeta(
+                crs=CRS.from_epsg(4326),
+                transform=Affine(1.0, 0.0, -200.0, 0.0, -1.0, -30.0),
+            )
+            raster = Raster(arr=np.ones((30, 30)), raster_meta=meta)
+
+            # Act
+            result = raster.set_origin(x=raster.origin[0] + 360)
+
+            # Assert
+            assert result.origin[0] == pytest.approx(160.0)
+            assert result.bounds.xmin == pytest.approx(160.0)
+            assert np.array_equal(result.arr, raster.arr)
 
     class TestApply:
         def test_sine(self, example_raster: Raster):

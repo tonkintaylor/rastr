@@ -6,11 +6,21 @@
 
 ## Motivation
 
-When working with ShakeMap rasters for events near the antimeridian (e.g. New Zealand), some source rasters arrive with non-standard longitude conventions where longitudes are stored as negative values that exceed -180° (e.g. bounds from -200° to -170° instead of 160° to 190°).
+Some upstream data sources produce raster files with non-standard longitude
+conventions. For example, certain ShakeMap TIFs for events near the
+antimeridian (e.g. New Zealand) store longitudes as negative values that
+exceed -180° (e.g. bounds from -200° to -170° instead of 160° to 190°).
 
-This causes spatial operations like `to_bounds()` to produce all-NaN output because there's no overlap between the raster's stored coordinates and the target bounds in standard EPSG:4326.
+This is a data-quality issue in the source files, not a bug in rastr. However,
+when such a raster is loaded, spatial operations like `to_bounds()` produce
+all-NaN output because the stored coordinates have no overlap with target
+bounds expressed in standard EPSG:4326.
 
-Currently the only workaround is manually reconstructing the affine transform with an offset applied to the origin coordinate, or rebuilding the Raster with adjusted metadata.
+The existing workaround — manually reconstructing the affine transform or
+rebuilding the Raster with adjusted metadata — works but is verbose and
+non-obvious. The purpose of this feature is not to fix the upstream data
+problem, but to provide a clean, readable API for callers who need to
+normalize such rasters before performing spatial operations.
 
 ## Design
 
@@ -100,8 +110,10 @@ if raster.bounds.xmin < -180:
 result = raster.to_bounds(target_bounds)
 ```
 
-## Not Included
+## Deliberately Excluded
 
-- Automatic longitude detection/normalization (caller decides when and how much to shift)
-- Reprojection or pixel resampling (this is metadata-only)
-- Validation that the new origin is "sensible" (the user knows their data)
+The following were considered and rejected as contrary to the design intent:
+
+- **Automatic longitude detection/normalization** — Baking a detection heuristic into the library is premature. Different datasets use different conventions (0–360, -180–180, etc.) and the "correct" normalization depends on the caller's target coordinate space. The caller decides when and how much to shift.
+- **Reprojection or pixel resampling** — This feature is metadata-only by design. It adjusts where the grid sits in coordinate space without touching pixel values. Reprojection is a fundamentally different operation.
+- **Validation that the new origin is "sensible"** — The user knows their data. Adding bounds-checking would prevent legitimate use cases (e.g. rasters in projected CRS with large coordinate values) without catching the errors it aims to prevent.

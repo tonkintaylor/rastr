@@ -94,6 +94,7 @@ from rastr import Raster
 - [`Raster.bounds`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.bounds) - bounding box as `(xmin, ymin, xmax, ymax)`.
 - [`Raster.cell_size`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.cell_size) - cell size.
 - [`Raster.crs`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.crs) - coordinate reference system.
+- [`Raster.origin`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.origin) - grid origin (x, y) of the first pixel corner.
 - [`Raster.shape`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.shape) - raster shape (rows, columns).
 - [`Raster.transform`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.transform) - affine transform.
 - [`Raster.sample(xy)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.sample) - sample raster values at given coordinates.
@@ -109,6 +110,7 @@ from rastr import Raster
 - [`Raster.crop(bounds)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.crop) - remove cells outside given bounds.
 - [`Raster.pad(width)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.pad) - add NaN border around raster.
 - [`Raster.resample(cell_size)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.resample) - resample raster to a new cell size.
+- [`Raster.set_origin(x, y)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.set_origin) - set the transform origin without modifying pixel data.
 - [`Raster.taper_border(width)`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.taper_border) - gradually reduce values to zero at the border.
 - [`Raster.gdf()`](https://rastr.readthedocs.io/en/stable/autoapi/rastr/raster/#rastr.raster.Raster.gdf) - Vectorize to a GeoDataFrame of cell polygons and values.
 

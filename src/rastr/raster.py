@@ -139,6 +139,23 @@ class Raster(BaseModel):
         self.meta.transform = value
 
     @property
+    def origin(self) -> tuple[float, float]:
+        """The grid origin (x, y) — the corner of the first pixel.
+
+        This is the translation component (c, f) of the affine transform.
+        For north-up rasters this corresponds to (xmin, ymax); for south-up
+        rasters it corresponds to (xmin, ymin).
+        """
+        return (self.transform.c, self.transform.f)
+
+    @origin.setter
+    def origin(self, value: tuple[float, float]) -> None:
+        """Set the grid origin via the transform."""
+        x, y = value
+        t = self.transform
+        self.transform = Affine(t.a, t.b, x, t.d, t.e, y)
+
+    @property
     def cell_size(self) -> tuple[float, float]:
         """Convenience property to access the cell size via meta."""
         return self.meta.cell_size
@@ -462,6 +479,40 @@ class Raster(BaseModel):
         new_meta = RasterMeta(
             crs=crs_obj,
             transform=self.raster_meta.transform,
+        )
+        return self.__class__(arr=self.arr, raster_meta=new_meta)
+
+    def set_origin(self, *, x: float | None = None, y: float | None = None) -> Self:
+        """Set the transform origin without modifying pixel data.
+
+        The origin is the corner of the first pixel in the raster grid —
+        the translation component (c, f) of the affine transform. For
+        north-up rasters this corresponds to (xmin, ymax); for south-up
+        rasters it corresponds to (xmin, ymin).
+
+        Unspecified axes retain their current value. If neither axis is
+        provided, returns an unchanged copy.
+
+        Args:
+            x: New x-coordinate of the grid origin. If None, keeps current.
+            y: New y-coordinate of the grid origin. If None, keeps current.
+
+        Returns:
+            A new Raster with the updated transform origin and unchanged array data.
+
+        Example:
+            Normalize a raster with non-standard longitude (e.g., -200° to -170°)
+            to standard EPSG:4326 range::
+
+                raster = raster.set_origin(x=raster.origin[0] + 360)
+        """
+        t = self.raster_meta.transform
+        new_x = x if x is not None else t.c
+        new_y = y if y is not None else t.f
+        new_transform = Affine(t.a, t.b, new_x, t.d, t.e, new_y)
+        new_meta = RasterMeta(
+            crs=self.raster_meta.crs,
+            transform=new_transform,
         )
         return self.__class__(arr=self.arr, raster_meta=new_meta)
 

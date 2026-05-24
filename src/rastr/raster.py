@@ -1158,6 +1158,65 @@ class Raster(BaseModel):
         with suppress_slice_warning():
             return float(np.nansum(self.arr))
 
+    def _cx_stat(
+        self,
+        nanarg_func: Callable[[NDArray], np.intp],
+        name: str,
+    ) -> tuple[float, float]:
+        """Get the coordinate of the cell centre identified by a nanarg* function.
+
+        Args:
+            nanarg_func: A NumPy nanarg function (e.g. np.nanargmax, np.nanargmin)
+                that returns a flat index into the array.
+            name: Human-readable name of the statistic, used in error messages.
+
+        Returns:
+            A tuple (x, y) representing the coordinate of the identified cell centre.
+
+        Raises:
+            ValueError: If all values in the raster are NaN.
+        """
+        if np.all(np.isnan(self.arr)):
+            msg = f"Cannot find {name} of an all-NaN raster."
+            raise ValueError(msg)
+        idx = np.unravel_index(nanarg_func(self.arr), self.arr.shape)
+        row, col = int(idx[0]), int(idx[1])
+        x_coords = self.raster_meta.get_cell_x_coords(self.arr.shape[1])
+        y_coords = self.raster_meta.get_cell_y_coords(self.arr.shape[0])
+        return float(x_coords[col]), float(y_coords[row])
+
+    def cxmax(self) -> tuple[float, float]:
+        """Get the coordinate of the cell centre with the maximum value.
+
+        Returns the (x, y) coordinate of the centre of the pixel containing the
+        maximum value in the raster, ignoring NaN values. If multiple pixels share
+        the maximum value, the first occurrence in row-major order is returned.
+
+        Returns:
+            A tuple (x, y) representing the coordinate of the cell centre with
+            the maximum value.
+
+        Raises:
+            ValueError: If all values in the raster are NaN.
+        """
+        return self._cx_stat(np.nanargmax, "cxmax")
+
+    def cxmin(self) -> tuple[float, float]:
+        """Get the coordinate of the cell centre with the minimum value.
+
+        Returns the (x, y) coordinate of the centre of the pixel containing the
+        minimum value in the raster, ignoring NaN values. If multiple pixels share
+        the minimum value, the first occurrence in row-major order is returned.
+
+        Returns:
+            A tuple (x, y) representing the coordinate of the cell centre with
+            the minimum value.
+
+        Raises:
+            ValueError: If all values in the raster are NaN.
+        """
+        return self._cx_stat(np.nanargmin, "cxmin")
+
     def unique(self) -> NDArray:
         """Get the unique cell values in the raster, including NaN.
 

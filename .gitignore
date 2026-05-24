@@ -208,6 +208,7 @@ __marimo__/
 
 # Profiling output
 *.prof
+scripts/profiling/*.html
 
 # Black formatter temp files
 *.py.*.tmp

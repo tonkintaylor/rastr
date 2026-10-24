@@ -108,7 +108,13 @@ version-file = "src/rastr/_version.py"
 
 [tool.uv]
 default-groups = [ "dev", "test", "doc" ]
-required-version = ">=0.7.13"             # sync with .pre-commit-config.yaml and release.yml
+required-version = ">=0.13.5"
+constraint-dependencies = [
+  "certifi>=2026.10.19",
+  "pip>=26.2.2",
+  "uv>=0.13.5",
+  "sigstore>=4.5.1",
+] # sync with .pre-commit-config.yaml and release.yml
 link-mode = "symlink"
 
 [tool.ruff]

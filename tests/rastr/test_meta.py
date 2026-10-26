@@ -53,7 +53,7 @@ class TestRaster:
         # Arrange
         cell_size = 2.0
         crs = _NZTM_CRS
-        transform = Affine.translation(100, 200) * Affine.scale(cell_size, -cell_size)
+        transform = Affine.translation(100, 200) @ Affine.scale(cell_size, -cell_size)
         meta = RasterMeta(crs=crs, transform=transform)
         shape = (2, 3)
 

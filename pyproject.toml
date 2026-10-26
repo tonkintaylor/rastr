@@ -30,7 +30,7 @@ classifiers = [
 ]
 dynamic = [ "urls", "version" ]
 dependencies = [
-  "affine>=2.4.0",
+  "affine>=3.0.0",
   "branca>=0.8.1",
   "folium>=0.20.0",
   "geopandas>=1.1.1",

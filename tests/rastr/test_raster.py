@@ -310,7 +310,7 @@ class TestRaster:
 
         def test_transform_setter(self, example_raster: Raster):
             # Arrange
-            new_transform = Affine.scale(3.0, 3.0) * Affine.translation(10.0, 20.0)
+            new_transform = Affine.scale(3.0, 3.0) @ Affine.translation(10.0, 20.0)
             original_transform = example_raster.transform
 
             # Act
@@ -1931,7 +1931,7 @@ class TestRaster:
             # Arrange
             raster_path = tmp_path / "invalid_crs.tif"
             data = np.array([[1, 2], [3, 4]], dtype=np.float32)
-            transform = Affine.translation(0, 2) * Affine.scale(1, -1)
+            transform = Affine.translation(0, 2) @ Affine.scale(1, -1)
             with rasterio.open(
                 raster_path,
                 "w",
@@ -1955,7 +1955,7 @@ class TestRaster:
     class TestReadMosaicDir:
         def test_basic_mosaic(self, tmp_path: Path):
             # Arrange – create two small adjacent raster tiles in tmp_path
-            transform1 = Affine.translation(0, 2) * Affine.scale(1, -1)
+            transform1 = Affine.translation(0, 2) @ Affine.scale(1, -1)
             data1 = np.array([[1, 2], [3, 4]], dtype=np.float32)
             data2 = np.array([[5, 6], [7, 8]], dtype=np.float32)
 
@@ -1975,7 +1975,7 @@ class TestRaster:
                 dst.write(data1, 1)
 
             # Second tile, translate by 2 pixels in x
-            transform2 = Affine.translation(2, 2) * Affine.scale(1, -1)
+            transform2 = Affine.translation(2, 2) @ Affine.scale(1, -1)
             tif2 = tmp_path / "tile_2.tif"
             with rasterio.open(
                 tif2,
@@ -2010,7 +2010,7 @@ class TestRaster:
             """It should override the CRS if provided in the call."""
             # Arrange
             data = np.array([[10, 20], [30, 40]], dtype=np.float32)
-            transform = Affine.translation(0, 2) * Affine.scale(1, -1)
+            transform = Affine.translation(0, 2) @ Affine.scale(1, -1)
             tif_path = tmp_path / "tile_a.tif"
             with rasterio.open(
                 tif_path,

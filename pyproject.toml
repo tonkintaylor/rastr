@@ -257,7 +257,11 @@ markers = [
   "matplotlib: test requires matplotlib package",
 ]
 console_output_style = "progress"
-filterwarnings = [ "error" ]
+filterwarnings = [
+  "error",
+  # rasterio 1.4.x composes Affine transforms with `*`, which affine>=3.0.1 flags.
+  'ignore:Use `@` matmul instead of `\*` mul operator:PendingDeprecationWarning:rasterio',
+]
 xfail_strict = true
 log_cli_level = "INFO"
 

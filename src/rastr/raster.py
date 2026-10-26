@@ -898,11 +898,11 @@ class Raster(BaseModel):
         max_y_unsuppressed = np.max(y_unsuppressed)
 
         # Transform to raster CRS
-        x1, y1 = self.raster_meta.transform * (  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        x1, y1 = self.raster_meta.transform @ (  # type: ignore[reportAssignmentType] overloaded tuple size in affine
             min_x_unsuppressed,
             min_y_unsuppressed,
         )
-        x2, y2 = self.raster_meta.transform * (  # type: ignore[reportAssignmentType]
+        x2, y2 = self.raster_meta.transform @ (  # type: ignore[reportAssignmentType]
             max_x_unsuppressed + 1,
             max_y_unsuppressed + 1,
         )
@@ -1906,7 +1906,7 @@ class Raster(BaseModel):
         # Shift the transform by the number of pixels cropped (min_col, min_row)
         new_transform = (
             self.raster_meta.transform
-            * rasterio.transform.Affine.translation(min_col, min_row)
+            @ rasterio.transform.Affine.translation(min_col, min_row)
         )
 
         # Create new metadata

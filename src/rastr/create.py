@@ -207,7 +207,7 @@ def rasterize_gdf(
     xs, ys = get_affine_sign(raster_meta.crs)
     transform = Affine.translation(
         expanded_bounds[0], expanded_bounds[3]
-    ) * Affine.scale(xs * cell_width, ys * cell_height)
+    ) @ Affine.scale(xs * cell_width, ys * cell_height)
 
     # Create rasters for each target column using rasterio.features.rasterize
     rasters = []

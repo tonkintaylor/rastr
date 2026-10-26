@@ -108,7 +108,7 @@ class RasterMeta(BaseModel, extra="forbid"):
         """
         x_idx = np.arange(n_columns) + 0.5
         y_idx = np.zeros_like(x_idx)  # Use y=0 for a single row
-        x_coords, _ = self.transform * (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        x_coords, _ = self.transform @ (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
         return x_coords
 
     def get_cell_y_coords(self, n_rows: int) -> NDArray:
@@ -125,7 +125,7 @@ class RasterMeta(BaseModel, extra="forbid"):
         """
         x_idx = np.zeros(n_rows)  # Use x=0 for a single column
         y_idx = np.arange(n_rows) + 0.5
-        _, y_coords = self.transform * (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
+        _, y_coords = self.transform @ (x_idx, y_idx)  # type: ignore[reportAssignmentType] overloaded tuple size in affine
         return y_coords
 
     @classmethod
@@ -179,7 +179,7 @@ def infer_transform(
     (xs, ys) = get_affine_sign(crs)
     return Affine.translation(
         *infer_origin(x, y, cell_size=(cell_width, cell_height))
-    ) * Affine.scale(xs * cell_width, ys * cell_height)
+    ) @ Affine.scale(xs * cell_width, ys * cell_height)
 
 
 def infer_origin(

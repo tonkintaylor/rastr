@@ -225,7 +225,7 @@ class TestFullRaster:
     def test_full_raster_roundtrip_shape(self):
         """Test that full_raster(r.meta, bounds=r.bounds).shape == r.shape."""
         # Create a raster
-        transform = Affine.translation(0, 3) * Affine.scale(1.0, -1.0)
+        transform = Affine.translation(0, 3) @ Affine.scale(1.0, -1.0)
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=transform)
         arr = np.ones((3, 3))
         r1 = Raster(arr=arr, raster_meta=raster_meta)
@@ -500,7 +500,7 @@ class TestRasterizeGDF:
             {"value": [10.0], "geometry": polygons}, crs=_PROJECTED_CRS
         )
 
-        custom_transform = Affine.scale(2.0, -2.0) * Affine.translation(100, 200)
+        custom_transform = Affine.scale(2.0, -2.0) @ Affine.translation(100, 200)
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=custom_transform)
 
         result = rasterize_gdf(gdf, raster_meta=raster_meta, target_cols=["value"])
@@ -1515,7 +1515,7 @@ class TestRasterizeZGDF:
         polygon = self._create_3d_polygon(coords_2d, z_values)
         gdf = gpd.GeoDataFrame(geometry=[polygon], crs=_PROJECTED_CRS)
 
-        custom_transform = Affine.scale(0.5, -0.5) * Affine.translation(100, 200)
+        custom_transform = Affine.scale(0.5, -0.5) @ Affine.translation(100, 200)
         raster_meta = RasterMeta(crs=_PROJECTED_CRS, transform=custom_transform)
 
         result = rasterize_z_gdf(

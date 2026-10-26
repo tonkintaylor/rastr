@@ -30,7 +30,7 @@ classifiers = [
 ]
 dynamic = [ "urls", "version" ]
 dependencies = [
-  "affine>=2.4.0",
+  "affine>=3.0.0",
   "branca>=0.8.1",
   "folium>=0.20.0",
   "geopandas>=1.1.1",
@@ -108,7 +108,13 @@ version-file = "src/rastr/_version.py"
 
 [tool.uv]
 default-groups = [ "dev", "test", "doc" ]
-required-version = ">=0.7.13"             # sync with .pre-commit-config.yaml and release.yml
+required-version = ">=0.13.5" # sync with .pre-commit-config.yaml and release.yml
+constraint-dependencies = [
+  "certifi>=2026.10.19",
+  "pip>=26.2.2",
+  "uv>=0.13.5",
+  "sigstore>=4.5.1",
+]
 link-mode = "symlink"
 
 [tool.ruff]
@@ -251,7 +257,11 @@ markers = [
   "matplotlib: test requires matplotlib package",
 ]
 console_output_style = "progress"
-filterwarnings = [ "error" ]
+filterwarnings = [
+  "error",
+  # rasterio 1.4.x composes Affine transforms with `*`, which affine>=3.0.1 flags.
+  'ignore:Use `@` matmul instead of `\*` mul operator:PendingDeprecationWarning:rasterio',
+]
 xfail_strict = true
 log_cli_level = "INFO"
 

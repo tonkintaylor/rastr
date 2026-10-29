@@ -8,7 +8,7 @@ if [ ! -d ".git" ]; then
 fi
 
 # Ideally remove this duplication via https://github.com/astral-sh/uv/issues/10547
-uv_min_version="0.13.5" # Sync with pyproject.toml
+uv_min_version="0.13.6" # Sync with pyproject.toml
 
 export PATH="$PATH:$HOME/.local/bin"
 # Legacy install support < v0.5.0

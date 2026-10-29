@@ -13,5 +13,5 @@ max_line_length: '88'
 name_slug: rastr
 project_name: rastr
 project_short_description: Geospatial Raster datatype library for Python.
-py_version: 3.13.17
+py_version: 3.13.18
 tt_job_num: YYYTTNZ.0700
